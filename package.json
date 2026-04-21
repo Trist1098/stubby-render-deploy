@@ -1,0 +1,56 @@
+{
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "dotenv-cli": "^11.0.0",
+    "express": "^5.2.1",
+    "http-errors": "^2.0.1",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.5.0",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.4.0",
+    "jest": "^30.3.0",
+    "prettier": "^3.8.1",
+    "supertest": "^7.2.2"
+  },
+  "scripts": {
+    "start": "dotenv -e .env.dev -- node ./src/server.js",
+    "seed": "dotenv -e .env.dev -- node scripts/seed.js",
+    "migration:reset": "dotenv -e .env.test -- node scripts/reset.js",
+    "test:unit": "jest --testPathPatterns=__tests__/unit --silent",
+    "test:integration": "dotenv -e .env.test -- jest --testPathPatterns=__tests__/integration --globalSetup=./configs/jest-integration-setup.js --silent",
+    "test:e2e": "node scripts/clean-test-results.js && dotenv -e .env.test -- playwright test --config=configs/playwright.config.js",
+    "test": "jest --testPathPatterns=__tests__/unit --silent && dotenv -e .env.test -- jest --testPathPatterns=__tests__/integration --globalSetup=./configs/jest-integration-setup.js --silent && node scripts/clean-test-results.js && dotenv -e .env.test -- playwright test --config=configs/playwright.config.js",
+    "test:trace": "npm run test:e2e -- --reporter=html --trace on",
+    "lint": "eslint -c configs/eslint.config.mjs .",
+    "lint:fix": "eslint -c configs/eslint.config.mjs . --fix",
+    "lint:report": "eslint -c configs/eslint.config.mjs . --format html --output-file reports/eslint-report.html || true",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "report": "node scripts/qa-report.js"
+  },
+  "jest": {
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js",
+      "!src/public/**"
+    ],
+    "coverageDirectory": "coverage-report",
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    }
+  }
+}

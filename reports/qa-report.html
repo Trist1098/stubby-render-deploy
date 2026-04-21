@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QA Report</title>
+  <style>
+    body { font-family: 'Segoe UI', monospace; background: #1e1e2e; color: #cdd6f4; padding: 2rem; }
+    pre { white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.6; }
+    h1 { color: #89b4fa; }
+  </style>
+</head>
+<body>
+  <h1>QA Report</h1>
+  <pre>============================================================
+  QA REPORT
+  Generated: 2026-03-31T17:29:26.831Z
+============================================================
+
+────────────────────────────────────────────────────────────
+  AUTOMATED QA CHECKS
+────────────────────────────────────────────────────────────
+
+1. LINT (eslint)
+
+
+
+   <span style="color:#22c55e;font-weight:bold">[PASS]</span> No ESLint rule violations found.
+
+2. FORMAT CHECK (prettier)
+
+Checking formatting...
+All matched files use Prettier code style!
+
+   <span style="color:#22c55e;font-weight:bold">[PASS]</span> All files match Prettier code style
+
+3. UNIT + INTEGRATION TESTS (jest --coverage)
+
+Running database reset for integration tests...
+Resetting database schema...
+Schema applied.
+Running seed...
+Seeding data...
+Inserted 20 persons.
+Inserted 2 somethings.
+Seed data inserted successfully.
+Database reset completed successfully.
+----------------------|---------|----------|---------|---------|-------------------
+File                  | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+----------------------|---------|----------|---------|---------|-------------------
+All files             |   97.22 |    83.33 |   89.47 |   98.59 |                   
+ src                  |   94.73 |       50 |   66.66 |     100 |                   
+  app.js              |   94.73 |       50 |   66.66 |     100 | 37                
+ src/models           |   95.45 |      100 |   83.33 |   95.45 |                   
+  Person.model.js     |     100 |      100 |     100 |     100 |                   
+  Something.model.js  |     100 |      100 |     100 |     100 |                   
+  db.js               |      80 |      100 |       0 |      80 | 8                 
+ src/routers          |     100 |      100 |     100 |     100 |                   
+  Person.router.js    |     100 |      100 |     100 |     100 |                   
+  Something.router.js |     100 |      100 |     100 |     100 |                   
+----------------------|---------|----------|---------|---------|-------------------
+
+
+4. E2E TESTS (playwright)
+
+
+&gt; test:e2e
+&gt; node scripts/clean-test-results.js &amp;&amp; dotenv -e .env.test -- playwright test --config=configs/playwright.config.js
+
+Setting environment to test
+Running migrations for test environment...
+Resetting database schema...
+Schema applied.
+Running seed...
+Seeding data...
+Inserted 20 persons.
+Inserted 2 somethings.
+Seed data inserted successfully.
+Database reset completed successfully.
+
+Running 13 tests using 1 worker
+
+  ✓   1 [chromium] › e2e-tests\something-management.spec.js:24:3 › Page load › should display the page heading (162ms)
+  ✓   2 [chromium] › e2e-tests\something-management.spec.js:29:3 › Page load › should display the form with a Name label and Enter button (103ms)
+  ✓   3 [chromium] › e2e-tests\something-management.spec.js:35:3 › Page load › should display the table headers (Id, Name, Action) (110ms)
+  ✓   4 [chromium] › e2e-tests\something-management.spec.js:46:3 › Load Somethings › should show seeded rows in the table on page load (111ms)
+  ✓   5 [chromium] › e2e-tests\something-management.spec.js:54:3 › Load Somethings › each row should have an Id, Name, and Delete button (140ms)
+  ✓   6 [chromium] › e2e-tests\something-management.spec.js:66:3 › New Something › should allow me to add a something (291ms)
+  ✓   7 [chromium] › e2e-tests\something-management.spec.js:71:3 › New Something › should allow me to add multiple somethings (346ms)
+  ✓   8 [chromium] › e2e-tests\something-management.spec.js:81:3 › New Something › should clear the input field after adding (274ms)
+  ✓   9 [chromium] › e2e-tests\something-management.spec.js:87:3 › New Something › should not submit when name is empty (HTML5 required validation) (170ms)
+  ✓  10 [chromium] › e2e-tests\something-management.spec.js:101:3 › New Something › should handle special characters in the name (XSS boundary) (278ms)
+  ✓  11 [chromium] › e2e-tests\something-management.spec.js:114:3 › Delete Something › should allow me to remove a something (405ms)
+  ✓  12 [chromium] › e2e-tests\something-management.spec.js:130:3 › Delete Something › other rows should remain after deleting one (601ms)
+  ✓  13 [chromium] › e2e-tests\something-management.spec.js:148:3 › Delete Something › table should be empty after deleting all items (boundary – zero rows) (1.2s)
+
+  13 passed (7.3s)
+
+
+============================================================
+  QA SUMMARY
+============================================================
+   <span style="color:#22c55e;font-weight:bold">[PASS]</span> 1. LINT (eslint)
+   <span style="color:#22c55e;font-weight:bold">[PASS]</span> 2. FORMAT CHECK (prettier)
+   <span style="color:#22c55e;font-weight:bold">[PASS]</span> 3. UNIT + INTEGRATION TESTS (jest --coverage)
+   <span style="color:#22c55e;font-weight:bold">[PASS]</span> 4. E2E TESTS (playwright)
+
+============================================================
+  REPORTS
+============================================================
+   playwright-report/index.html    (E2E test report)
+   coverage-report/index.html      (HTML coverage report)
+   coverage-report/lcov.info       (LCOV for CI integration)
+   reports/eslint-report.html      (lint analysis)
+   reports/qa-report.html          (this combined report)
+============================================================
+
+   All automated QA checks passed.
+</pre>
+</body>
+</html>
