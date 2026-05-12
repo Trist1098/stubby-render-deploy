@@ -3,8 +3,11 @@ const createError = require('http-errors');
 const path = require('path');
 
 // Import route handlers
-const somethingRouter = require('./routers/Something.router');
-const personRouter = require('./routers/Person.router');
+const userRoutes = require('./routers/User.router');
+const matchRoutes = require('./routers/Match.router');
+const studySessionRoutes = require('./routers/StudySession.router');
+const chatRoutes = require('./routers/Chat.router');
+const homeRoutes = require('./routers/Home.router');
 
 const app = express();
 
@@ -18,8 +21,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Browsers automatically request /favicon.ico — return 204 (no content) to avoid 404 noise.
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-app.use('/somethings', somethingRouter);
-app.use('/persons', personRouter);
+// Define routes
+app.use('/api/users', userRoutes);
+app.use('/api/matches', matchRoutes);
+app.use('/api/sessions', studySessionRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api', homeRoutes);
 
 // 404 handler — if no route above matched the request,
 // create a 404 error and pass it to the error handler below.
