@@ -1,0 +1,69 @@
+/* Layout */
+.chat-main {
+  height: calc(100vh - 72px);
+  overflow: hidden;
+}
+
+.chat-sidebar {
+  width: 300px;
+  min-width: 220px;
+  max-width: 340px;
+  background: #fff;
+}
+
+.chat-panel {
+  background: #f8f9fa;
+}
+
+/* Sidebar header*/
+.chat-sidebar-header {
+  background: #fff;
+}
+
+/* Conversation list items */
+.conv-item {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.conv-item:hover {
+  background: #f0f4ff;
+}
+
+.conv-item.active {
+  background: #e8eeff;
+}
+
+.conv-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #e8eeff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.conv-time {
+  font-size: 0.7rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Modal tweaks */
+#friendCheckboxList {
+  background: #fafafa;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .chat-sidebar {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .chat-panel {
+    display: none !important;
+  }
+}

@@ -1,3 +1,69 @@
-const model = require('../models/Chat.model');
+const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends } = require('../models/Chat.model');
 
-// Add controller functions here
+module.exports.createConversation = async (req, res, next) => {
+  const { type, name, friendId, memberIds } = req.body;
+  const userId = res.locals.userId;
+
+  if (!type || !['friend', 'group'].includes(type)) {
+    return res.status(400).json({ message: 'type must be "friend" or "group"' });
+  }
+
+  try {
+    if (type === 'friend') {
+      if (!friendId) {
+        return res.status(400).json({ message: 'friendId is required for 1-to-1 chat' });
+      }
+      const areFriends = await checkFriendship(userId, Number(friendId));
+      if (!areFriends) {
+        return res.status(403).json({ message: 'You are not friends with this user' });
+      }
+      const conv = await createConversation(null, 'friend', [userId, Number(friendId)], userId);
+      return res.status(201).json(conv);
+    }
+
+    if (type === 'group') {
+      if (!name || !name.trim()) {
+        return res.status(400).json({ message: 'name is required for group chat' });
+      }
+      if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
+        return res.status(400).json({ message: 'memberIds array is required for group chat' });
+      }
+      const allMembers = [userId, ...memberIds.map(Number).filter(id => id !== userId)];
+      const conv = await createConversation(name.trim(), 'group', allMembers, userId);
+      return res.status(201).json(conv);
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getConversationById = async (req, res, next) => {
+  const { conversationId } = req.params;
+  try {
+    const conv = await getConversationById(conversationId);
+    if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+    res.json(conv);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getAllConversations = async (req, res, next) => {
+  const userId = res.locals.userId;
+  try {
+    const conversations = await getConversationsByUserId(userId);
+    res.json(conversations);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getFriends = async (req, res, next) => {
+  const userId = res.locals.userId;
+  try {
+    const friends = await getFriends(userId);
+    res.json(friends);
+  } catch (error) {
+    next(error);
+  }
+};

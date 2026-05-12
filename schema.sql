@@ -277,6 +277,7 @@ CREATE TABLE ConversationMember (
     id              SERIAL PRIMARY KEY,
     conversation_id INT NOT NULL,
     user_id         INT NOT NULL,
+    role            VARCHAR(20) DEFAULT 'member',
     joined_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)         REFERENCES "User"(user_id) ON DELETE CASCADE,

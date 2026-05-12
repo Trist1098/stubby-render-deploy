@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const jwtMiddleware = require('../middlewares/jwt.middleware');
-const model = require('../models/Chat.model');
+const { createConversation, getAllConversations, getConversationById, getFriends } = require('../controllers/Chat.controller');
 
-// ##############################################################
-// FEATURE: Chat & Messaging
-// ##############################################################
+// Get friends for the new chat modal
+router.get('/friends', jwtMiddleware.verifyToken, getFriends);
+
+// Conversation list and creation
+router.get('/', jwtMiddleware.verifyToken, getAllConversations);
+router.post('/', jwtMiddleware.verifyToken, createConversation);
+router.get('/:conversationId', jwtMiddleware.verifyToken, getConversationById);
 
 module.exports = router;
