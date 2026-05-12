@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +9,46 @@
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .calendar-card {
+            min-height: 560px;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 0.5rem;
+        }
+        .calendar-cell {
+            min-height: 92px;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 0.85rem;
+            background: #fff;
+        }
+        .calendar-cell--header {
+            background: #f8fafc;
+            font-weight: 700;
+        }
+        .calendar-cell--today {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 1px rgba(13,110,253,.2);
+        }
+        .event-pill {
+            display: block;
+            margin-top: 0.55rem;
+            padding: 0.35rem 0.55rem;
+            border-radius: 999px;
+            background: #0d6efd;
+            color: #fff;
+            font-size: 0.8rem;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
 </head>
+
 <body class="d-flex flex-column min-vh-100">
     <header>
         <div class="container">
@@ -17,8 +57,9 @@
                     <a href="index.html" class="d-flex align-items-center gap-2 text-decoration-none">
                         <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
                     </a>
-                    
-                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+
+                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#navContent">
                         <i class="fas fa-bars"></i>
                     </button>
 
@@ -75,6 +116,41 @@
             </div>
         </div>
 
+        <section class="mb-5">
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div class="card calendar-card shadow-sm p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h2 id="monthTitle" class="h4 mb-1">Loading month...</h2>
+                                <p class="text-muted mb-0" id="calendarSubtitle">Your event schedule at a glance.</p>
+                            </div>
+                            <div class="btn-group">
+                                <button id="prevMonth" type="button" class="btn btn-outline-primary btn-sm">Previous</button>
+                                <button id="nextMonth" type="button" class="btn btn-outline-primary btn-sm">Next</button>
+                            </div>
+                        </div>
+                        <div class="calendar-grid calendar-cell--header">
+                            <div class="calendar-cell calendar-cell--header">Sun</div>
+                            <div class="calendar-cell calendar-cell--header">Mon</div>
+                            <div class="calendar-cell calendar-cell--header">Tue</div>
+                            <div class="calendar-cell calendar-cell--header">Wed</div>
+                            <div class="calendar-cell calendar-cell--header">Thu</div>
+                            <div class="calendar-cell calendar-cell--header">Fri</div>
+                            <div class="calendar-cell calendar-cell--header">Sat</div>
+                        </div>
+                        <div id="calendarGrid" class="calendar-grid"></div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card shadow-sm p-4 h-100">
+                        <h5 class="fw-bold mb-3">Upcoming Events</h5>
+                        <div id="eventList" class="list-group"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section>
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="fw-bold h4 mb-0">Partner Suggestions</h2>
@@ -99,5 +175,7 @@
     <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
     <script src="js/home/dashboard.js"></script>
+    <script src="js/home/calendar.js"></script>
 </body>
+
 </html>
