@@ -39,6 +39,14 @@ DROP TABLE IF EXISTS CalendarEvent;
 DROP TABLE IF EXISTS Notification;
 DROP TABLE IF EXISTS ChatMessage;
 DROP TABLE IF EXISTS ConversationMember;
+DROP TABLE IF EXISTS micro_goal_workings CASCADE;
+DROP TABLE IF EXISTS micro_goal_progress CASCADE;
+DROP TABLE IF EXISTS micro_goals CASCADE;
+DROP TABLE IF EXISTS status_events CASCADE;
+DROP TABLE IF EXISTS consultation_reflections CASCADE;
+DROP TABLE IF EXISTS consultation_notes CASCADE;
+DROP TABLE IF EXISTS consultation_messages CASCADE;
+DROP TABLE IF EXISTS consultation_sessions CASCADE;
 DROP TABLE IF EXISTS SessionReflection;
 DROP TABLE IF EXISTS SessionMember;
 DROP TABLE IF EXISTS MatchRequest;
@@ -232,9 +240,12 @@ CREATE TABLE StudySession (
     title          VARCHAR(255),
     micro_goal     VARCHAR(255),
     duration       INT DEFAULT 0,
+    planned_duration_seconds INT,
     focus_duration INT DEFAULT 0,
     break_duration INT DEFAULT 0,
     status         VARCHAR(20) DEFAULT 'active',
+    started_at     TIMESTAMP,
+    ended_at       TIMESTAMP,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at   TIMESTAMP,
     FOREIGN KEY (host_id) REFERENCES "User"(user_id) ON DELETE CASCADE
@@ -248,8 +259,10 @@ CREATE TABLE SessionMember (
     status_timer INT DEFAULT 0,
     progress     INT DEFAULT 0,
     joined_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    left_at      TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(session_id, user_id)
 );
 
 CREATE TABLE SessionReflection (
@@ -258,9 +271,12 @@ CREATE TABLE SessionReflection (
     user_id       INT NOT NULL,
     content       TEXT,
     rating        INT,
+    quick_rating  VARCHAR(50),
+    notes         TEXT,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(session_id, user_id)
 );
 
 -- =============================================
@@ -384,3 +400,103 @@ CREATE TABLE Friendship (
     UNIQUE(user_id, friend_id)
 );
 
+-- =============================================
+-- STUDY SESSION WORKFLOW
+-- =============================================
+
+CREATE TABLE consultation_sessions (
+    id                   SERIAL PRIMARY KEY,
+    study_session_id     INT NOT NULL,
+    student_user_id      INT NOT NULL,
+    teacher_user_id      INT,
+    topic                VARCHAR(255),
+    question_text        TEXT,
+    student_attempt_text TEXT,
+    teacher_direction    VARCHAR(255),
+    status               VARCHAR(50) NOT NULL,
+    started_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at             TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (student_user_id)  REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_user_id)  REFERENCES "User"(user_id) ON DELETE SET NULL
+);
+
+CREATE TABLE consultation_messages (
+    id                      SERIAL PRIMARY KEY,
+    consultation_session_id INT NOT NULL,
+    sender_user_id          INT NOT NULL,
+    message_text            TEXT NOT NULL,
+    sent_at                 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (consultation_session_id) REFERENCES consultation_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE consultation_notes (
+    id                      SERIAL PRIMARY KEY,
+    consultation_session_id INT NOT NULL,
+    user_id                 INT NOT NULL,
+    note_text               TEXT NOT NULL,
+    created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (consultation_session_id) REFERENCES consultation_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)                 REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE consultation_reflections (
+    id                      SERIAL PRIMARY KEY,
+    consultation_session_id INT NOT NULL,
+    submitted_by_user_id    INT NOT NULL,
+    student_understood      BOOLEAN,
+    summary_checklist_json  JSONB,
+    additional_notes        TEXT,
+    created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (consultation_session_id) REFERENCES consultation_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (submitted_by_user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE status_events (
+    id                           SERIAL PRIMARY KEY,
+    study_session_participant_id INT NOT NULL,
+    status                       VARCHAR(50) NOT NULL,
+    started_at                   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at                     TIMESTAMP,
+    FOREIGN KEY (study_session_participant_id) REFERENCES SessionMember(member_id) ON DELETE CASCADE
+);
+
+CREATE TABLE micro_goals (
+    id                 SERIAL PRIMARY KEY,
+    study_session_id   INT NOT NULL,
+    created_by_user_id INT NOT NULL,
+    title              VARCHAR(255) NOT NULL,
+    description        TEXT,
+    queue_position     INT NOT NULL,
+    status             VARCHAR(50) NOT NULL,
+    activated_at       TIMESTAMP,
+    completed_at       TIMESTAMP,
+    FOREIGN KEY (study_session_id)   REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE (study_session_id, queue_position)
+);
+
+CREATE TABLE micro_goal_progress (
+    id               SERIAL PRIMARY KEY,
+    micro_goal_id    INT NOT NULL,
+    user_id          INT NOT NULL,
+    progress_percent INT NOT NULL DEFAULT 0,
+    is_completed     BOOLEAN NOT NULL DEFAULT FALSE,
+    completed_at     TIMESTAMP,
+    updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (micro_goal_id) REFERENCES micro_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)       REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE (micro_goal_id, user_id)
+);
+
+CREATE TABLE micro_goal_workings (
+    id                     SERIAL PRIMARY KEY,
+    micro_goal_progress_id INT NOT NULL,
+    content_type           VARCHAR(50) NOT NULL,
+    text_content           TEXT,
+    image_url              VARCHAR(500),
+    created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (micro_goal_progress_id) REFERENCES micro_goal_progress(id) ON DELETE CASCADE
+);

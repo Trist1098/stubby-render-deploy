@@ -302,13 +302,7 @@ const sessions = [
   {h: 2, title:'FOP2 Exam Prep', goal:'Review Chapter 5-7', dur:5400, focus:4500, brk:900, status:'active'}
 ];
 
-const sessMembers = [
-  {sid: 1, u: 3, st: 'focus', timer: 2700, prog: 80},
-  {sid: 1, u: 2, st: 'focus', timer: 2400, prog: 60},
-  {sid: 1, u: 5, st: 'break', timer: 900, prog: 45},
-  {sid: 2, u: 3, st: 'focus', timer: 4500, prog: 0},
-  {sid: 2, u: 4, st: 'focus', timer: 4500, prog: 0}
-];
+const sessMembers = [];
 
 const events = [
   {cr: 2, name: 'Marcus Tan', topic: 'BED Project Discussion', loc: 'Online (Zoom)', date: '2025-11-14', time: '3:00 PM - 5:00 PM', type: 'Study Session'},
