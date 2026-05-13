@@ -1,0 +1,9 @@
+const pool = require('./db');
+
+module.exports.selectAllBadges = async function selectAllBadges() {
+  const SQLSTATEMENT = `
+    SELECT * FROM Badge
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT);
+  return rows;
+};
