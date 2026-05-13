@@ -1,4 +1,4 @@
-const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends } = require('../models/Chat.model');
+const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId } = require('../models/Chat.model');
 
 module.exports.createConversation = async (req, res, next) => {
   const { type, name, friendId, memberIds } = req.body;
@@ -63,6 +63,55 @@ module.exports.getFriends = async (req, res, next) => {
   try {
     const friends = await getFriends(userId);
     res.json(friends);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.sendMessage = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const text = typeof req.body.text === 'string' ? req.body.text.trim() : '';
+
+  if (!Number.isInteger(conversationId)) {
+    return res.status(400).json({ message: 'Invalid conversation id' });
+  }
+
+  if (!text) {
+    return res.status(400).json({ message: 'Message cannot be empty' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) {
+      return res.status(403).json({ message: 'You are not a member of this conversation' });
+    }
+
+    const message = await sendMessage(conversationId, userId, text);
+    res.status(201).json(message);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getMessages = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+  if (!Number.isInteger(conversationId)) {
+    return res.status(400).json({ message: 'Invalid conversation id' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) {
+      return res.status(403).json({ message: 'You are not a member of this conversation' });
+    }
+
+    const messages = await getMessagesByConversationId(conversationId, limit, offset);
+    res.json(messages);
   } catch (error) {
     next(error);
   }

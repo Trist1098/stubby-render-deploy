@@ -93,3 +93,56 @@ module.exports.getFriends = async (userId) => {
   );
   return result.rows;
 };
+
+module.exports.isConversationMember = async (conversationId, userId) => {
+  const result = await pool.query(
+    `SELECT 1
+     FROM ConversationMember
+     WHERE conversation_id = $1 AND user_id = $2`,
+    [conversationId, userId]
+  );
+  return result.rows.length > 0;
+};
+
+module.exports.sendMessage = async (conversationId, senderId, text) => {
+  const result = await pool.query(
+    `INSERT INTO ChatMessage (conversation_id, sender_id, text)
+     VALUES ($1, $2, $3)
+     RETURNING message_id, conversation_id, sender_id, text, is_announcement, created_at`,
+    [conversationId, senderId, text]
+  );
+
+  const message = result.rows[0];
+  const senderResult = await pool.query(
+    `SELECT username
+     FROM "User"
+     WHERE user_id = $1`,
+    [senderId]
+  );
+
+  return {
+    ...message,
+    sender_username: senderResult.rows[0]?.username || 'Unknown user',
+  };
+};
+
+module.exports.getMessagesByConversationId = async (conversationId, limit = 50, offset = 0) => {
+  const result = await pool.query(
+    `SELECT
+       cm.message_id,
+       cm.conversation_id,
+       cm.sender_id,
+       u.username AS sender_username,
+       cm.text,
+       cm.is_announcement,
+       cm.created_at
+     FROM ChatMessage cm
+     JOIN "User" u ON u.user_id = cm.sender_id
+     WHERE cm.conversation_id = $1
+     ORDER BY cm.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [conversationId, limit, offset]
+  );
+
+  return result.rows.reverse();
+};

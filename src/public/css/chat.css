@@ -13,6 +13,7 @@
 
 .chat-panel {
   background: #f8f9fa;
+  min-width: 0;
 }
 
 /* Sidebar header*/
@@ -51,6 +52,111 @@
   flex-shrink: 0;
 }
 
+/* Message area */
+.chat-header {
+  min-height: 70px;
+  background: #fff;
+}
+
+.chat-wallpaper {
+  background-color: #eef2f7;
+  background-image:
+    radial-gradient(circle at 18px 18px, rgba(49, 94, 251, 0.08) 2px, transparent 2px),
+    radial-gradient(circle at 54px 54px, rgba(30, 41, 59, 0.06) 2px, transparent 2px);
+  background-size: 72px 72px;
+}
+
+.chat-wallpaper.soft {
+  background-color: #f6f7fb;
+  background-image:
+    linear-gradient(135deg, rgba(13, 110, 253, 0.08) 25%, transparent 25%),
+    linear-gradient(315deg, rgba(25, 135, 84, 0.08) 25%, transparent 25%);
+  background-position:
+    16px 0,
+    16px 0;
+  background-size: 32px 32px;
+}
+
+.chat-wallpaper.grid {
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.messages-list {
+  padding: 1rem;
+}
+
+.message-row {
+  display: flex;
+  margin-bottom: 0.75rem;
+}
+
+.message-row.new-message {
+  animation: bubbleIn 0.18s ease-out both;
+}
+
+.message-row.sent {
+  justify-content: flex-end;
+  transform-origin: right bottom;
+}
+
+.message-row.received {
+  justify-content: flex-start;
+  transform-origin: left bottom;
+}
+
+.message-bubble {
+  max-width: min(72%, 620px);
+  padding: 0.7rem 0.85rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  overflow-wrap: anywhere;
+}
+
+.message-row.sent .message-bubble {
+  background: #0d6efd;
+  color: #fff;
+}
+
+.message-row.received .message-bubble {
+  background: #fff;
+  color: #212529;
+}
+
+.message-meta {
+  font-size: 0.72rem;
+  opacity: 0.78;
+}
+
+.message-composer {
+  background: #fff;
+}
+
+.wallpaper-picker {
+  max-width: 150px;
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-row.new-message {
+    animation: none;
+  }
+}
+
 /* Modal tweaks */
 #friendCheckboxList {
   background: #fafafa;
@@ -64,6 +170,15 @@
   }
 
   .chat-panel {
-    display: none !important;
+    min-height: 70vh;
+  }
+
+  .chat-main {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .message-bubble {
+    max-width: 86%;
   }
 }
