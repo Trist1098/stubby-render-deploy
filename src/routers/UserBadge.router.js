@@ -7,6 +7,6 @@ const userBadgeController = require('../controllers/UserBadge.controller');
 // FEATURE: User Badge CRUD
 // ##############################################################
 
-router.get('/', jwtMiddleware.verifyToken, userBadgeController.getUserOwnedBadges);
+router.get('/:userId', jwtMiddleware.verifyToken, userBadgeController.getUserOwnedBadges);
 
 module.exports = router;

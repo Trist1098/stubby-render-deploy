@@ -6,6 +6,7 @@ module.exports.selectUserOwnedBadges = async function selectUserOwnedBadges(user
     JOIN userbadge ub ON b.badge_id = ub.badge_id
     WHERE ub.user_id = $1
   `;
-  const { rows } = await pool.query(SQLSTATEMENT, [userId]);
+  const VALUES = [userId];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
   return rows;
 };
