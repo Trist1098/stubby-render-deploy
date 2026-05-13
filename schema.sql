@@ -190,7 +190,7 @@ CREATE TABLE MatchPreference (
     end_time           VARCHAR(10),
     match_rate         VARCHAR(20),
     style              VARCHAR(50),
-    language_id        INT,
+    selected_languages JSONB,
     duration           INT DEFAULT 60,
     priority           INT DEFAULT 1,
     gender_pref        VARCHAR(20),
@@ -198,8 +198,7 @@ CREATE TABLE MatchPreference (
     match_my_time      BOOLEAN DEFAULT FALSE,
     study_habit        VARCHAR(50),
     additional_details TEXT,
-    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (language_id) REFERENCES Language(language_id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE MatchRequest (
