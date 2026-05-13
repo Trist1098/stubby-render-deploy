@@ -1,9 +1,9 @@
 const success = (res, status, data) => {
-  res.status(status).json({ data });
+  return res.status(status).json({ data });
 };
 
 const fail = (res, status, message) => {
-  res.status(status).json({ error: message });
+  return res.status(status).json({ error: message });
 };
 
 const ok = (res, data) => success(res, 200, data);

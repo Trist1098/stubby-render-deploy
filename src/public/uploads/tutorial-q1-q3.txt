@@ -1,0 +1,5 @@
+Tutorial Q1-Q3 completed document
+
+Q1: Loop invariant identified and tested.
+Q2: Recursive case written with base case.
+Q3: Time complexity shown with recurrence expansion.

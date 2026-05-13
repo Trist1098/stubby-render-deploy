@@ -1,93 +1,138 @@
 const model = require('../models/StudySession.model');
+const { badReq, created, notFound, ok } = require('../utils/responseHelpers');
 
 const parseId = (value) => {
-    const id = Number(value);
-    return Number.isInteger(id) && id > 0 ? id : null;
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
 };
 
+const getTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '');
+
 module.exports.getSession = async function getSession(req, res, next) {
-    const sessionId = parseId(req.params.sessionId);
-    if (!sessionId) return res.status(400).json({ error: 'Valid session id is required' });
+  const sessionId = parseId(req.params.sessionId);
+  if (!sessionId) return badReq(res, 'Valid session id is required');
 
-    try {
-        const session = await model.selectSessionById(sessionId);
-        if (!session) return res.status(404).json({ error: 'Study session not found' });
+  try {
+    const session = await model.selectSessionById(sessionId);
+    if (!session) return notFound(res, 'Study session not found');
 
-        const microGoal = await model.selectCurrentMicroGoal(sessionId);
-        const queuedMicroGoals = await model.selectQueuedMicroGoals(sessionId, microGoal?.id);
-        const members = await model.selectSessionMembers(sessionId, microGoal?.id);
+    const microGoal = await model.selectCurrentMicroGoal(sessionId);
+    const queuedMicroGoals = await model.selectQueuedMicroGoals(sessionId, microGoal?.id);
+    const members = await model.selectSessionMembers(sessionId, microGoal?.id);
 
-        return res.status(200).json({
-            data: {
-                ...session,
-                micro_goal: microGoal,
-                queued_micro_goals: queuedMicroGoals,
-                members,
-            },
-        });
-    } catch (error) {
-        return next(error);
-    }
+    return ok(res, {
+      ...session,
+      micro_goal: microGoal,
+      queued_micro_goals: queuedMicroGoals,
+      members,
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
 module.exports.getMembers = async function getMembers(req, res, next) {
-    const sessionId = parseId(req.params.sessionId);
-    if (!sessionId) return res.status(400).json({ error: 'Valid session id is required' });
+  const sessionId = parseId(req.params.sessionId);
+  if (!sessionId) return badReq(res, 'Valid session id is required');
 
-    try {
-        const microGoal = await model.selectCurrentMicroGoal(sessionId);
-        const members = await model.selectSessionMembers(sessionId, microGoal?.id);
-        return res.status(200).json({ data: members });
-    } catch (error) {
-        return next(error);
-    }
+  try {
+    const microGoal = await model.selectCurrentMicroGoal(sessionId);
+    const members = await model.selectSessionMembers(sessionId, microGoal?.id);
+    return ok(res, members);
+  } catch (error) {
+    return next(error);
+  }
 };
 
 module.exports.getMicroGoals = async function getMicroGoals(req, res, next) {
-    const sessionId = parseId(req.params.sessionId);
-    if (!sessionId) return res.status(400).json({ error: 'Valid session id is required' });
+  const sessionId = parseId(req.params.sessionId);
+  if (!sessionId) return badReq(res, 'Valid session id is required');
 
-    try {
-        const goals = await model.selectMicroGoalsBySessionId(sessionId);
-        return res.status(200).json({ data: goals });
-    } catch (error) {
-        return next(error);
-    }
+  try {
+    const goals = await model.selectMicroGoalsBySessionId(sessionId);
+    return ok(res, goals);
+  } catch (error) {
+    return next(error);
+  }
 };
 
 module.exports.addMicroGoal = async function addMicroGoal(req, res, next) {
-    const sessionId = parseId(req.params.sessionId);
-    const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
-    const createdByUserId = parseId(req.body.created_by_user_id);
+  const sessionId = parseId(req.params.sessionId);
+  const title = getTrimmedString(req.body.title);
+  const createdByUserId = parseId(req.body.created_by_user_id);
 
-    if (!sessionId) return res.status(400).json({ error: 'Valid session id is required' });
-    if (!title) return res.status(400).json({ error: 'Micro-goal title is required' });
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!title) return badReq(res, 'Micro-goal title is required');
 
-    try {
-        const goal = await model.insertMicroGoal({
-            study_session_id: sessionId,
-            created_by_user_id: createdByUserId,
-            title,
-            description: req.body.description,
-        });
+  try {
+    const goal = await model.insertMicroGoal({
+      study_session_id: sessionId,
+      created_by_user_id: createdByUserId,
+      title,
+      description: req.body.description,
+    });
 
-        if (!goal) return res.status(404).json({ error: 'Study session not found' });
-        return res.status(201).json({ data: goal });
-    } catch (error) {
-        return next(error);
-    }
+    if (!goal) return notFound(res, 'Study session not found');
+    return created(res, goal);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const microGoalId = parseId(req.params.microGoalId);
+  const userId = parseId(req.body.user_id);
+  const equationText = getTrimmedString(req.body.equation_text);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!microGoalId) return badReq(res, 'Valid micro-goal id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
+  if (!equationText && !req.file) {
+    return badReq(res, 'Add an equation, document, or image before uploading');
+  }
+
+  try {
+    const baseEvidence = {
+      study_session_id: sessionId,
+      micro_goal_id: microGoalId,
+      user_id: userId,
+    };
+    const evidencePayloads = [
+      equationText && {
+        ...baseEvidence,
+        content_type: 'equation',
+        text_content: equationText,
+      },
+      req.file && {
+        ...baseEvidence,
+        content_type: req.file.mimetype.startsWith('image/') ? 'image' : 'file',
+        text_content: req.file.originalname,
+        image_url: `/uploads/${req.file.filename}`,
+      },
+    ].filter(Boolean);
+
+    const savedEvidence = (
+      await Promise.all(evidencePayloads.map(model.insertMicroGoalEvidence))
+    ).filter(Boolean);
+    if (!savedEvidence.length) return notFound(res, 'Micro-goal not found');
+
+    return created(res, savedEvidence);
+  } catch (error) {
+    return next(error);
+  }
 };
 
 module.exports.exitSession = async function exitSession(req, res, next) {
-    const sessionId = parseId(req.params.sessionId);
-    if (!sessionId) return res.status(400).json({ error: 'Valid session id is required' });
+  const sessionId = parseId(req.params.sessionId);
+  if (!sessionId) return badReq(res, 'Valid session id is required');
 
-    try {
-        const session = await model.exitSession(sessionId);
-        if (!session) return res.status(404).json({ error: 'Study session not found' });
+  try {
+    const session = await model.exitSession(sessionId);
+    if (!session) return notFound(res, 'Study session not found');
 
-        return res.status(200).json({ data: session });
-    } catch (error) {
-        return next(error);
-    }
+    return ok(res, session);
+  } catch (error) {
+    return next(error);
+  }
 };
