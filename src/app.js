@@ -8,6 +8,11 @@ const matchRoutes = require('./routers/Match.router');
 const studySessionRoutes = require('./routers/StudySession.router');
 const chatRoutes = require('./routers/Chat.router');
 const homeRoutes = require('./routers/Home.router');
+const friendRoutes = require('./routers/Friend.router');
+const institutionRoutes = require('./routers/Institution.router');
+const diplomaRoutes = require('./routers/Diploma.router');
+const badgeRoutes = require('./routers/Badge.router');
+const userBadgeRoutes = require('./routers/UserBadge.router');
 
 const app = express();
 
@@ -26,6 +31,11 @@ app.use('/api/users', userRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/sessions', studySessionRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/friend', friendRoutes);
+app.use('/api/institution', institutionRoutes);
+app.use('/api/diploma', diplomaRoutes);
+app.use('/api/badge', badgeRoutes);
+app.use('/api/userbadges', userBadgeRoutes);
 app.use('/api', homeRoutes);
 
 // 404 handler — if no route above matched the request,
