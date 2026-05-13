@@ -1,11 +1,10 @@
-const friendModel = require('../models/Institution.model');
+const institutionModel = require('../models/Institution.model');
 
 module.exports.getInstitution = async function (req, res, next) {
-  const user = auth.getUser();
-  const institutionId = user.institution_id;
+    const institutionId = req.params.institutionId;
 
   try {
-    const institutions = await institutionModel.selectInstitutionByInstitutionId(institutionId);
+    const institutions = await institutionModel.getInstitutionByInstitutionId(institutionId);
     res.status(200).json(institutions);
   } catch (error) {
     console.error('Error getInstitution:', error);
@@ -13,10 +12,11 @@ module.exports.getInstitution = async function (req, res, next) {
   }
 };
 
+
 module.exports.updateInstitution = async function (req, res, next) {
   const data = {
     institutionId : req.params.institutionId,
-    userId: user.user_id,
+    userId: res.locals.user.user_id,
   }
 
   try {
@@ -25,5 +25,5 @@ module.exports.updateInstitution = async function (req, res, next) {
   } catch (error) {
     console.error('Error updateInstitution:', error);
     next(error);
-  }   
+  }
 };
