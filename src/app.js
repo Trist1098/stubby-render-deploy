@@ -8,6 +8,9 @@ const matchRoutes = require('./routers/Match.router');
 const studySessionRoutes = require('./routers/StudySession.router');
 const chatRoutes = require('./routers/Chat.router');
 const homeRoutes = require('./routers/Home.router');
+const moduleRoutes = require('./routers/Module.router');
+const prefRoutes = require('./routers/MatchPreference.router');
+const languageRoutes = require('./routers/Language.router');
 
 const app = express();
 
@@ -26,7 +29,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/sessions', studySessionRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/modules', moduleRoutes);
+app.use('/api/preferences', prefRoutes);
 app.use('/api', homeRoutes);
+app.use('/api/languages', languageRoutes);
 
 // 404 handler — if no route above matched the request,
 // create a 404 error and pass it to the error handler below.
