@@ -207,6 +207,7 @@ CREATE TABLE MatchRequest (
     sender_id   INT NOT NULL,
     receiver_id INT NOT NULL,
     module_id   INT,
+    topic       VARCHAR(255),
     time_slot   VARCHAR(100),
     location    VARCHAR(255),
     type        VARCHAR(20) DEFAULT 'one-on-one',

@@ -90,6 +90,19 @@ header {
     transition: all 0.3s ease;
 }
 
+.error-message {
+    display: none;
+    font-size: 0.75rem;
+    color: #dc3545;
+    margin-top: 0.25rem;
+    font-weight: normal;
+}
+
+.is-invalid-field {
+    border-color: #dc3545 !important;
+    background-color: #fff8f8 !important;
+}
+
 .form-control.bg-light:focus, 
 .form-select.bg-light:focus {
     border-color: var(--primary) !important;
@@ -99,6 +112,11 @@ header {
 
 #searchInput {
     padding-left: 0.5rem !important;
+}
+
+::placeholder {
+    color: #94a3b8 !important;
+    opacity: 0.8 !important;
 }
 
 .input-group:focus-within .input-group-text.bg-light,

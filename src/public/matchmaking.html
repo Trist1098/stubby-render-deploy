@@ -144,7 +144,7 @@
     </main>
 
     <!-- Match Request Modal -->
-    <div class="modal fade" id="matchModal" tabindex="-1">
+    <div class="modal fade" id="matchModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg rounded-5">
                 <div class="modal-body p-5">
@@ -155,28 +155,49 @@
                         <input type="hidden" id="targetId">
                         
                         <div class="mb-3">
-                            <label class="form-label small fw-black text-muted uppercase">STUDY TOPIC / MODULE</label>
-                            <input type="text" id="reqTopic" class="form-control bg-light border-0 py-3 rounded-4" placeholder="e.g. BED Unit 5" required>
+                            <label class="form-label small fw-black text-muted uppercase">MODULE <span class="text-danger">*</span></label>
+                            <select id="reqModuleId" class="form-select bg-light border-0 py-3 rounded-4">
+                                <option value="">Select a shared module...</option>
+                            </select>
+                            <div id="errModule" class="error-message"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-black text-muted uppercase">TOPIC / SPECIFIC GOAL <span class="text-danger">*</span></label>
+                            <input type="text" id="reqTopic" class="form-control bg-light border-0 py-3 rounded-4" placeholder="e.g. BED Unit 5">
+                            <div id="errTopic" class="error-message"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-black text-muted uppercase">SESSION TYPE <span class="text-danger">*</span></label>
+                            <select id="reqType" class="form-select bg-light border-0 py-3 rounded-4">
+                                <option value="one-on-one">One-on-One</option>
+                                <option value="group">Group Study</option>
+                            </select>
+                            <div id="errType" class="error-message"></div>
                         </div>
 
                         <div class="row g-3 mb-3">
                             <div class="col-6">
-                                <label class="form-label small fw-black text-muted uppercase">DATE</label>
-                                <input type="date" id="reqDate" class="form-control bg-light border-0 py-3 rounded-4" required>
+                                <label class="form-label small fw-black text-muted uppercase">DATE <span class="text-danger">*</span></label>
+                                <input type="date" id="reqDate" class="form-control bg-light border-0 py-3 rounded-4">
+                                <div id="errDate" class="error-message"></div>
                             </div>
                             <div class="col-6">
-                                <label class="form-label small fw-black text-muted uppercase">TIME</label>
-                                <input type="time" id="reqTime" class="form-control bg-light border-0 py-3 rounded-4" required>
+                                <label class="form-label small fw-black text-muted uppercase">TIME <span class="text-danger">*</span></label>
+                                <input type="time" id="reqTime" class="form-control bg-light border-0 py-3 rounded-4">
+                                <div id="errTime" class="error-message"></div>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label small fw-black text-muted uppercase">LOCATION</label>
-                            <input type="text" id="reqLocation" class="form-control bg-light border-0 py-3 rounded-4" placeholder="e.g. Library L5" required>
+                            <label class="form-label small fw-black text-muted uppercase">LOCATION <span class="text-danger">*</span></label>
+                            <input type="text" id="reqLocation" class="form-control bg-light border-0 py-3 rounded-4" placeholder="e.g. Library L5">
+                            <div id="errLocation" class="error-message"></div>
                         </div>
 
                         <div class="mb-4">
-                            <label class="form-label small fw-black text-muted uppercase">NOTE (OPTIONAL)</label>
+                            <label class="form-label small fw-black text-muted uppercase">NOTE</label>
                             <textarea id="reqNote" class="form-control bg-light border-0 py-3 rounded-4" rows="3" placeholder="Hi! I'd love to collaborate..."></textarea>
                         </div>
 
