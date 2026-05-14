@@ -1,4 +1,4 @@
-const friendModel = require('../models/FriendRequest.model');
+const friendRequestModel = require('../models/FriendRequest.model');
 const friendshipModel = require('../models/Friend.model');
 
 module.exports.createNewFriendRequest = async function (req, res, next) {
@@ -28,7 +28,7 @@ module.exports.createNewFriendRequest = async function (req, res, next) {
       return res.status(409).json({ message: 'Users are already friends' });
     }
 
-    const request = await friendModel.createFriendRequest({ senderId, receiverId });
+    const request = await friendRequestModel.createFriendRequest({ senderId, receiverId });
     if (!request) {
       return res.status(409).json({ message: 'Friend request already exists' });
     }
@@ -53,7 +53,7 @@ module.exports.deleteFriendRequest = async function (req, res, next) {
   }
 
   try {
-    const request = await friendModel.getFriendRequestById(requestId);
+    const request = await friendRequestModel.getFriendRequestById(requestId);
     if (!request) {
       return res.status(404).json({ message: 'Friend request not found' });
     }
@@ -62,7 +62,7 @@ module.exports.deleteFriendRequest = async function (req, res, next) {
       return res.status(403).json({ message: 'Only the request sender can cancel this friend request' });
     }
 
-    await friendModel.deleteFriendRequestById(requestId);
+    await friendRequestModel.deleteFriendRequestById(requestId);
     res.sendStatus(204);
   } catch (error) {
     console.error('Error deleteFriendRequest:', error);
@@ -88,7 +88,7 @@ module.exports.acceptFriendRequest = async function (req, res, next) {
   }
 
   try {
-    const request = await friendModel.getFriendRequestById(requestId);
+    const request = await friendRequestModel.getFriendRequestById(requestId);
     if (!request) {
       return res.status(404).json({ message: 'Friend request not found' });
     }
@@ -99,7 +99,7 @@ module.exports.acceptFriendRequest = async function (req, res, next) {
 
     await friendshipModel.createFriendship({ userId: request.sender_id, friendId: request.receiver_id });
     await friendshipModel.createFriendship({ userId: request.receiver_id, friendId: request.sender_id });
-    await friendModel.deleteFriendRequestById(requestId);
+    await friendRequestModel.deleteFriendRequestById(requestId);
 
     res.status(200).json({ message: 'Friend request accepted' });
   } catch (error) {
@@ -126,7 +126,7 @@ module.exports.rejectFriendRequest = async function (req, res, next) {
   }
 
   try {
-    const request = await friendModel.getFriendRequestById(requestId);
+    const request = await friendRequestModel.getFriendRequestById(requestId);
     if (!request) {
       return res.status(404).json({ message: 'Friend request not found' });
     }
@@ -135,7 +135,7 @@ module.exports.rejectFriendRequest = async function (req, res, next) {
       return res.status(403).json({ message: 'This friend request does not belong to the authenticated receiver' });
     }
 
-    await friendModel.deleteFriendRequestById(requestId);
+    await friendRequestModel.deleteFriendRequestById(requestId);
     res.sendStatus(204);
   } catch (error) {
     console.error('Error rejectFriendRequest:', error);
@@ -160,7 +160,7 @@ module.exports.getIncomingFriendRequests = async function (req, res, next) {
   }
 
   try {
-    const requests = await friendModel.getIncomingRequests(userId);
+    const requests = await friendRequestModel.getIncomingRequests(userId);
     res.status(200).json(requests);
   } catch (error) {
     console.error('Error getIncomingFriendRequests:', error);
@@ -185,7 +185,7 @@ module.exports.getOutgoingFriendRequests = async function (req, res, next) {
   }
 
   try {
-    const requests = await friendModel.getOutgoingRequests(userId);
+    const requests = await friendRequestModel.getOutgoingRequests(userId);
     res.status(200).json(requests);
   } catch (error) {
     console.error('Error getOutgoingFriendRequests:', error);

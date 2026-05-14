@@ -25,3 +25,15 @@ module.exports.deleteFriendship = async function deleteFriendship(data) {
   const result = await pool.query(SQLSTATEMENT, VALUES);
   return result.rowCount;
 };
+
+module.exports.createFriendship = async function createFriendship(data) {
+  const SQLSTATEMENT = `
+        INSERT INTO Friendship (user_id, friend_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, friend_id) DO NOTHING
+        RETURNING friendship_id, user_id, friend_id
+    `;
+  const VALUES = [data.userId, data.friendId];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows[0] || null;
+};
