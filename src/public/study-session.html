@@ -144,9 +144,21 @@
           </div>
         </section>
 
+        <section class="status-controls-box" aria-labelledby="statusControlsTitle">
+          <h2 id="statusControlsTitle">Your Status</h2>
+          <div class="status-controls" role="group" aria-label="Set your current status">
+            <button class="status-control active" type="button" data-status="focus">Focusing</button>
+            <button class="status-control" type="button" data-status="break">On Break</button>
+            <button class="status-control" type="button" data-status="need_help">Need Help</button>
+          </div>
+        </section>
+
         <section class="members-box" aria-labelledby="membersTitle">
           <div class="members-header">
             <h2 id="membersTitle">Members</h2>
+            <button id="membersToggleButton" class="members-toggle-btn" type="button">
+              Show all
+            </button>
           </div>
           <div id="membersList" class="members-list"></div>
         </section>
@@ -189,6 +201,28 @@
         <div class="session-modal-actions">
           <button id="confirmExitButton" class="btn btn-danger" type="button">Exit</button>
           <button id="cancelExitButton" class="btn btn-light" type="button">Stay</button>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="consultationModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="consultationModalTitle"
+    >
+      <section class="session-modal-card">
+        <h2 id="consultationModalTitle">Start Consultation?</h2>
+        <p>
+          <span id="consultationMemberName">This user</span> has requested help.
+          Would you like to start a consultation session with them?
+        </p>
+        <div class="session-modal-actions">
+          <button id="cancelConsultationButton" class="btn btn-light" type="button">Cancel</button>
+          <button id="confirmConsultationButton" class="btn btn-primary" type="button">
+            Confirm
+          </button>
         </div>
       </section>
     </div>

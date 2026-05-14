@@ -1,13 +1,16 @@
 const DEFAULT_SESSION_ID = 2;
+const CURRENT_USER_ID = 2;
 const urlParams = new URLSearchParams(window.location.search);
 const selectedId = Number(urlParams.get('id'));
 const sessionId = Number.isInteger(selectedId) && selectedId > 0 ? selectedId : DEFAULT_SESSION_ID;
 const apiBase = `/api/sessions/${sessionId}`;
+const MEMBER_PREVIEW_LIMIT = 3;
 
 let sessionData = createDemoSession();
 let timerStartedAt = Date.now();
 let timerInterval = null;
 let isPreviewMode = false;
+let membersExpanded = false;
 const page = {};
 
 // Demo data keeps the page useful even before the database/API is running.
@@ -96,11 +99,14 @@ function evidence(id, type, text, url = null) {
 // DOM helpers
 function bindPage() {
   page.exitModal = byId('exitModal');
+  page.consultationModal = byId('consultationModal');
+  page.consultationMemberName = byId('consultationMemberName');
   page.goalDescription = byId('currentGoalDescription');
   page.goalForm = byId('microGoalForm');
   page.goalInput = byId('microGoalTitleInput');
   page.goalTitle = byId('currentGoalTitle');
   page.membersList = byId('membersList');
+  page.membersToggle = byId('membersToggleButton');
   page.message = byId('sessionMessage');
   page.nextQueuedGoal = byId('nextQueuedGoal');
   page.queueModal = byId('queueModal');
@@ -108,6 +114,7 @@ function bindPage() {
   page.queuedGoalsList = byId('queuedGoalsList');
   page.timer = byId('countdownTimer');
   page.title = byId('sessionTitle');
+  page.statusControls = Array.from(document.querySelectorAll('.status-control'));
 }
 
 function byId(id) {
@@ -202,6 +209,7 @@ function renderPage() {
   page.title.textContent = sessionData.title || 'Software Engineering Practice';
   renderCurrentGoal();
   renderMembers();
+  renderStatusControls();
   startTimer();
 }
 
@@ -242,26 +250,51 @@ function renderQueuedGoal(queuedGoal) {
 
 function renderMembers() {
   const members = sessionData.members || [];
+  const visibleMembers = membersExpanded ? members : members.slice(0, MEMBER_PREVIEW_LIMIT);
 
   page.membersList.innerHTML = members.length
-    ? members.map(renderMemberCard).join('')
+    ? visibleMembers.map(renderMemberCard).join('')
     : emptyText('No members in this session yet.', 'empty-members');
+
+  page.membersToggle.classList.toggle('d-none', members.length <= MEMBER_PREVIEW_LIMIT);
+  page.membersToggle.textContent = membersExpanded
+    ? 'Show less'
+    : `Show all ${members.length}`;
+  page.membersToggle.setAttribute('aria-expanded', String(membersExpanded));
+}
+
+function renderStatusControls() {
+  const currentMember = (sessionData.members || []).find(
+    (memberData) => Number(memberData.user_id) === CURRENT_USER_ID,
+  );
+  const currentStatus = normalizeStatusForApi(currentMember?.status_class || currentMember?.current_status);
+
+  page.statusControls.forEach((button) => {
+    const isActive = button.dataset.status === currentStatus;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
 }
 
 function renderMemberCard(memberData) {
   const progress = asPercent(memberData.progress_percent);
   const statusClass = memberData.status_class || 'focusing';
+  const isNeedHelp = normalizeStatusForApi(statusClass) === 'need_help';
+  const isCurrentUser = Number(memberData.user_id) === CURRENT_USER_ID;
+  const displayName = isCurrentUser ? 'You' : memberData.name || 'Member';
+  const avatarText = isCurrentUser ? 'You' : initials(memberData.name);
+  const statusDisplay = isNeedHelp
+    ? `<button class="member-status status-${escapeHtml(statusClass)} consultation-status-button" type="button" data-consultation-name="${escapeHtml(memberData.name || 'This user')}">${escapeHtml(memberData.current_status || 'Focusing')}</button>`
+    : `<span class="member-status status-${escapeHtml(statusClass)}">${escapeHtml(memberData.current_status || 'Focusing')}</span>`;
 
   return `
-    <article class="session-member-card status-${escapeHtml(statusClass)}">
+    <article class="session-member-card status-${escapeHtml(statusClass)}${isCurrentUser ? ' current-user-card' : ''}">
       <div class="member-card-summary">
-        <div class="member-avatar">${initials(memberData.name)}</div>
+        <div class="member-avatar">${escapeHtml(avatarText)}</div>
         <div class="member-main">
           <div class="member-name-row">
-            <strong>${escapeHtml(memberData.name || 'Member')}</strong>
-            <span class="member-status status-${escapeHtml(statusClass)}">
-              ${escapeHtml(memberData.current_status || 'Focusing')}
-            </span>
+            <strong>${escapeHtml(displayName)}</strong>
+            ${statusDisplay}
           </div>
           <div class="member-meta-row">
             <span>${statusTime(memberData.status_timer)} in status</span>
@@ -387,7 +420,14 @@ function startTimer() {
 
 function renderTimer() {
   const elapsedSeconds = Math.floor((Date.now() - timerStartedAt) / 1000);
-  page.timer.textContent = timerText(Number(sessionData.remaining_seconds || 0) - elapsedSeconds);
+  const remainingSeconds = Math.max(0, Number(sessionData.remaining_seconds || 0) - elapsedSeconds);
+  const totalSeconds = Math.max(remainingSeconds, Number(sessionData.planned_duration_seconds || 0));
+
+  page.timer.textContent = timerText(remainingSeconds);
+  page.timer.parentElement.style.setProperty(
+    '--timer-progress',
+    totalSeconds ? `${(remainingSeconds / totalSeconds) * 100}%` : '0%',
+  );
 }
 
 // Actions
@@ -483,6 +523,69 @@ async function uploadEvidence(event) {
   }
 }
 
+function normalizeStatusForApi(status) {
+  const normalized = String(status || 'focus').toLowerCase().replace(/[\s-]+/g, '_');
+  if (normalized === 'focusing') return 'focus';
+  if (normalized === 'on_break') return 'break';
+  return normalized;
+}
+
+async function updateCurrentStatus(event) {
+  const button = event.currentTarget;
+  const status = button.dataset.status;
+  if (!status) return;
+
+  if (isPreviewMode) {
+    updatePreviewStatus(status);
+    return;
+  }
+
+  try {
+    await getJson(`${apiBase}/members/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        user_id: CURRENT_USER_ID,
+        status,
+      }),
+    });
+    await loadSession();
+  } catch (error) {
+    showMessage(error.message, 'danger');
+  }
+}
+
+function updatePreviewStatus(status) {
+  const currentMember = (sessionData.members || []).find(
+    (memberData) => Number(memberData.user_id) === CURRENT_USER_ID,
+  );
+  if (!currentMember) return;
+
+  const labels = {
+    focus: 'Focusing',
+    break: 'On Break',
+    need_help: 'Need Help',
+  };
+
+  currentMember.current_status = labels[status] || 'Focusing';
+  currentMember.status_class = status.replace(/_/g, '-');
+  currentMember.status_timer = 0;
+  showMessage('Status updated in the static preview.', 'info');
+  renderMembers();
+  renderStatusControls();
+}
+
+function openConsultationModal(memberName) {
+  page.consultationMemberName.textContent = memberName || 'This user';
+  showModal(page.consultationModal, true);
+}
+
+function handleMemberActivation(event) {
+  const button = event.target.closest('.consultation-status-button');
+  if (!button) return;
+
+  openConsultationModal(button.dataset.consultationName);
+}
+
 function addPreviewEvidence(form, equationText, file) {
   const memberData = (sessionData.members || []).find(
     (item) => Number(item.user_id) === Number(form.dataset.userId),
@@ -538,10 +641,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   page.goalForm.addEventListener('submit', addMicroGoal);
   page.membersList.addEventListener('submit', uploadEvidence);
+  page.membersList.addEventListener('click', handleMemberActivation);
+  page.membersToggle.addEventListener('click', () => {
+    membersExpanded = !membersExpanded;
+    renderMembers();
+  });
+  page.statusControls.forEach((button) => {
+    button.addEventListener('click', updateCurrentStatus);
+  });
 
   byId('exitSessionButton').addEventListener('click', () => showModal(page.exitModal, true));
   byId('cancelExitButton').addEventListener('click', () => showModal(page.exitModal, false));
   byId('confirmExitButton').addEventListener('click', exitSession);
+  byId('cancelConsultationButton').addEventListener('click', () =>
+    showModal(page.consultationModal, false),
+  );
+  byId('confirmConsultationButton').addEventListener('click', () => {
+    showModal(page.consultationModal, false);
+    showMessage('Consultation confirmed. Opening the consultation workspace next.', 'info');
+  });
 
   byId('viewQueueButton').addEventListener('click', () => showModal(page.queueModal, true));
   byId('closeQueueButton').addEventListener('click', () => showModal(page.queueModal, false));
@@ -551,6 +669,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   page.queueModal.addEventListener('click', (event) => {
     if (event.target === page.queueModal) showModal(page.queueModal, false);
+  });
+  page.consultationModal.addEventListener('click', (event) => {
+    if (event.target === page.consultationModal) showModal(page.consultationModal, false);
   });
 
   loadSession();

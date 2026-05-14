@@ -16,6 +16,7 @@ router.post(
   upload.single('evidence_file'),
   studySessionController.addMicroGoalEvidence,
 );
+router.patch('/:sessionId/members/status', studySessionController.updateMemberStatus);
 router.patch('/:sessionId/exit', studySessionController.exitSession);
 
 module.exports = router;

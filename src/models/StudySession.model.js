@@ -59,6 +59,8 @@ const statusLabels = {
   completed: 'Completed',
 };
 
+const allowedMemberStatuses = new Set(['focus', 'break', 'need_help']);
+
 const prettyStatus = (status) =>
   statusLabels[status] ||
   status
@@ -338,6 +340,69 @@ module.exports.insertMicroGoalEvidence = async function insertMicroGoalEvidence(
 
     await client.query('COMMIT');
     return evidenceResult.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports.updateMemberStatus = async function updateMemberStatus(data) {
+  const normalizedStatus = data.status === 'focusing' ? 'focus' : data.status;
+  if (!allowedMemberStatuses.has(normalizedStatus)) return null;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const memberSql = `
+      UPDATE SessionMember
+      SET status = $3,
+          status_timer = 0
+      WHERE session_id = $1
+        AND user_id = $2
+        AND left_at IS NULL
+      RETURNING member_id, session_id, user_id, status, status_timer, progress
+    `;
+    const memberResult = await client.query(memberSql, [
+      data.study_session_id,
+      data.user_id,
+      normalizedStatus,
+    ]);
+    const member = memberResult.rows[0];
+
+    if (!member) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query(
+      `
+        UPDATE status_events
+        SET ended_at = CURRENT_TIMESTAMP
+        WHERE study_session_participant_id = $1
+          AND ended_at IS NULL
+      `,
+      [member.member_id],
+    );
+
+    await client.query(
+      `
+        INSERT INTO status_events (study_session_participant_id, status)
+        VALUES ($1, $2)
+      `,
+      [member.member_id, normalizedStatus],
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      ...member,
+      current_status: prettyStatus(normalizedStatus),
+      status_class: cssStatus(normalizedStatus),
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

@@ -123,6 +123,29 @@ module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, r
   }
 };
 
+module.exports.updateMemberStatus = async function updateMemberStatus(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const userId = parseId(req.body.user_id);
+  const status = getTrimmedString(req.body.status).toLowerCase();
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
+  if (!status) return badReq(res, 'Status is required');
+
+  try {
+    const member = await model.updateMemberStatus({
+      study_session_id: sessionId,
+      user_id: userId,
+      status,
+    });
+
+    if (!member) return notFound(res, 'Session member not found or status is invalid');
+    return ok(res, member);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports.exitSession = async function exitSession(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
   if (!sessionId) return badReq(res, 'Valid session id is required');
