@@ -234,10 +234,11 @@ const userBadges = [
 ];
 
 const friendships = [
-  { u: 2, f: 3 }, { u: 2, f: 4 }, { u: 2, f: 5 }, 
+  { u: 2, f: 3 }, { u: 2, f: 4 }, { u: 2, f: 5 },
   { u: 3, f: 2 }, { u: 3, f: 4 }, { u: 3, f: 5 },
   { u: 4, f: 2 }, { u: 4, f: 3 }, { u: 4, f: 5 },
-  { u: 12, f: 8 }, { u: 12, f: 20 }
+  { u: 5, f: 2 }, { u: 5, f: 3 }, { u: 5, f: 4 },
+  { u: 12, f: 8 }, { u: 12, f: 20 },
 ];
 
 const friendRequests = [
@@ -278,9 +279,9 @@ const userInterests = [
 ];
 
 const matchPrefs = [
-  {u:2, mods:'["FOP2", "BED", "PDS"]', sched:true, auto:false, days:'["Mon", "Wed", "Fri"]', modes:'["online", "campus"]', times:'["morning", "afternoon"]', st:'09:00', en:'17:00', rate:'High', style:'collaborative', lang:1, dur:60, pri:1, gen:'Any', lvl:'same'},
-  {u:3, mods:'["FOP2", "BED"]', sched:true, auto:false, days:'["Tue", "Thu"]', modes:'["campus"]', times:'["afternoon"]', st:'13:00', en:'18:00', rate:'Medium', style:'discussion', lang:1, dur:45, pri:1, gen:'Any', lvl:'same'},
-  {u:4, mods:'["BED", "PDS"]', sched:true, auto:true, days:'["Mon", "Tue", "Wed"]', modes:'["online"]', times:'["morning"]', st:'08:00', en:'12:00', rate:'High', style:'quiet', lang:1, dur:90, pri:2, gen:'Any', lvl:'higher'}
+  {u:2, mods:'["FOP2", "BED", "PDS"]', sched:true, auto:false, days:'["Mon", "Wed", "Fri"]', modes:'["online", "campus"]', times:'["morning", "afternoon"]', st:'09:00', en:'17:00', rate:'High', style:'collaborative', langs:'["English", "Malay"]', dur:60, pri:1, gen:'Any', lvl:'same'},
+  {u:3, mods:'["FOP2", "BED"]', sched:true, auto:false, days:'["Tue", "Thu"]', modes:'["campus"]', times:'["afternoon"]', st:'13:00', en:'18:00', rate:'Medium', style:'discussion', langs:'["English"]', dur:45, pri:1, gen:'Any', lvl:'same'},
+  {u:4, mods:'["BED", "PDS"]', sched:true, auto:true, days:'["Mon", "Tue", "Wed"]', modes:'["online"]', times:'["morning"]', st:'08:00', en:'12:00', rate:'High', style:'quiet', langs:'["English"]', dur:90, pri:2, gen:'Any', lvl:'higher'}
 ];
 
 const conversations = [
@@ -464,9 +465,9 @@ async function seed() {
 
   // 15. MatchPreference
   if (matchPrefs.length > 0) {
-    const placeholders = matchPrefs.map((_, i) => `($${i*16+1},$${i*16+2},$${i*16+3},$${i*16+4},$${i*16+5},$${i*16+6},$${i*16+7},$${i*16+8},$${i*16+9},$${i*16+10},$${i*16+11},$${i*16+12},$${i*16+13},$${i*16+14},$${i*16+15},$${i*16+16})`).join(', ');
-    const values = matchPrefs.flatMap(p => [p.u,p.mods,p.sched,p.auto,p.days,p.modes,p.times,p.st,p.en,p.rate,p.style,p.lang,p.dur,p.pri,p.gen,p.lvl]);
-    await pool.query(`INSERT INTO MatchPreference ("user_id","selected_modules","schedule_set","auto_match_enabled","availability_days","selected_modes","selected_times","start_time","end_time","match_rate","style","language_id","duration","priority","gender_pref","partner_level") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+    const placeholders = matchPrefs.map((_, i) => `($${i * 16 + 1}, $${i * 16 + 2}, $${i * 16 + 3}, $${i * 16 + 4}, $${i * 16 + 5}, $${i * 16 + 6}, $${i * 16 + 7}, $${i * 16 + 8}, $${i * 16 + 9}, $${i * 16 + 10}, $${i * 16 + 11}, $${i * 16 + 12}, $${i * 16 + 13}, $${i * 16 + 14}, $${i * 16 + 15}, $${i * 16 + 16})`).join(', ');
+    const values = matchPrefs.flatMap(p => [p.u, p.mods, p.sched, p.auto, p.days, p.modes, p.times, p.st, p.en, p.rate, p.style, p.langs, p.dur, p.pri, p.gen, p.lvl]);
+    await pool.query(`INSERT INTO MatchPreference ("user_id", "selected_modules", "schedule_set", "auto_match_enabled", "availability_days", "selected_modes", "selected_times", "start_time", "end_time", "match_rate", "style", "selected_languages", "duration", "priority", "gender_pref", "partner_level") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
   // 16. ChatConversation

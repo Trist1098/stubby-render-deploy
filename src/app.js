@@ -15,6 +15,10 @@ const diplomaRoutes = require('./routers/Diploma.router');
 const badgeRoutes = require('./routers/Badge.router');
 const userBadgeRoutes = require('./routers/UserBadge.router');
 
+const moduleRoutes = require('./routers/Module.router');
+const prefRoutes = require('./routers/MatchPreference.router');
+const languageRoutes = require('./routers/Language.router');
+
 const app = express();
 
 // Parse incoming JSON request bodies (e.g. from POST/PUT requests)
@@ -32,13 +36,19 @@ app.use('/api/users', userRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/sessions', studySessionRoutes);
 app.use('/api/chats', chatRoutes);
+
 app.use('/api/friend', friendRoutes);
 app.use('/api/friendrequest', friendRequestRoutes);
 app.use('/api/institution', institutionRoutes);
 app.use('/api/diploma', diplomaRoutes);
 app.use('/api/badge', badgeRoutes);
 app.use('/api/userbadges', userBadgeRoutes);
+
+app.use('/api/modules', moduleRoutes);
+app.use('/api/preferences', prefRoutes);
+
 app.use('/api', homeRoutes);
+app.use('/api/languages', languageRoutes);
 
 // 404 handler — if no route above matched the request,
 // create a 404 error and pass it to the error handler below.
