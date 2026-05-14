@@ -234,10 +234,11 @@ const userBadges = [
 ];
 
 const friendships = [
-  { u: 2, f: 3 }, { u: 2, f: 4 }, { u: 2, f: 5 }, 
+  { u: 2, f: 3 }, { u: 2, f: 4 }, { u: 2, f: 5 },
   { u: 3, f: 2 }, { u: 3, f: 4 }, { u: 3, f: 5 },
   { u: 4, f: 2 }, { u: 4, f: 3 }, { u: 4, f: 5 },
-  { u: 12, f: 8 }, { u: 12, f: 20 }
+  { u: 5, f: 2 }, { u: 5, f: 3 }, { u: 5, f: 4 },
+  { u: 12, f: 8 }, { u: 12, f: 20 },
 ];
 
 const userModules = [
