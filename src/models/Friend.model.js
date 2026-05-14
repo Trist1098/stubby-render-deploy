@@ -17,18 +17,6 @@ module.exports.getFriendsForUser = async function getFriendsForUser(userId) {
   return rows;
 };
 
-module.exports.createFriendship = async function createFriendship(data) {
-  const SQLSTATEMENT = `
-        INSERT INTO Friendship (user_id, friend_id)
-        VALUES ($1, $2)
-        ON CONFLICT (user_id, friend_id) DO NOTHING
-        RETURNING friendship_id, user_id, friend_id
-    `;
-  const VALUES = [data.userId, data.friendId];
-  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-  return rows[0] || null;
-};
-
 module.exports.deleteFriendship = async function deleteFriendship(data) {
   const SQLSTATEMENT = `
         DELETE FROM Friendship WHERE user_id = $1 AND friend_id = $2

@@ -45,6 +45,7 @@ DROP TABLE IF EXISTS MatchRequest;
 DROP TABLE IF EXISTS MatchPreference;
 DROP TABLE IF EXISTS UserBadge;
 DROP TABLE IF EXISTS Friendship;
+DROP TABLE IF EXISTS FriendRequest;
 DROP TABLE IF EXISTS UserInterest;
 DROP TABLE IF EXISTS UserLanguage;
 DROP TABLE IF EXISTS UserModule;
@@ -384,3 +385,12 @@ CREATE TABLE Friendship (
     UNIQUE(user_id, friend_id)
 );
 
+CREATE TABLE FriendRequest (
+    request_id   SERIAL PRIMARY KEY,
+    sender_id    INT NOT NULL,
+    receiver_id  INT NOT NULL,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id)  REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(sender_id, receiver_id)
+)

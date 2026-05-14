@@ -240,6 +240,21 @@ const friendships = [
   { u: 12, f: 8 }, { u: 12, f: 20 }
 ];
 
+const friendRequests = [
+  { sender: 6, receiver: 2 },
+  { sender: 7, receiver: 2 },
+  { sender: 8, receiver: 3 },
+  { sender: 9, receiver: 4 },
+  { sender: 10, receiver: 2 },
+  { sender: 11, receiver: 5 },
+  { sender: 2, receiver: 13 },
+  { sender: 3, receiver: 14 },
+  { sender: 15, receiver: 6 },
+  { sender: 16, receiver: 7 },
+  { sender: 17, receiver: 8 },
+  { sender: 18, receiver: 9 }
+];
+
 const userModules = [
   {u: 2, m: 1}, {u: 2, m: 2}, {u: 3, m: 2}, {u: 4, m: 1}, {u: 5, m: 2}, 
   {u: 6, m: 5}, {u: 7, m: 2}, {u: 8, m: 1}, {u: 9, m: 5}, {u: 10, m: 2}, 
@@ -417,6 +432,13 @@ async function seed() {
     const placeholders = friendships.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ');
     const values = friendships.flatMap(f => [f.u, f.f]);
     await pool.query(`INSERT INTO Friendship ("user_id", "friend_id") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+  }
+
+  // 11.5. FriendRequest
+  if (friendRequests.length > 0) {
+    const placeholders = friendRequests.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ');
+    const values = friendRequests.flatMap(fr => [fr.sender, fr.receiver]);
+    await pool.query(`INSERT INTO FriendRequest ("sender_id", "receiver_id") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
   // 12. UserModule
