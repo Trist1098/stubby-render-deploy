@@ -15,5 +15,6 @@ router.post("/request", verifyToken, matchController.sendRequest);
 router.get("/request/:id", verifyToken, matchController.getRequestById);
 router.put("/request/:id/status", verifyToken, matchController.updateRequestStatus);
 router.get("/auto", verifyToken, matchController.autoMatch);
+router.get("/shared/:targetId", verifyToken, matchController.getSharedModules);
 
 module.exports = router;

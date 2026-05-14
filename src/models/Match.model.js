@@ -58,11 +58,11 @@ module.exports.selectActiveMatches = async function selectActiveMatches(data) {
 
 module.exports.insertRequest = async function insertRequest(data) {
     const SQLSTATEMENT = `
-        INSERT INTO MatchRequest (sender_id, receiver_id, module, time_slot, location, type, message) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO MatchRequest (sender_id, receiver_id, module_id, topic, time_slot, location, type, message) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING request_id
     `;
-    const VALUES = [data.sender_id, data.receiver_id, data.module, data.time_slot, data.location, data.type, data.message];
+    const VALUES = [data.sender_id, data.receiver_id, data.module_id, data.topic, data.time_slot, data.location, data.type, data.message];
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows[0];
 };
@@ -84,7 +84,12 @@ module.exports.updateStatus = async function updateStatus(data) {
 module.exports.autoMatch = async function autoMatch(data) {
     const SQLSTATEMENT = `
         SELECT u.user_id, u.name, u.username, u.profile_pic, 
-        COUNT(um2.module_id) as shared_modules_count
+        COUNT(um2.module_id) as shared_modules_count,
+        (SELECT status FROM MatchRequest 
+         WHERE ((sender_id = $1 AND receiver_id = u.user_id) 
+            OR (sender_id = u.user_id AND receiver_id = $1))
+           AND status != 'Rejected'
+         LIMIT 1) as request_status
         FROM "User" u
         JOIN UserModule um2 ON u.user_id = um2.user_id
         JOIN UserModule um1 ON um1.module_id = um2.module_id
@@ -94,6 +99,19 @@ module.exports.autoMatch = async function autoMatch(data) {
         LIMIT 5
     `;
     const VALUES = [data.user_id, data.user_id];
+    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+    return rows;
+};
+
+module.exports.selectSharedModules = async function selectSharedModules(data) {
+    const SQLSTATEMENT = `
+        SELECT m.module_id, m.code, m.name
+        FROM UserModule um1
+        JOIN UserModule um2 ON um1.module_id = um2.module_id
+        JOIN Module m ON um1.module_id = m.module_id
+        WHERE um1.user_id = $1 AND um2.user_id = $2
+    `;
+    const VALUES = [data.user1_id, data.user2_id];
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows;
 };

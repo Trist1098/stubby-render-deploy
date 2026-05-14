@@ -51,7 +51,8 @@ module.exports.sendRequest = async (req, res, next) => {
         const data = {
             sender_id: res.locals.userId,
             receiver_id,
-            module: module || null,
+            module_id: req.body.module_id || null,
+            topic: req.body.topic || null,
             time_slot: time_slot || null,
             location: location || null,
             type: type || 'one-on-one',
@@ -116,6 +117,19 @@ module.exports.autoMatch = async (req, res, next) => {
             message: "Auto-match completed",
             matches: results
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.getSharedModules = async (req, res, next) => {
+    try {
+        const data = { 
+            user1_id: res.locals.userId,
+            user2_id: req.params.targetId
+        };
+        const results = await model.selectSharedModules(data);
+        res.status(200).json(results);
     } catch (error) {
         next(error);
     }

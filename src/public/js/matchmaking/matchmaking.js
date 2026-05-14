@@ -94,6 +94,12 @@ document.addEventListener("DOMContentLoaded", function () {
         window.filterModuleSelect();
     };
 
+    window.triggerAutoMatch = function() {
+        const grid = document.getElementById('studentGrid');
+        if (grid) grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>';
+        loadStudents();
+    };
+
     window.resetPreferences = function() {
         showConfirm("Are you sure you want to reset all preferences? This cannot be undone.", () => {
             userPreferences = {
@@ -392,7 +398,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         </div>
                         <h5 class="fw-black mb-1">${s.name}</h5>
                         <p class="text-muted small mb-3">@${s.username}</p>
-                        <button class="btn btn-premium w-100 py-3 rounded-4" onclick="window.openMatchModal(${s.user_id}, '${s.name}')">CONNECT</button>
+                        ${s.request_status === 'Pending' ? 
+                            `<button class="btn btn-secondary w-100 py-2 rounded-4 fw-bold text-white" disabled>REQUEST SENT</button>` :
+                          s.request_status === 'Accepted' ?
+                            `<button class="btn btn-success w-100 py-2 rounded-4 fw-bold" disabled>MATCHED</button>` :
+                            `<button class="btn btn-primary w-100 py-2 rounded-4 fw-bold" onclick="window.openMatchModal(${s.user_id}, '${s.name}')">CONNECT</button>`
+                        }
                     </div>
                 </div>
             `;
@@ -438,6 +449,14 @@ document.addEventListener("DOMContentLoaded", function () {
         const autoMatchToggle = document.getElementById('autoMatchEnabled');
         if (autoMatchToggle) {
             autoMatchToggle.addEventListener('change', toggleAutoMatchVisibility);
+        }
+
+        const matchForm = document.getElementById('matchRequestForm');
+        if (matchForm) {
+            matchForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                sendMatchRequest();
+            });
         }
 
         const modalEl = document.getElementById('preferencesModal');
@@ -498,11 +517,36 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    window.openMatchModal = function(id, name) {
+    window.openMatchModal = async function(id, name) {
+        clearMatchErrors();
         document.getElementById('targetId').value = id;
         document.getElementById('targetName').innerText = name;
+        
+        // Reset and show loading state
+        const moduleSelect = document.getElementById('reqModuleId');
+        moduleSelect.innerHTML = '<option value="">Loading shared modules...</option>';
+        
         const modal = new bootstrap.Modal(document.getElementById('matchModal'));
         modal.show();
+
+        try {
+            const res = await fetch(`/api/matches/shared/${id}`, {
+                headers: { 'Authorization': `Bearer ${auth.getToken()}` }
+            });
+            if (res.ok) {
+                const shared = await res.json();
+                moduleSelect.innerHTML = '<option value="">Select a module...</option>';
+                if (shared.length === 0) {
+                    moduleSelect.innerHTML = '<option value="">No shared modules found</option>';
+                } else {
+                    shared.forEach(m => {
+                        moduleSelect.innerHTML += `<option value="${m.module_id}">${m.code} - ${m.name}</option>`;
+                    });
+                }
+            }
+        } catch (err) {
+            moduleSelect.innerHTML = '<option value="">Error loading modules</option>';
+        }
     };
 
     window.updateStatus = async function(id, status) {
@@ -522,6 +566,128 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         } catch (err) { alert("Error updating status"); }
     };
+
+    function clearMatchErrors() {
+        document.querySelectorAll('.error-message').forEach(el => {
+            el.innerText = '';
+            el.style.display = 'none';
+        });
+        document.querySelectorAll('#matchRequestForm .form-control, #matchRequestForm .form-select').forEach(el => {
+            el.classList.remove('is-invalid-field');
+        });
+    }
+
+    function showMatchError(id, msg) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.innerText = msg;
+            el.style.display = 'block';
+            
+            const map = {
+                'errModule': 'reqModuleId',
+                'errTopic': 'reqTopic',
+                'errType': 'reqType',
+                'errDate': 'reqDate',
+                'errTime': 'reqTime',
+                'errLocation': 'reqLocation'
+            };
+            
+            const inputId = map[id];
+            const inputEl = document.getElementById(inputId);
+            if (inputEl) {
+                inputEl.classList.add('is-invalid-field');
+            }
+        }
+    }
+
+    async function sendMatchRequest() {
+        clearMatchErrors();
+
+        const targetId = document.getElementById('targetId').value;
+        const moduleId = document.getElementById('reqModuleId').value;
+        const topic = document.getElementById('reqTopic').value;
+        const type = document.getElementById('reqType').value;
+        const date = document.getElementById('reqDate').value;
+        const time = document.getElementById('reqTime').value;
+        const location = document.getElementById('reqLocation').value;
+        const note = document.getElementById('reqNote').value;
+
+        let hasError = false;
+
+        if (!moduleId) {
+            showMatchError('errModule', "Please select a module.");
+            hasError = true;
+        }
+
+        if (!topic) {
+            showMatchError('errTopic', "Topic or specific goal is required.");
+            hasError = true;
+        }
+
+        if (!type) {
+            showMatchError('errType', "Please select a session type.");
+            hasError = true;
+        }
+
+        if (!date) {
+            showMatchError('errDate', "Date is required.");
+            hasError = true;
+        }
+
+        if (!time) {
+            showMatchError('errTime', "Time is required.");
+            hasError = true;
+        }
+
+        if (!location) {
+            showMatchError('errLocation', "Location is required.");
+            hasError = true;
+        }
+
+        if (hasError) return;
+
+        const selectedDate = new Date(`${date}T${time}`);
+        const now = new Date();
+        if (selectedDate < now) {
+            showMatchError('errDate', "The request date and time cannot be in the past.");
+            return;
+        }
+
+        const data = {
+            receiver_id: parseInt(targetId),
+            module_id: moduleId ? parseInt(moduleId) : null,
+            topic: topic,
+            time_slot: `${date} ${time}`,
+            location: location,
+            type: type,
+            message: note
+        };
+
+        try {
+            const res = await fetch('/api/matches/request', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${auth.getToken()}`
+                },
+                body: JSON.stringify(data)
+            });
+            if (res.status === 401) return auth.logout();
+            if (res.ok) {
+                const modalEl = document.getElementById('matchModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+                document.getElementById('matchRequestForm').reset();
+                showSuccess("Your match request has been sent successfully!");
+                loadRequests();
+            } else {
+                const err = await res.json();
+                alert("Error: " + (err.message || res.status));
+            }
+        } catch (err) {
+            alert("Network error sending request");
+        }
+    }
 
     init();
 });
