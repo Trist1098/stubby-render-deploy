@@ -1,4 +1,24 @@
-const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId } = require('../models/Chat.model');
+const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, uploadFile: uploadFileModel } = require('../models/Chat.model');
+
+module.exports.verifyUploadTarget = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+
+  if (!Number.isInteger(conversationId)) {
+    return res.status(400).json({ message: 'Invalid conversation id' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) {
+      return res.status(403).json({ message: 'You are not a member of this conversation' });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports.createConversation = async (req, res, next) => {
   const { type, name, friendId, memberIds } = req.body;
@@ -112,6 +132,28 @@ module.exports.getMessages = async (req, res, next) => {
 
     const messages = await getMessagesByConversationId(conversationId, limit, offset);
     res.json(messages);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.uploadFile = async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+
+  try {
+    const fileUrl = '/uploads/' + req.file.filename;
+    const message = await uploadFileModel(
+      conversationId,
+      userId,
+      fileUrl,
+      req.file.mimetype,
+      req.file.originalname,
+      req.file.size,
+    );
+    res.status(201).json(message);
   } catch (error) {
     next(error);
   }

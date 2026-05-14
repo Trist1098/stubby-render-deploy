@@ -69,7 +69,7 @@ module.exports.getConversationsByUserId = async (userId) => {
      FROM ChatConversation cc
      JOIN ConversationMember cm ON cm.conversation_id = cc.conversation_id
      LEFT JOIN LATERAL (
-       SELECT text, created_at
+       SELECT COALESCE(text, file_name, 'File') AS text, created_at
        FROM ChatMessage
        WHERE conversation_id = cc.conversation_id
        ORDER BY created_at DESC
@@ -134,6 +134,10 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
        cm.sender_id,
        u.username AS sender_username,
        cm.text,
+       cm.file_url,
+       cm.file_type,
+       cm.file_name,
+       cm.file_size,
        cm.is_announcement,
        cm.created_at
      FROM ChatMessage cm
@@ -145,4 +149,19 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
   );
 
   return result.rows.reverse();
+};
+
+module.exports.uploadFile = async (conversationId, senderId, fileUrl, fileType, fileName, fileSize) => {
+  const result = await pool.query(
+    `INSERT INTO ChatMessage (conversation_id, sender_id, file_url, file_type, file_name, file_size)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING message_id, conversation_id, sender_id, text, file_url, file_type, file_name, file_size, is_announcement, created_at`,
+    [conversationId, senderId, fileUrl, fileType, fileName, fileSize]
+  );
+  const message = result.rows[0];
+  const senderResult = await pool.query(
+    `SELECT username FROM "User" WHERE user_id = $1`,
+    [senderId]
+  );
+  return { ...message, sender_username: senderResult.rows[0]?.username || 'Unknown user' };
 };

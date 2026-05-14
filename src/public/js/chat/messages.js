@@ -1,4 +1,4 @@
-import { fetchMessages, sendMessageRequest } from './chatApi.js';
+import { fetchMessages, sendMessageRequest, uploadFileRequest } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
@@ -45,8 +45,12 @@ export function renderChatPanel() {
       ${renderMessages()}
     </div>
     <form class="message-composer d-flex gap-2 p-3 border-top" id="messageForm">
+      <label class="btn btn-outline-secondary flex-shrink-0" for="fileInput" title="Attach file">
+        <i class="fas fa-paperclip"></i>
+      </label>
+      <input type="file" id="fileInput" class="d-none">
       <input class="form-control" id="messageInput" type="text" placeholder="Type a message" autocomplete="off">
-      <button class="btn btn-primary" type="submit">
+      <button class="btn btn-primary flex-shrink-0" type="submit">
         <i class="fas fa-paper-plane me-1"></i> Send
       </button>
     </form>`;
@@ -59,6 +63,24 @@ export function renderChatPanel() {
   });
 
   document.getElementById('messageForm').addEventListener('submit', sendActiveMessage);
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    if (e.target.files[0]) sendActiveFile(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  const messagesList = document.getElementById('messagesList');
+  messagesList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    messagesList.classList.add('drag-over');
+  });
+  messagesList.addEventListener('dragleave', () => messagesList.classList.remove('drag-over'));
+  messagesList.addEventListener('drop', (e) => {
+    e.preventDefault();
+    messagesList.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) sendActiveFile(file);
+  });
+
   scrollMessagesToBottom('auto');
 }
 
@@ -91,11 +113,43 @@ function renderMessages() {
       <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}">
         <div class="message-bubble">
           <div class="message-meta mb-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</div>
-          <div>${escapeHtml(message.text)}</div>
+          ${renderMessageContent(message)}
         </div>
       </div>`;
     })
     .join('');
+}
+
+function renderMessageContent(message) {
+  if (message.file_url) {
+    const isImage = message.file_type && message.file_type.startsWith('image/');
+    const fileDetails = renderFileDetails(message);
+    if (isImage) {
+      return `<a href="${escapeHtml(message.file_url)}" target="_blank" rel="noopener noreferrer">
+        <img src="${escapeHtml(message.file_url)}" alt="${escapeHtml(message.file_name || 'Image')}" class="msg-image">
+      </a>
+      ${fileDetails}`;
+    }
+    return `<a href="${escapeHtml(message.file_url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(message.file_name || 'file')}" class="msg-file-link">
+      <i class="fas fa-file me-1"></i>${escapeHtml(message.file_name || 'File')}
+    </a>
+    ${fileDetails}`;
+  }
+  return `<div>${escapeHtml(message.text || '')}</div>`;
+}
+
+function renderFileDetails(message) {
+  const fileName = message.file_name || 'File';
+  const fileSize = formatFileSize(message.file_size);
+  return `<div class="msg-file-meta">${escapeHtml(fileName)}${fileSize ? ` | ${fileSize}` : ''}</div>`;
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes);
+  if (!Number.isFinite(size) || size <= 0) return '';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function scrollMessagesToBottom(behavior = 'smooth') {
@@ -136,7 +190,7 @@ async function refreshMessages() {
   const latestMessage = chatState.activeMessages.at(-1);
   const conv = getActiveConversation();
   if (conv && latestMessage) {
-    conv.last_message = latestMessage.text;
+    conv.last_message = latestMessage.text || latestMessage.file_name || 'File';
     conv.last_message_at = latestMessage.created_at;
     renderConversationList(loadMessages);
   }
@@ -145,6 +199,25 @@ async function refreshMessages() {
 function startMessageRefresh() {
   if (chatState.messageRefreshTimer) clearInterval(chatState.messageRefreshTimer);
   chatState.messageRefreshTimer = setInterval(refreshMessages, 2000);
+}
+
+async function sendActiveFile(file) {
+  if (!chatState.activeConversationId) return;
+
+  const result = await uploadFileRequest(chatState.activeConversationId, file);
+  if (!result.message_id) {
+    alert(result.message || 'Failed to upload file.');
+    return;
+  }
+
+  chatState.activeMessages.push(result);
+  const conv = getActiveConversation();
+  if (conv) {
+    conv.last_message = result.file_name || 'File';
+    conv.last_message_at = result.created_at;
+  }
+  renderConversationList(loadMessages);
+  renderMessageList(true);
 }
 
 async function sendActiveMessage(event) {

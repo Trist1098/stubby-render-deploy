@@ -7,3 +7,5 @@ node_modules
 /playwright/.cache/
 /coverage-report/
 resources/
+/src/public/uploads/*
+!/src/public/uploads/.gitkeep
