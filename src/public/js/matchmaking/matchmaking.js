@@ -24,13 +24,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // --- GLOBAL FUNCTIONS (EXPOSED TO WINDOW) ---
     window.switchTab = function(tab) {
-        const browse = document.getElementById('browseSection');
-        const requests = document.getElementById('requestsSection');
-        if (browse) browse.style.display = tab === 'browse' ? 'block' : 'none';
-        if (requests) requests.style.display = tab === 'requests' ? 'block' : 'none';
-        document.querySelectorAll('.premium-tab-nav .nav-link').forEach(btn => {
-            btn.classList.toggle('active', btn.innerText.toLowerCase().includes(tab));
-        });
+        const isBrowse = tab === 'browse';
+        document.getElementById('browseSection').style.display = isBrowse ? 'block' : 'none';
+        document.getElementById('requestsSection').style.display = isBrowse ? 'none' : 'block';
+        
+        // Update hero text
+        document.getElementById('pageTitle').innerText = isBrowse ? 'FIND STUDY PARTNERS' : 'MY STUDY REQUESTS';
+        document.getElementById('pageSubtitle').innerText = isBrowse ? 
+            'Discover students with similar modules and goals.' : 
+            'Manage your incoming and outgoing study invitations.';
+            
+        // Update dropdown active state
+        document.getElementById('tab-browse').classList.toggle('active', isBrowse);
+        document.getElementById('tab-requests').classList.toggle('active', !isBrowse);
+
+        if (tab === 'requests') loadRequests();
     };
 
     window.showModuleResults = function() {
@@ -101,7 +109,7 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     window.resetPreferences = function() {
-        showConfirm("Are you sure you want to reset all preferences? This cannot be undone.", () => {
+        showConfirm("Are you sure you want to reset all preferences? This cannot be undone.", async () => {
             userPreferences = {
                 selected_modules: [],
                 availability_days: [],
@@ -116,15 +124,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 auto_match_enabled: false,
                 selected_languages: []
             };
-            renderPreferences();
-            showSuccess("All preferences have been reset to defaults.");
+            
+            await savePreferences(true);
         });
     };
 
-    function showSuccess(msg) {
+    function showSuccess(msg, callback) {
         const msgEl = document.getElementById('successModalMessage');
         if (msgEl) msgEl.innerText = msg;
-        const modal = new bootstrap.Modal(document.getElementById('successModal'));
+        const modalEl = document.getElementById('successModal');
+        const modal = new bootstrap.Modal(modalEl);
+        
+        if (callback) {
+            modalEl.addEventListener('hidden.bs.modal', callback, { once: true });
+        }
+        
         modal.show();
     }
 
@@ -137,7 +151,7 @@ document.addEventListener("DOMContentLoaded", function () {
         
         btn.onclick = () => {
             modal.hide();
-            callback();
+            modalEl.addEventListener('hidden.bs.modal', () => callback(), { once: true });
         };
         modal.show();
     }
@@ -153,9 +167,45 @@ document.addEventListener("DOMContentLoaded", function () {
             ]);
             setupEventListeners();
             renderPreferences();
+            renderFilterModules();
+
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab === 'requests') switchTab('requests');
+            else if (tab === 'browse') switchTab('browse');
+
         } catch (err) {
             console.error("Init Error:", err);
         }
+    }
+
+    function renderFilterModules() {
+        const container = document.getElementById('filterModules');
+        if (!container) return;
+        
+        const parentDiv = container.closest('.mb-4');
+        const selected = Array.isArray(userPreferences.selected_modules) ? userPreferences.selected_modules : [];
+
+        if (selected.length === 0) {
+            if (parentDiv) parentDiv.style.display = 'none';
+            return;
+        }
+        
+        if (parentDiv) parentDiv.style.display = 'block';
+        container.innerHTML = '';
+
+        selected.forEach(mid => {
+            const m = masterModules.find(um => um.module_id == mid);
+            const code = m ? m.code : mid;
+            container.innerHTML += `
+                <div class="form-check ps-2">
+                    <input class="form-check-input d-none" type="checkbox" value="${mid}" id="filterMod${mid}" onchange="filterStudents()">
+                    <label class="btn btn-outline-primary btn-sm rounded-pill px-2 py-1 smaller fw-bold" for="filterMod${mid}">
+                        ${code}
+                    </label>
+                </div>
+            `;
+        });
     }
 
     async function loadModules() {
@@ -224,29 +274,34 @@ document.addEventListener("DOMContentLoaded", function () {
         } catch (err) { console.error("Preferences Load Error:", err); }
     }
 
-    async function savePreferences() {
+    async function savePreferences(isReset = false) {
         const form = document.getElementById('preferencesForm');
-        const langSelect = document.getElementById('prefLanguages');
         if (!form) return;
 
-        const selectedLangs = langSelect ? Array.from(langSelect.selectedOptions).map(opt => opt.value) : userPreferences.selected_languages;
-        const genderVal = form.querySelector('input[name="genderPref"]:checked')?.value || userPreferences.gender_pref;
-        const learningVal = form.querySelector('input[name="learningMode"]:checked')?.value || userPreferences.partner_level;
+        let data;
+        if (isReset) {
+            data = { ...userPreferences };
+        } else {
+            const langSelect = document.getElementById('prefLanguages');
+            const selectedLangs = langSelect ? Array.from(langSelect.selectedOptions).map(opt => opt.value) : userPreferences.selected_languages;
+            const genderVal = form.querySelector('input[name="genderPref"]:checked')?.value || userPreferences.gender_pref;
+            const learningVal = form.querySelector('input[name="learningMode"]:checked')?.value || userPreferences.partner_level;
 
-        const data = {
-            selected_modules: userPreferences.selected_modules,
-            availability_days: Array.from(form.querySelectorAll('[id^="day"]:checked')).map(el => el.value),
-            selected_modes: Array.from(form.querySelectorAll('[id^="mode"]:checked')).map(el => el.value),
-            selected_times: Array.from(form.querySelectorAll('[id^="time"]:checked')).map(el => el.value),
-            style: Array.from(form.querySelectorAll('[id^="style"]:checked')).map(el => el.value).join(',') || userPreferences.style,
-            gender_pref: genderVal,
-            partner_level: learningVal,
-            duration: parseInt(document.getElementById('prefDuration')?.value || userPreferences.duration),
-            priority: parseInt(document.getElementById('prefPriority')?.value || userPreferences.priority),
-            auto_match_enabled: document.getElementById('autoMatchEnabled')?.checked || false,
-            additional_details: document.getElementById('prefDetails')?.value || userPreferences.additional_details,
-            selected_languages: selectedLangs
-        };
+            data = {
+                selected_modules: userPreferences.selected_modules,
+                availability_days: Array.from(form.querySelectorAll('[id^="day"]:checked')).map(el => el.value),
+                selected_modes: Array.from(form.querySelectorAll('[id^="mode"]:checked')).map(el => el.value),
+                selected_times: Array.from(form.querySelectorAll('[id^="time"]:checked')).map(el => el.value),
+                style: Array.from(form.querySelectorAll('[id^="style"]:checked')).map(el => el.value).join(',') || userPreferences.style,
+                gender_pref: genderVal,
+                partner_level: learningVal,
+                duration: parseInt(document.getElementById('prefDuration')?.value || userPreferences.duration),
+                priority: parseInt(document.getElementById('prefPriority')?.value || userPreferences.priority),
+                auto_match_enabled: document.getElementById('autoMatchEnabled')?.checked || false,
+                additional_details: document.getElementById('prefDetails')?.value || userPreferences.additional_details,
+                selected_languages: selectedLangs
+            };
+        }
 
         try {
             const res = await fetch('/api/preferences', {
@@ -264,8 +319,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (modal) modal.hide();
                 await loadPreferences();
                 renderPreferences();
+                renderFilterModules();
                 window.filterStudents();
-                showSuccess("Your match preferences have been updated successfully.");
+                const successMsg = isReset 
+                    ? "All preferences have been reset to defaults."
+                    : "Your match preferences have been updated successfully.";
+                showSuccess(successMsg);
             } else {
                 const errData = await res.json();
                 alert("Save Error: " + (errData.error || res.status));
@@ -296,14 +355,13 @@ document.addEventListener("DOMContentLoaded", function () {
             moduleContainer.innerHTML = '';
             userPreferences.selected_modules.forEach(mid => {
                 const m = masterModules.find(um => um.module_id == mid);
-                if (m) {
-                    moduleContainer.innerHTML += `
-                        <span class="badge bg-primary-subtle text-primary p-2 rounded-3 border border-primary border-opacity-10 d-flex align-items-center gap-2">
-                            ${m.code}
-                            <i class="fas fa-times-circle cursor-pointer" onclick="window.removePrefModule(${mid})"></i>
-                        </span>
-                    `;
-                }
+                const code = m ? m.code : `Invalid (${mid})`;
+                moduleContainer.innerHTML += `
+                    <span class="badge bg-primary rounded-pill p-2 px-3 fw-bold shadow-sm d-flex align-items-center gap-2">
+                        ${code}
+                        <i class="fas fa-times-circle cursor-pointer" onclick="window.removePrefModule(${mid})"></i>
+                    </span>
+                `;
             });
         }
 
@@ -361,11 +419,18 @@ document.addEventListener("DOMContentLoaded", function () {
         const search = searchInput.value.toLowerCase();
         const onlineOnly = document.getElementById('onlineFilter')?.checked || false;
         const sortBy = document.getElementById('sortSelect')?.value || 'match';
+        const selectedModuleIds = Array.from(document.querySelectorAll('#filterModules input:checked')).map(el => el.value);
 
         let filtered = allStudents.filter(s => {
             const matchesSearch = s.name.toLowerCase().includes(search);
             const matchesOnline = !onlineOnly || s.is_online;
-            return matchesSearch && matchesOnline;
+            const studentModules = (s.modules || '').split(',').map(m => m.trim());
+            const matchesModules = selectedModuleIds.length === 0 || selectedModuleIds.some(mid => {
+                const m = masterModules.find(um => um.module_id == mid);
+                return m && studentModules.includes(m.code);
+            });
+
+            return matchesSearch && matchesOnline && matchesModules;
         });
 
         if (sortBy === 'match') {
@@ -467,55 +532,347 @@ document.addEventListener("DOMContentLoaded", function () {
                     const tab = new bootstrap.Tab(firstTabEl);
                     tab.show();
                 }
+                
+                renderPreferences();
             });
         }
     }
 
-    async function loadRequests() {
+    let sentOffset = 0;
+    let receivedOffset = 0;
+    const PAGE_LIMIT = 6;
+
+    async function loadRequests(isLoadMore = false, type = 'both') {
         try {
-            const [sentRes, receivedRes] = await Promise.all([
-                fetch('/api/matches/requests/sent', { headers: { 'Authorization': `Bearer ${auth.getToken()}` } }),
-                fetch('/api/matches/requests/received', { headers: { 'Authorization': `Bearer ${auth.getToken()}` } })
-            ]);
-            if (sentRes.status === 401) return auth.logout();
-            const sent = await sentRes.json();
-            const received = await receivedRes.json();
-            renderRequests('received', Array.isArray(received) ? received : []);
-            renderRequests('sent', Array.isArray(sent) ? sent : []);
-        } catch (err) {}
+            if (!isLoadMore) {
+                if (type === 'both' || type === 'received') receivedOffset = 0;
+                if (type === 'both' || type === 'sent') sentOffset = 0;
+            }
+
+            const token = auth.getToken();
+            const headers = { 'Authorization': `Bearer ${token}` };
+
+            const promises = [];
+            if (type === 'both' || type === 'received') {
+                promises.push(fetch(`/api/matches/requests/received?limit=${PAGE_LIMIT}&offset=${receivedOffset}`, { headers }).then(r => r.json()));
+            } else {
+                promises.push(Promise.resolve(null));
+            }
+
+            if (type === 'both' || type === 'sent') {
+                promises.push(fetch(`/api/matches/requests/sent?limit=${PAGE_LIMIT}&offset=${sentOffset}`, { headers }).then(r => r.json()));
+            } else {
+                promises.push(Promise.resolve(null));
+            }
+
+            const [received, sent] = await Promise.all(promises);
+
+            if (received) {
+                const container = document.getElementById('receivedRequests');
+                const countEl = document.getElementById('receivedCount');
+                if (!isLoadMore) container.innerHTML = '';
+                
+                const list = Array.isArray(received) ? received : [];
+                let total = list.length > 0 && list[0].total_count !== undefined ? parseInt(list[0].total_count, 10) : receivedOffset + list.length;
+                let pending = list.length > 0 && list[0].pending_count !== undefined ? parseInt(list[0].pending_count, 10) : list.filter(r => r.status === 'Pending').length;
+                
+                if (list.length === 0 && !isLoadMore) {
+                    container.innerHTML = '<div class="col-12 text-center p-5"><p class="text-muted">No requests received yet.</p></div>';
+                } else {
+                    list.forEach(req => container.innerHTML += renderRequestCard(req, 'received'));
+                }
+                
+                document.getElementById('receivedLoadMore').style.display = (receivedOffset + list.length < total) ? 'block' : 'none';
+                
+                if (!isLoadMore || list.length > 0) {
+                    countEl.innerText = pending;
+                    if (pending === 0) countEl.style.display = 'none';
+                    else countEl.style.display = 'inline-block';
+                }
+            }
+
+            if (sent) {
+                const container = document.getElementById('sentRequests');
+                const countEl = document.getElementById('sentCount');
+                if (!isLoadMore) container.innerHTML = '';
+                
+                const list = Array.isArray(sent) ? sent : [];
+                let total = list.length > 0 && list[0].total_count !== undefined ? parseInt(list[0].total_count, 10) : sentOffset + list.length;
+                let pending = list.length > 0 && list[0].pending_count !== undefined ? parseInt(list[0].pending_count, 10) : list.filter(r => r.status === 'Pending').length;
+                
+                if (list.length === 0 && !isLoadMore) {
+                    container.innerHTML = '<div class="col-12 text-center p-5"><p class="text-muted">No requests sent yet.</p></div>';
+                } else {
+                    list.forEach(req => container.innerHTML += renderRequestCard(req, 'sent'));
+                }
+                
+                document.getElementById('sentLoadMore').style.display = (sentOffset + list.length < total) ? 'block' : 'none';
+                
+                if (!isLoadMore || list.length > 0) {
+                    countEl.innerText = pending;
+                    if (pending === 0) countEl.style.display = 'none';
+                    else countEl.style.display = 'inline-block';
+                }
+            }
+
+        } catch (err) {
+            console.error('Error loading requests:', err);
+        }
     }
 
-    function renderRequests(type, requests) {
-        const container = document.getElementById(type === 'received' ? 'receivedRequests' : 'sentRequests');
-        const countEl = document.getElementById(type === 'received' ? 'receivedCount' : 'sentCount');
-        if (!container || !countEl) return;
-        countEl.innerText = requests.length;
-        container.innerHTML = '';
-        if (requests.length === 0) {
-            container.innerHTML = `<p class="text-muted small">No ${type} requests found.</p>`;
-            return;
+    window.loadMoreRequests = function(type) {
+        if (type === 'received') {
+            receivedOffset += PAGE_LIMIT;
+            loadRequests(true, 'received');
+        } else {
+            sentOffset += PAGE_LIMIT;
+            loadRequests(true, 'sent');
         }
-        requests.forEach(r => {
-            const partnerName = type === 'received' 
-                ? (r.sender_name || r.name || 'Unknown User') 
-                : (r.receiver_name || r.name || 'Unknown User');
-            const moduleInfo = r.module_code || r.module || 'Study Session';
-            
-            container.innerHTML += `
-                <div class="card border-0 bg-light rounded-4 p-4 mb-3">
-                    <h6 class="fw-black mb-0">${partnerName}</h6>
-                    <p class="text-muted smaller mb-0">${moduleInfo}</p>
-                    <p class="text-primary smaller fw-bold mb-0 mt-1 uppercase tracking-widest">${r.status.toUpperCase()}</p>
-                    ${type === 'received' && r.status === 'Pending' ? `
-                        <div class="d-flex gap-2 mt-3">
-                            <button class="btn btn-primary small py-2 fw-bold" onclick="window.updateStatus(${r.request_id}, 'Accepted')">ACCEPT</button>
-                            <button class="btn btn-outline-danger small py-2 fw-bold" onclick="window.updateStatus(${r.request_id}, 'Declined')">DECLINE</button>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-        });
+    };
+
+    function formatDisplayDate(dateStr) {
+        if (!dateStr) return 'N/A';
+        const datePart = dateStr.split(' ')[0];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        if (datePart.includes('-')) {
+            // YYYY-MM-DD
+            const parts = datePart.split('-');
+            if (parts.length === 3) return `${parts[2]} ${months[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+        } else if (datePart.includes('/')) {
+            // DD/MM/YYYY
+            const parts = datePart.split('/');
+            if (parts.length === 3) return `${parts[0]} ${months[parseInt(parts[1], 10) - 1]} ${parts[2]}`;
+        }
+        return datePart;
     }
+
+    window.confirmUpdateStatus = function(id, status) {
+        const statusMap = { 'Cancelled': 'cancel', 'Declined': 'decline', 'Accepted': 'accept' };
+        const action = statusMap[status] || status.toLowerCase();
+        
+        const isPositive = status === 'Accepted';
+        const title = isPositive ? 'CONFIRMATION' : 'WARNING';
+        const icon = isPositive ? 'fa-check-circle text-success' : 'fa-exclamation-triangle text-warning';
+        const btnClass = isPositive ? 'btn-success' : 'btn-danger';
+
+        const modalHtml = `
+        <div class="modal fade" id="dynamicConfirmModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-body p-5 text-center">
+                        <i class="fas ${icon} fa-3x mb-4"></i>
+                        <h4 class="fw-black mb-3">${title}</h4>
+                        <p class="text-muted mb-4">Do you really want to ${action} this request?</p>
+                        <div class="d-flex gap-2 justify-content-center">
+                            <button type="button" class="btn btn-light px-4 py-2 rounded-pill fw-bold border" data-bs-dismiss="modal">GO BACK</button>
+                            <button type="button" class="btn ${btnClass} px-4 py-2 rounded-pill fw-bold" id="confirmActionBtn">CONFIRM</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        
+        const old = document.getElementById('dynamicConfirmModal');
+        if (old) old.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modalEl = document.getElementById('dynamicConfirmModal');
+        const modal = new bootstrap.Modal(modalEl);
+        
+        document.getElementById('confirmActionBtn').onclick = () => {
+            modal.hide();
+            window.updateRequestStatus(id, status);
+        };
+        
+        modal.show();
+    };
+
+    function renderRequestCard(req, type) {
+        const isReceived = type === 'received';
+        const name = isReceived ? (req.sender_name || 'User') : (req.receiver_name || 'User');
+        const pic = isReceived ? req.sender_pic : req.receiver_pic;
+        const username = isReceived ? req.sender_username : req.receiver_username;
+        
+        let statusClass = 'bg-warning text-dark';
+        if (req.status === 'Accepted') statusClass = 'bg-success text-white';
+        if (req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled') statusClass = 'bg-danger text-white';
+
+        return `
+            <div class="col-md-6 col-lg-4">
+                <div class="card border-0 shadow-sm rounded-4 h-100 p-3">
+                    <div class="card-body p-3 d-flex flex-column">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="avatar-wrap me-3 mb-0" style="width: 40px; height: 40px; flex-shrink: 0;">
+                                ${pic ? `<img src="${pic}" class="rounded-circle" width="40" height="40">` : `<div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width:40px;height:40px;"><i class="fas fa-user text-muted"></i></div>`}
+                            </div>
+                            <div class="overflow-hidden flex-grow-1">
+                                <h6 class="fw-black mb-0 text-truncate">${name}</h6>
+                                <p class="text-muted smaller mb-0">@${username || 'unknown'}</p>
+                            </div>
+                            <span class="badge ${statusClass} rounded-pill smaller uppercase fw-bold ms-2">${req.status}</span>
+                        </div>
+
+                        <div class="mb-3 flex-grow-1">
+                            <div class="mb-2">
+                                <span class="badge bg-light text-dark border rounded-pill smaller fw-bold"><i class="fas fa-book text-primary me-1"></i> ${req.module_code || 'General'}</span>
+                                <span class="badge bg-light text-dark border rounded-pill smaller fw-bold"><i class="fas fa-users text-primary me-1"></i> ${req.type === 'group' ? 'Group Study' : '1-on-1'}</span>
+                            </div>
+                            <p class="mb-2 small text-truncate fw-bold">${req.topic || 'No specific topic'}</p>
+                            
+                            <div class="d-flex align-items-center gap-3 mb-1">
+                                <div class="smaller text-muted d-flex align-items-center"><i class="far fa-calendar-alt text-primary me-2"></i> ${formatDisplayDate(req.time_slot)}</div>
+                                <div class="smaller text-muted d-flex align-items-center"><i class="far fa-clock text-primary me-2"></i> ${req.time_slot ? req.time_slot.split(' ')[1] : 'N/A'}</div>
+                            </div>
+                            <div class="smaller text-muted d-flex align-items-center text-truncate"><i class="fas fa-map-marker-alt text-primary me-2"></i> ${req.location || 'N/A'}</div>
+                        </div>
+                        
+                        <div class="mt-auto pt-3 border-top">
+                            ${isReceived && req.status === 'Pending' ? `
+                                <div class="d-flex gap-2 mb-2">
+                                    <button class="btn btn-primary btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.confirmUpdateStatus(${req.request_id}, 'Accepted')">ACCEPT</button>
+                                    <button class="btn btn-outline-danger btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.confirmUpdateStatus(${req.request_id}, 'Declined')">DECLINE</button>
+                                </div>
+                                <button class="btn btn-light btn-sm w-100 rounded-pill fw-bold py-2 text-primary border" onclick="window.viewRequestDetail(${req.request_id})">VIEW DETAILS</button>
+                            ` : !isReceived && req.status === 'Pending' ? `
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-danger btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.confirmUpdateStatus(${req.request_id}, 'Cancelled')">CANCEL</button>
+                                    <button class="btn btn-outline-primary btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.viewRequestDetail(${req.request_id})">DETAILS</button>
+                                </div>
+                            ` : `
+                                <button class="btn btn-outline-primary btn-sm w-100 rounded-pill fw-bold py-2" onclick="window.viewRequestDetail(${req.request_id})">VIEW DETAILS</button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    window.viewRequestDetail = async function(id) {
+        const drawerEl = document.getElementById('requestDetailDrawer');
+        const drawer = new bootstrap.Offcanvas(drawerEl);
+        const content = document.getElementById('requestDetailContent');
+        
+        content.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
+        drawer.show();
+
+        try {
+            const token = auth.getToken();
+            const res = await fetch(`/api/matches/request/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const req = await res.json();
+            
+            const isReceived = req.receiver_id == auth.getUser().user_id;
+            const otherName = isReceived ? (req.sender_name || 'User') : (req.receiver_name || 'User');
+            
+            content.innerHTML = `
+                <div class="mb-4 text-center position-relative">
+                    <span class="badge ${req.status === 'Accepted' ? 'bg-success' : req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled' ? 'bg-danger' : 'bg-warning text-dark'} rounded-pill position-absolute top-0 end-0">${req.status}</span>
+                    <div class="avatar-wrap mx-auto mb-3" style="width: 80px; height: 80px;">
+                        ${isReceived ? (req.sender_pic ? `<img src="${req.sender_pic}" class="rounded-circle w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`) : (req.receiver_pic ? `<img src="${req.receiver_pic}" class="rounded-circle w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`)}
+                    </div>
+                    <h4 class="fw-black mb-1">${otherName}</h4>
+                    <p class="text-muted mb-0 small">"${req.topic || 'Study Request'}"</p>
+                </div>
+
+                ${isReceived ? `
+                <!-- Similarity Insights -->
+                <div class="p-4 bg-primary bg-opacity-10 rounded-4 mb-4 position-relative overflow-hidden">
+                    <div class="position-absolute top-0 end-0 p-3 opacity-25">
+                        <i class="fas fa-bolt fa-4x text-primary"></i>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 position-relative z-1">
+                        <h6 class="fw-black text-primary smaller uppercase mb-0"><i class="fas fa-magic me-2"></i>Match Analysis</h6>
+                        <span class="badge bg-primary rounded-pill">85% Match</span>
+                    </div>
+                    
+                    <div class="progress mb-3 position-relative z-1" style="height: 6px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: 85%;"></div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 position-relative z-1">
+                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm">
+                            <i class="fas fa-book text-primary"></i> <span>Shared Module: <strong>${req.module_code || 'General'}</strong></span>
+                        </div>
+                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm">
+                            <i class="fas fa-check-circle text-success"></i> <span>Matched on <strong>Schedule</strong></span>
+                        </div>
+                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm">
+                            <i class="fas fa-layer-group text-primary"></i> <span>Similar <strong>Level</strong></span>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="row g-4 mb-4">
+                    <div class="col-6">
+                        <label class="smaller text-muted fw-bold uppercase d-block">MODULE</label>
+                        <span class="fw-bold">${req.module_code || 'N/A'}</span>
+                    </div>
+                    <div class="col-6">
+                        <label class="smaller text-muted fw-bold uppercase d-block">SESSION TYPE</label>
+                        <span class="badge bg-light border text-dark rounded-pill fw-bold px-3"><i class="fas fa-users me-1 text-primary"></i> ${req.type === 'group' ? 'Group Study' : '1-on-1'}</span>
+                    </div>
+                    <div class="col-6">
+                        <label class="smaller text-muted fw-bold uppercase d-block">DATE</label>
+                        <span class="fw-bold"><i class="far fa-calendar-alt me-2 text-primary"></i>${formatDisplayDate(req.time_slot)}</span>
+                    </div>
+                    <div class="col-6">
+                        <label class="smaller text-muted fw-bold uppercase d-block">TIME</label>
+                        <span class="fw-bold"><i class="far fa-clock me-2 text-primary"></i>${req.time_slot ? req.time_slot.split(' ')[1] : 'N/A'}</span>
+                    </div>
+                    <div class="col-12">
+                        <label class="smaller text-muted fw-bold uppercase d-block">LOCATION</label>
+                        <span class="fw-bold"><i class="fas fa-map-marker-alt me-2 text-primary"></i>${req.location}</span>
+                    </div>
+                    <div class="col-12">
+                        <label class="smaller text-muted fw-bold uppercase d-block">PERSONAL NOTE</label>
+                        <div class="p-3 bg-light rounded-4 small italic">
+                            "${req.message || 'No note attached.'}"
+                        </div>
+                    </div>
+                </div>
+
+                ${isReceived && req.status === 'Pending' ? `
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-premium py-3 rounded-4" onclick="window.updateRequestStatus(${req.request_id}, 'Accepted')">ACCEPT REQUEST</button>
+                        <button class="btn btn-outline-danger py-3 rounded-4" onclick="window.confirmUpdateStatus(${req.request_id}, 'Declined')">DECLINE</button>
+                    </div>
+                ` : !isReceived && req.status === 'Pending' ? `
+                    <div class="d-grid">
+                        <button class="btn btn-outline-danger py-3 rounded-4" onclick="window.confirmUpdateStatus(${req.request_id}, 'Cancelled')">CANCEL REQUEST</button>
+                    </div>
+                ` : ''}
+            `;
+        } catch (err) {
+            content.innerHTML = '<div class="alert alert-danger">Error loading details.</div>';
+        }
+    };
+
+    window.updateRequestStatus = async function(id, status) {
+        try {
+            const res = await fetch(`/api/matches/request/${id}/status`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${auth.getToken()}`
+                },
+                body: JSON.stringify({ status })
+            });
+            if (res.status === 401) return auth.logout();
+            if (res.ok) {
+                // Close offcanvas if open
+                const drawerEl = document.getElementById('requestDetailDrawer');
+                const drawer = bootstrap.Offcanvas.getInstance(drawerEl);
+                if (drawer) drawer.hide();
+                
+                loadRequests();
+                if (typeof showSuccess === 'function') showSuccess(`Request ${status.toLowerCase()} successfully!`);
+            }
+        } catch (err) { alert("Error updating status"); }
+    };
 
     window.openMatchModal = async function(id, name) {
         clearMatchErrors();
@@ -674,12 +1031,15 @@ document.addEventListener("DOMContentLoaded", function () {
             });
             if (res.status === 401) return auth.logout();
             if (res.ok) {
-                const modalEl = document.getElementById('matchModal');
-                const modal = bootstrap.Modal.getInstance(modalEl);
+                const result = await res.json();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('matchModal'));
                 if (modal) modal.hide();
-                document.getElementById('matchRequestForm').reset();
-                showSuccess("Your match request has been sent successfully!");
+                
+                loadStudents(); 
                 loadRequests();
+                
+                showSuccess("Match request sent successfully!");
+                document.getElementById('matchRequestForm').reset();
             } else {
                 const err = await res.json();
                 alert("Error: " + (err.message || res.status));

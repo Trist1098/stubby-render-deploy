@@ -27,8 +27,14 @@
                             <li class="nav-item">
                                 <a href="index.html" class="nav-link">Dashboard</a>
                             </li>
-                            <li class="nav-item">
-                                <a href="matchmaking.html" class="nav-link active">Matchmaking</a>
+                            <li class="nav-item dropdown">
+                                <a href="#" class="nav-link active dropdown-toggle" data-bs-toggle="dropdown" id="matchmakingDropdown">
+                                    Matchmaking
+                                </a>
+                                <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
+                                    <li><a class="dropdown-item py-2 rounded-3 active" href="#" id="tab-browse" onclick="switchTab('browse')">Browse Matches</a></li>
+                                    <li><a class="dropdown-item py-2 rounded-3" href="#" id="tab-requests" onclick="switchTab('requests')">My Requests</a></li>
+                                </ul>
                             </li>
                             <li class="nav-item">
                                 <a href="sessions.html" class="nav-link">Sessions</a>
@@ -56,12 +62,17 @@
         </div>
     </div>
 
-    <main class="container py-5">
-        <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap position-relative">
-            <nav class="premium-tab-nav">
-                <button class="nav-link active" onclick="switchTab('browse')">Browse Matches</button>
-                <button class="nav-link" onclick="switchTab('requests')">My Requests</button>
-            </nav>
+    <main class="container py-5 mt-4">
+        <div class="row align-items-center mb-5">
+            <div class="col-lg-6">
+                <h2 class="fw-black mb-1" id="pageTitle">FIND STUDY PARTNERS</h2>
+                <p class="text-muted mb-0" id="pageSubtitle">Discover students with similar modules and goals.</p>
+            </div>
+            <div class="col-lg-6 text-lg-end mt-4 mt-lg-0">
+                <button class="btn btn-premium px-4 py-3 rounded-pill" data-bs-toggle="modal" data-bs-target="#preferencesModal">
+                    <i class="fas fa-sliders-h me-2"></i>PREFERENCES
+                </button>
+            </div>
         </div>
 
         <div id="browseSection">
@@ -71,9 +82,6 @@
                     <div class="filter-sidebar">
                         <div class="d-flex align-items-center justify-content-between mb-4">
                             <h5 class="fw-black mb-0">FILTERS</h5>
-                            <button class="btn btn-sm btn-outline-primary rounded-circle" data-bs-toggle="modal" data-bs-target="#preferencesModal" title="Preferences">
-                                <i class="fas fa-cog"></i>
-                            </button>
                         </div>
                         
                         <div class="mb-4">
@@ -89,6 +97,13 @@
                             <div class="form-check form-switch custom-switch">
                                 <input class="form-check-input" type="checkbox" id="onlineFilter" onchange="filterStudents()">
                                 <label class="form-check-label fw-bold small text-dark" for="onlineFilter">Online</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label text-muted small fw-bold">MODULES</label>
+                            <div id="filterModules" class="d-flex flex-wrap">
+                                <!-- Populated by JS -->
                             </div>
                         </div>
 
@@ -120,25 +135,50 @@
         </div>
 
         <div id="requestsSection" style="display: none;">
-            <div class="row g-5">
-                <div class="col-md-6">
-                    <div class="d-flex align-items-center justify-content-between mb-4">
-                        <h5 class="fw-black mb-0">RECEIVED REQUESTS</h5>
-                        <span id="receivedCount" class="badge bg-primary rounded-pill">0</span>
-                    </div>
-                    <div id="receivedRequests" class="pe-md-4">
-                        <p class="text-muted">Loading...</p>
-                    </div>
-                </div>
-                <div class="col-md-6 border-start">
-                    <div class="d-flex align-items-center justify-content-between mb-4">
-                        <h5 class="fw-black mb-0">SENT REQUESTS</h5>
-                        <span id="sentCount" class="badge bg-secondary rounded-pill">0</span>
-                    </div>
-                    <div id="sentRequests" class="ps-md-4">
-                        <p class="text-muted">Loading...</p>
+            <div class="row mb-4">
+                <div class="col-12 text-center">
+                    <div class="premium-tab-nav" id="request-tabs" role="tablist">
+                        <button class="nav-link active" id="received-tab-btn" data-bs-toggle="pill" data-bs-target="#received-tab" type="button" role="tab">
+                            RECEIVED <span id="receivedCount" class="ms-1 badge rounded-pill smaller">0</span>
+                        </button>
+                        <button class="nav-link" id="sent-tab-btn" data-bs-toggle="pill" data-bs-target="#sent-tab" type="button" role="tab">
+                            SENT <span id="sentCount" class="ms-1 badge rounded-pill smaller">0</span>
+                        </button>
                     </div>
                 </div>
+            </div>
+
+            <div class="tab-content">
+                <!-- Received Tab -->
+                <div class="tab-pane fade show active" id="received-tab">
+                    <div id="receivedRequests" class="row g-4">
+                        <!-- Dynamic cards -->
+                    </div>
+                    <div class="text-center mt-5" id="receivedLoadMore" style="display: none;">
+                        <button class="btn btn-white px-5 py-3 rounded-pill fw-bold" onclick="window.loadMoreRequests('received')">LOAD MORE</button>
+                    </div>
+                </div>
+
+                <!-- Sent Tab -->
+                <div class="tab-pane fade" id="sent-tab">
+                    <div id="sentRequests" class="row g-4">
+                        <!-- Dynamic cards -->
+                    </div>
+                    <div class="text-center mt-5" id="sentLoadMore" style="display: none;">
+                        <button class="btn btn-white px-5 py-3 rounded-pill fw-bold" onclick="window.loadMoreRequests('sent')">LOAD MORE</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Request Detail Offcanvas -->
+        <div class="offcanvas offcanvas-end border-0 shadow-premium" tabindex="-1" id="requestDetailDrawer" style="width: 450px;">
+            <div class="offcanvas-header p-4 border-bottom">
+                <h5 class="offcanvas-title fw-black uppercase">Request Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+            </div>
+            <div class="offcanvas-body p-4" id="requestDetailContent">
+                <!-- Dynamic content -->
             </div>
         </div>
     </main>
@@ -267,7 +307,7 @@
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <div class="p-4 rounded-4 bg-primary text-white h-100">
-                                                <i class="fas fa-star mb-3 fs-3"></i>
+                                                <i class="fas fa-bolt mb-3 fs-3"></i>
                                                 <h5 class="fw-black">Match Potential</h5>
                                                 <p class="small opacity-75 mb-0">Add more modules to increase your synergy with others.</p>
                                             </div>
