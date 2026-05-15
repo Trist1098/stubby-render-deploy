@@ -1,4 +1,4 @@
-import { fetchMessages, sendMessageRequest, uploadFileRequest } from './chatApi.js';
+import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
@@ -8,6 +8,31 @@ import {
   getCurrentUserId,
 } from './chatUtils.js';
 import { renderConversationList } from './conversations.js';
+
+let voiceRecorder = null;
+let voiceChunks = [];
+let voiceRecordingStart = null;
+let voiceTimerInterval = null;
+let voiceDiscarded = false;
+
+function cleanupVoiceState() {
+  if (voiceRecorder && voiceRecorder.state !== 'inactive') {
+    voiceDiscarded = true;
+    voiceRecorder.stop();
+  }
+  voiceRecorder = null;
+  voiceChunks = [];
+  voiceRecordingStart = null;
+  if (voiceTimerInterval) clearInterval(voiceTimerInterval);
+  voiceTimerInterval = null;
+  voiceDiscarded = false;
+}
+
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 export function renderEmptyChat() {
   const panel = document.getElementById('chatPanel');
@@ -20,6 +45,8 @@ export function renderEmptyChat() {
 }
 
 export function renderChatPanel() {
+  cleanupVoiceState();
+
   const panel = document.getElementById('chatPanel');
   const conv = getActiveConversation();
 
@@ -49,6 +76,9 @@ export function renderChatPanel() {
         <i class="fas fa-paperclip"></i>
       </label>
       <input type="file" id="fileInput" class="d-none">
+      <button class="btn btn-outline-secondary flex-shrink-0" id="voiceBtn" type="button" title="Record voice message">
+        <i class="fas fa-microphone"></i>
+      </button>
       <input class="form-control" id="messageInput" type="text" placeholder="Type a message" autocomplete="off">
       <button class="btn btn-primary flex-shrink-0" type="submit">
         <i class="fas fa-paper-plane me-1"></i> Send
@@ -67,6 +97,7 @@ export function renderChatPanel() {
     if (e.target.files[0]) sendActiveFile(e.target.files[0]);
     e.target.value = '';
   });
+  document.getElementById('voiceBtn').addEventListener('click', startVoiceRecording);
 
   const messagesList = document.getElementById('messagesList');
   messagesList.addEventListener('dragover', (e) => {
@@ -122,6 +153,9 @@ function renderMessages() {
 
 function renderMessageContent(message) {
   if (message.file_url) {
+    if (message.file_type && message.file_type.startsWith('audio/')) {
+      return renderVoiceMessage(message);
+    }
     const isImage = message.file_type && message.file_type.startsWith('image/');
     const fileDetails = renderFileDetails(message);
     if (isImage) {
@@ -136,6 +170,16 @@ function renderMessageContent(message) {
     ${fileDetails}`;
   }
   return `<div>${escapeHtml(message.text || '')}</div>`;
+}
+
+function renderVoiceMessage(message) {
+  const durationLabel = message.duration != null ? formatDuration(message.duration) : '';
+  return `
+    <div class="msg-voice d-flex align-items-center gap-2">
+      <i class="fas fa-microphone-alt text-primary"></i>
+      <audio controls src="${escapeHtml(message.file_url)}" class="msg-audio"></audio>
+      ${durationLabel ? `<span class="msg-voice-duration text-muted small">${escapeHtml(durationLabel)}</span>` : ''}
+    </div>`;
 }
 
 function renderFileDetails(message) {
@@ -190,7 +234,8 @@ async function refreshMessages() {
   const latestMessage = chatState.activeMessages.at(-1);
   const conv = getActiveConversation();
   if (conv && latestMessage) {
-    conv.last_message = latestMessage.text || latestMessage.file_name || 'File';
+    conv.last_message = latestMessage.text
+      || (latestMessage.file_type?.startsWith('audio/') ? 'Voice message' : latestMessage.file_name || 'File');
     conv.last_message_at = latestMessage.created_at;
     renderConversationList(loadMessages);
   }
@@ -199,6 +244,127 @@ async function refreshMessages() {
 function startMessageRefresh() {
   if (chatState.messageRefreshTimer) clearInterval(chatState.messageRefreshTimer);
   chatState.messageRefreshTimer = setInterval(refreshMessages, 2000);
+}
+
+async function startVoiceRecording() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    alert('Microphone access denied.');
+    return;
+  }
+
+  voiceChunks = [];
+  voiceDiscarded = false;
+  voiceRecordingStart = Date.now();
+  voiceRecorder = new MediaRecorder(stream);
+
+  voiceRecorder.ondataavailable = (e) => {
+    if (e.data.size > 0) voiceChunks.push(e.data);
+  };
+
+  voiceRecorder.onstop = () => {
+    stream.getTracks().forEach((t) => t.stop());
+    if (voiceTimerInterval) {
+      clearInterval(voiceTimerInterval);
+      voiceTimerInterval = null;
+    }
+    if (!voiceDiscarded) showVoicePreview();
+  };
+
+  voiceRecorder.start();
+  showRecordingUI();
+}
+
+function showRecordingUI() {
+  const form = document.getElementById('messageForm');
+  if (!form) return;
+
+  form.innerHTML = `
+    <div class="voice-recording-indicator d-flex align-items-center gap-3 flex-grow-1">
+      <span class="voice-rec-dot"></span>
+      <span class="voice-rec-time" id="voiceTimer">0:00</span>
+      <span class="text-muted small">Recording...</span>
+    </div>
+    <button class="btn btn-danger flex-shrink-0" id="voiceStopBtn" type="button">
+      <i class="fas fa-stop me-1"></i>Stop
+    </button>
+    <button class="btn btn-outline-secondary flex-shrink-0" id="voiceDiscardRecBtn" type="button" title="Discard">
+      <i class="fas fa-trash"></i>
+    </button>`;
+
+  document.getElementById('voiceStopBtn').addEventListener('click', () => {
+    if (voiceRecorder && voiceRecorder.state !== 'inactive') voiceRecorder.stop();
+  });
+
+  document.getElementById('voiceDiscardRecBtn').addEventListener('click', () => {
+    voiceDiscarded = true;
+    if (voiceRecorder && voiceRecorder.state !== 'inactive') voiceRecorder.stop();
+    cleanupVoiceState();
+    renderChatPanel();
+    scrollMessagesToBottom('auto');
+  });
+
+  voiceTimerInterval = setInterval(() => {
+    const timerEl = document.getElementById('voiceTimer');
+    if (!timerEl) {
+      clearInterval(voiceTimerInterval);
+      return;
+    }
+    timerEl.textContent = formatDuration(Math.floor((Date.now() - voiceRecordingStart) / 1000));
+  }, 1000);
+}
+
+function showVoicePreview() {
+  const form = document.getElementById('messageForm');
+  if (!form) return;
+
+  const duration = Math.round((Date.now() - voiceRecordingStart) / 1000);
+  const blob = new Blob(voiceChunks, { type: 'audio/webm' });
+  const previewUrl = URL.createObjectURL(blob);
+
+  form.innerHTML = `
+    <i class="fas fa-microphone-alt text-primary flex-shrink-0 align-self-center"></i>
+    <audio controls src="${previewUrl}" class="msg-audio flex-grow-1"></audio>
+    <span class="text-muted small flex-shrink-0 align-self-center">${escapeHtml(formatDuration(duration))}</span>
+    <button class="btn btn-primary flex-shrink-0" id="voiceSendBtn" type="button">
+      <i class="fas fa-paper-plane"></i>
+    </button>
+    <button class="btn btn-outline-secondary flex-shrink-0" id="voiceDiscardPreviewBtn" type="button" title="Discard">
+      <i class="fas fa-trash"></i>
+    </button>`;
+
+  document.getElementById('voiceSendBtn').addEventListener('click', async () => {
+    URL.revokeObjectURL(previewUrl);
+    voiceRecorder = null;
+    voiceChunks = [];
+
+    const result = await uploadVoiceRequest(chatState.activeConversationId, blob, duration);
+    if (!result.message_id) {
+      alert(result.message || 'Failed to send voice message.');
+      renderChatPanel();
+      return;
+    }
+
+    chatState.activeMessages.push(result);
+    const conv = getActiveConversation();
+    if (conv) {
+      conv.last_message = 'Voice message';
+      conv.last_message_at = result.created_at;
+    }
+    renderConversationList(loadMessages);
+    renderChatPanel();
+    renderMessageList(true);
+  });
+
+  document.getElementById('voiceDiscardPreviewBtn').addEventListener('click', () => {
+    URL.revokeObjectURL(previewUrl);
+    voiceRecorder = null;
+    voiceChunks = [];
+    renderChatPanel();
+    scrollMessagesToBottom('auto');
+  });
 }
 
 async function sendActiveFile(file) {

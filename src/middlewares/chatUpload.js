@@ -41,3 +41,26 @@ module.exports.uploadChatFile = (req, res, next) => {
     next();
   });
 };
+
+const voiceFilter = (req, file, callback) => {
+  if (file.mimetype.startsWith('audio/')) {
+    callback(null, true);
+  } else {
+    const error = new Error('Only audio files are allowed');
+    error.status = 400;
+    callback(error);
+  }
+};
+
+const voiceUpload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: voiceFilter,
+});
+
+module.exports.uploadChatVoice = (req, res, next) => {
+  voiceUpload.single('audio')(req, res, (error) => {
+    if (error) return res.status(400).json({ message: error.message });
+    next();
+  });
+};

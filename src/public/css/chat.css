@@ -202,6 +202,45 @@
   background: #fafafa;
 }
 
+/* Voice messages */
+.msg-voice {
+  min-width: 0;
+}
+
+.msg-audio {
+  height: 36px;
+  max-width: 220px;
+}
+
+.msg-voice-duration {
+  white-space: nowrap;
+}
+
+/* Voice recording UI in composer */
+.voice-recording-indicator {
+  padding: 0.25rem 0;
+}
+
+.voice-rec-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #dc3545;
+  flex-shrink: 0;
+  animation: voicePulse 1s ease-in-out infinite;
+}
+
+.voice-rec-time {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.8rem;
+}
+
+@keyframes voicePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
 /* Responsive */
 @media (max-width: 576px) {
   .chat-sidebar {

@@ -1,4 +1,4 @@
-const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, uploadFile: uploadFileModel } = require('../models/Chat.model');
+const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, uploadFile: uploadFileModel, uploadVoiceMessage: uploadVoiceMessageModel } = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
   const userId = res.locals.userId;
@@ -132,6 +132,28 @@ module.exports.getMessages = async (req, res, next) => {
 
     const messages = await getMessagesByConversationId(conversationId, limit, offset);
     res.json(messages);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.uploadVoiceMessage = async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ message: 'No audio file uploaded' });
+
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const duration = req.body.duration ? Math.round(Number(req.body.duration)) : null;
+
+  try {
+    const fileUrl = '/uploads/' + req.file.filename;
+    const message = await uploadVoiceMessageModel(
+      conversationId,
+      userId,
+      fileUrl,
+      req.file.mimetype,
+      duration,
+    );
+    res.status(201).json(message);
   } catch (error) {
     next(error);
   }

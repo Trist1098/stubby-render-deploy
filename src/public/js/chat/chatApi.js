@@ -20,6 +20,25 @@ export function sendMessageRequest(conversationId, text) {
   return apiRequest(`/api/chats/${conversationId}/messages`, 'POST', { text });
 }
 
+export async function uploadVoiceRequest(conversationId, audioBlob, duration) {
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'voice-message.webm');
+  if (duration != null) formData.append('duration', Math.round(duration));
+  const token = auth.getToken();
+  try {
+    const response = await fetch(`${API_URL}/api/chats/${conversationId}/voice`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (response.status === 401) auth.logout();
+    return await response.json();
+  } catch (err) {
+    console.error('API Error:', err);
+    return { message: 'Network error' };
+  }
+}
+
 export async function uploadFileRequest(conversationId, file) {
   const formData = new FormData();
   formData.append('file', file);

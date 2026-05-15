@@ -292,6 +292,7 @@ CREATE TABLE ChatMessage (
     file_type       VARCHAR(100),
     file_name       VARCHAR(255),
     file_size       INT,
+    duration        INT,
     is_announcement BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
