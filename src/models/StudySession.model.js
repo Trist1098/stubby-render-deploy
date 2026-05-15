@@ -124,16 +124,38 @@ module.exports.selectSessionMembers = async function selectSessionMembers(
     SELECT
       sm.member_id AS id,
       sm.user_id,
-      sm.status_timer,
+      CASE
+        WHEN ss.started_at IS NULL THEN 0
+        ELSE GREATEST(
+          FLOOR(
+            EXTRACT(
+              EPOCH FROM (
+                CURRENT_TIMESTAMP
+                - GREATEST(COALESCE(current_status_event.started_at, ss.started_at), ss.started_at)
+              )
+            )
+          )::INT,
+          0
+        )
+      END AS status_timer,
       LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')) AS status,
       u.name,
       u.profile_pic AS avatar_url,
       LEAST(GREATEST(COALESCE(mgp.progress_percent, sm.progress, 0), 0), 100) AS progress_percent
     FROM SessionMember sm
+    INNER JOIN StudySession ss ON ss.session_id = sm.session_id
     INNER JOIN "User" u ON u.user_id = sm.user_id
     LEFT JOIN micro_goal_progress mgp
       ON mgp.micro_goal_id = $2
       AND mgp.user_id = sm.user_id
+    LEFT JOIN LATERAL (
+      SELECT se.started_at
+      FROM status_events se
+      WHERE se.study_session_participant_id = sm.member_id
+        AND se.ended_at IS NULL
+      ORDER BY se.started_at DESC
+      LIMIT 1
+    ) current_status_event ON TRUE
     WHERE sm.session_id = $1
       AND sm.left_at IS NULL
     ORDER BY sm.member_id ASC
@@ -340,6 +362,63 @@ module.exports.insertMicroGoalEvidence = async function insertMicroGoalEvidence(
 
     await client.query('COMMIT');
     return evidenceResult.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports.updateMicroGoalProgress = async function updateMicroGoalProgress(data) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const progressSql = `
+      INSERT INTO micro_goal_progress (
+        micro_goal_id,
+        user_id,
+        progress_percent,
+        is_completed
+      )
+      SELECT id, $2, $4, FALSE
+      FROM micro_goals
+      WHERE id = $1
+        AND study_session_id = $3
+      ON CONFLICT (micro_goal_id, user_id) DO UPDATE
+      SET progress_percent = EXCLUDED.progress_percent,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE micro_goal_progress.is_completed = FALSE
+      RETURNING id, micro_goal_id, user_id, progress_percent, is_completed, completed_at
+    `;
+    const progressResult = await client.query(progressSql, [
+      data.micro_goal_id,
+      data.user_id,
+      data.study_session_id,
+      data.progress_percent,
+    ]);
+    const progress = progressResult.rows[0];
+
+    if (!progress) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query(
+      `
+        UPDATE SessionMember
+        SET progress = $3
+        WHERE session_id = $1
+          AND user_id = $2
+          AND left_at IS NULL
+      `,
+      [data.study_session_id, data.user_id, data.progress_percent],
+    );
+
+    await client.query('COMMIT');
+    return progress;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

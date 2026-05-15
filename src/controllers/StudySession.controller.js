@@ -123,6 +123,34 @@ module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, r
   }
 };
 
+module.exports.updateMicroGoalProgress = async function updateMicroGoalProgress(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const microGoalId = parseId(req.params.microGoalId);
+  const userId = parseId(req.body.user_id);
+  const progress = Number(req.body.progress_percent);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!microGoalId) return badReq(res, 'Valid micro-goal id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
+  if (!Number.isInteger(progress) || progress < 0 || progress > 99) {
+    return badReq(res, 'Progress must be between 0 and 99 before uploading workings');
+  }
+
+  try {
+    const updatedProgress = await model.updateMicroGoalProgress({
+      study_session_id: sessionId,
+      micro_goal_id: microGoalId,
+      user_id: userId,
+      progress_percent: progress,
+    });
+
+    if (!updatedProgress) return notFound(res, 'Micro-goal progress is locked or unavailable');
+    return ok(res, updatedProgress);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports.updateMemberStatus = async function updateMemberStatus(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
   const userId = parseId(req.body.user_id);

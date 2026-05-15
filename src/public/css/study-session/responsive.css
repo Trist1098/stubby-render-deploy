@@ -1,0 +1,50 @@
+@media (max-width: 991px) {
+  .study-nav-links {
+    align-items: stretch;
+    padding: 14px 0;
+  }
+
+  .study-nav-links .study-nav-link {
+    min-width: 0;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 12px 14px !important;
+  }
+
+  .session-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .session-focus-card,
+  .status-controls-box,
+  .members-box {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .session-focus-card {
+    grid-template-columns: 132px 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .session-web-shell {
+    margin: 18px auto 40px;
+    padding: 0 14px;
+  }
+
+  .session-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 22px;
+  }
+
+  .session-focus-card {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+
+  .timer-ring {
+    width: 112px;
+  }
+}

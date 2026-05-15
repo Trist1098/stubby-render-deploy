@@ -9,6 +9,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/study-session.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap"
       rel="stylesheet"
@@ -151,6 +152,24 @@
             <button class="status-control" type="button" data-status="break">On Break</button>
             <button class="status-control" type="button" data-status="need_help">Need Help</button>
           </div>
+          <div class="status-progress-panel">
+            <div class="status-progress-copy">
+              <span>Micro-goal progress</span>
+              <strong id="statusProgressText">0%</strong>
+            </div>
+            <button
+              id="statusProgressBar"
+              class="status-progress-bar"
+              type="button"
+              aria-label="Set micro-goal progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <span id="statusProgressFill"></span>
+            </button>
+            <p id="statusProgressHint">Click the bar to update progress. 100% requires workings or a file.</p>
+          </div>
         </section>
 
         <section class="members-box" aria-labelledby="membersTitle">
@@ -195,12 +214,12 @@
       aria-modal="true"
       aria-labelledby="exitModalTitle"
     >
-      <section class="session-modal-card">
+      <section class="session-modal-card exit-modal-card">
         <h2 id="exitModalTitle">Exit Session?</h2>
-        <p>End the current study session and return to sessions.</p>
+        <p>This will exit the session and bring you to the Personal Summary page.</p>
         <div class="session-modal-actions">
-          <button id="confirmExitButton" class="btn btn-danger" type="button">Exit</button>
-          <button id="cancelExitButton" class="btn btn-light" type="button">Stay</button>
+          <button id="cancelExitButton" class="btn btn-light" type="button">Cancel</button>
+          <button id="confirmExitButton" class="btn btn-danger" type="button">Exit Session</button>
         </div>
       </section>
     </div>
@@ -223,6 +242,58 @@
           <button id="confirmConsultationButton" class="btn btn-primary" type="button">
             Confirm
           </button>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="memberGoalsModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="memberGoalsModalTitle"
+    >
+      <section class="session-modal-card member-goals-modal-card">
+        <div class="session-modal-header">
+          <h2 id="memberGoalsModalTitle">Micro-goals & Uploads</h2>
+          <button
+            id="closeMemberGoalsButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close micro-goals and uploads"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="memberGoalsModalContent" class="member-goals-modal-content"></div>
+      </section>
+    </div>
+
+    <div
+      id="completionModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="completionModalTitle"
+    >
+      <section class="session-modal-card completion-modal-card">
+        <h2 id="completionModalTitle">Complete Micro-goal?</h2>
+        <p>Add your workings or upload a file to lock this micro-goal at 100%.</p>
+        <form id="completionEvidenceForm" class="evidence-upload-form">
+          <label>
+            <span>Workings or completion note</span>
+            <textarea name="equation_text" rows="3" placeholder="Show your workings or completion notes"></textarea>
+          </label>
+          <div class="evidence-upload-row">
+            <input name="evidence_file" type="file" accept="image/*,.pdf,.doc,.docx,.txt" />
+            <button type="submit">
+              <i class="fas fa-upload"></i>
+              <span>Submit</span>
+            </button>
+          </div>
+        </form>
+        <div class="session-modal-actions">
+          <button id="cancelCompletionButton" class="btn btn-light" type="button">Cancel</button>
         </div>
       </section>
     </div>

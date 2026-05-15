@@ -9,11 +9,12 @@ const MEMBER_PREVIEW_LIMIT = 3;
 let sessionData = createDemoSession();
 let timerStartedAt = Date.now();
 let timerInterval = null;
+let statusTimerInterval = null;
+let activeProgressDrag = null;
 let isPreviewMode = false;
 let membersExpanded = false;
 const page = {};
 
-// Demo data keeps the page useful even before the database/API is running.
 function createDemoSession() {
   const activeGoalTitle = 'Review Chapter 5-7';
   const activeGoalDescription = 'Complete the active FOP2 revision target.';
@@ -96,15 +97,19 @@ function evidence(id, type, text, url = null) {
   return { id, content_type: type, text_content: text, url };
 }
 
-// DOM helpers
 function bindPage() {
   page.exitModal = byId('exitModal');
+  page.completionForm = byId('completionEvidenceForm');
+  page.completionModal = byId('completionModal');
   page.consultationModal = byId('consultationModal');
   page.consultationMemberName = byId('consultationMemberName');
   page.goalDescription = byId('currentGoalDescription');
   page.goalForm = byId('microGoalForm');
   page.goalInput = byId('microGoalTitleInput');
   page.goalTitle = byId('currentGoalTitle');
+  page.memberGoalsModal = byId('memberGoalsModal');
+  page.memberGoalsModalContent = byId('memberGoalsModalContent');
+  page.memberGoalsModalTitle = byId('memberGoalsModalTitle');
   page.membersList = byId('membersList');
   page.membersToggle = byId('membersToggleButton');
   page.message = byId('sessionMessage');
@@ -115,6 +120,10 @@ function bindPage() {
   page.timer = byId('countdownTimer');
   page.title = byId('sessionTitle');
   page.statusControls = Array.from(document.querySelectorAll('.status-control'));
+  page.statusProgressBar = byId('statusProgressBar');
+  page.statusProgressFill = byId('statusProgressFill');
+  page.statusProgressHint = byId('statusProgressHint');
+  page.statusProgressText = byId('statusProgressText');
 }
 
 function byId(id) {
@@ -186,7 +195,6 @@ function emptyText(text, className = 'member-evidence-empty') {
   return `<p class="${className}">${escapeHtml(text)}</p>`;
 }
 
-// API helpers
 async function getJson(url, options = {}) {
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
@@ -204,13 +212,14 @@ async function postForm(url, formData) {
   return payload.data || payload;
 }
 
-// Rendering
 function renderPage() {
   page.title.textContent = sessionData.title || 'Software Engineering Practice';
   renderCurrentGoal();
   renderMembers();
   renderStatusControls();
+  renderStatusProgress();
   startTimer();
+  startStatusTimer();
 }
 
 function renderCurrentGoal() {
@@ -257,23 +266,71 @@ function renderMembers() {
     : emptyText('No members in this session yet.', 'empty-members');
 
   page.membersToggle.classList.toggle('d-none', members.length <= MEMBER_PREVIEW_LIMIT);
-  page.membersToggle.textContent = membersExpanded
-    ? 'Show less'
-    : `Show all ${members.length}`;
+  page.membersToggle.textContent = membersExpanded ? 'Show less' : `Show all ${members.length}`;
   page.membersToggle.setAttribute('aria-expanded', String(membersExpanded));
 }
 
 function renderStatusControls() {
-  const currentMember = (sessionData.members || []).find(
-    (memberData) => Number(memberData.user_id) === CURRENT_USER_ID,
+  const currentMember = getCurrentMember();
+  const currentStatus = normalizeStatusForApi(
+    currentMember?.status_class || currentMember?.current_status,
   );
-  const currentStatus = normalizeStatusForApi(currentMember?.status_class || currentMember?.current_status);
 
   page.statusControls.forEach((button) => {
     const isActive = button.dataset.status === currentStatus;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-pressed', String(isActive));
   });
+}
+
+function renderStatusProgress() {
+  const currentMember = getCurrentMember();
+  const currentGoal = getCurrentMemberGoal();
+  const progress = asPercent(currentMember?.progress_percent);
+  const isLocked = Boolean(currentGoal?.is_completed || progress >= 100);
+
+  paintProgress(progress);
+  page.statusProgressBar.classList.toggle('is-locked', isLocked);
+  page.statusProgressBar.setAttribute('aria-disabled', String(isLocked));
+  page.statusProgressHint.textContent = isLocked
+    ? 'Progress is locked at 100% for this micro-goal.'
+    : 'Drag or click the bar to update progress. 100% requires workings or a file.';
+}
+
+function renderStatusTimers() {
+  document.querySelectorAll('.member-status-time').forEach((timer) => {
+    timer.textContent = `${statusTime(currentStatusSeconds(timer))} in status`;
+  });
+}
+
+function currentStatusSeconds(timer) {
+  const baseSeconds = Number(timer.dataset.statusSeconds) || 0;
+  const renderedAt = Number(timer.dataset.statusRenderedAt) || Date.now();
+  const elapsedSeconds = Math.floor((Date.now() - renderedAt) / 1000);
+  return baseSeconds + elapsedSeconds;
+}
+
+function syncRenderedStatusTimers() {
+  document.querySelectorAll('.session-member-card').forEach((card) => {
+    const timer = card.querySelector('.member-status-time');
+    const member = (sessionData.members || []).find(
+      (item) => Number(item.user_id) === Number(card.dataset.memberUserId),
+    );
+    if (timer && member) member.status_timer = currentStatusSeconds(timer);
+  });
+}
+
+function renderMemberCardInPlace(memberData) {
+  const card = page.membersList.querySelector(
+    `.session-member-card[data-member-user-id="${memberData.user_id}"]`,
+  );
+  if (!card) {
+    renderMembers();
+    return;
+  }
+
+  card.outerHTML = renderMemberCard(memberData);
+  renderStatusTimers();
 }
 
 function renderMemberCard(memberData) {
@@ -283,12 +340,13 @@ function renderMemberCard(memberData) {
   const isCurrentUser = Number(memberData.user_id) === CURRENT_USER_ID;
   const displayName = isCurrentUser ? 'You' : memberData.name || 'Member';
   const avatarText = isCurrentUser ? 'You' : initials(memberData.name);
+  const statusSeconds = Math.max(0, Number(memberData.status_timer) || 0);
   const statusDisplay = isNeedHelp
     ? `<button class="member-status status-${escapeHtml(statusClass)} consultation-status-button" type="button" data-consultation-name="${escapeHtml(memberData.name || 'This user')}">${escapeHtml(memberData.current_status || 'Focusing')}</button>`
     : `<span class="member-status status-${escapeHtml(statusClass)}">${escapeHtml(memberData.current_status || 'Focusing')}</span>`;
 
   return `
-    <article class="session-member-card status-${escapeHtml(statusClass)}${isCurrentUser ? ' current-user-card' : ''}">
+    <article class="session-member-card status-${escapeHtml(statusClass)}${isCurrentUser ? ' current-user-card' : ''}" data-member-user-id="${memberData.user_id}">
       <div class="member-card-summary">
         <div class="member-avatar">${escapeHtml(avatarText)}</div>
         <div class="member-main">
@@ -297,23 +355,39 @@ function renderMemberCard(memberData) {
             ${statusDisplay}
           </div>
           <div class="member-meta-row">
-            <span>${statusTime(memberData.status_timer)} in status</span>
-            <span>${progress}%</span>
+            <span
+              class="member-status-time"
+              data-status-seconds="${statusSeconds}"
+              data-status-rendered-at="${Date.now()}"
+            >${statusTime(statusSeconds)} in status</span>
+            <span class="member-progress-value">${progress}%</span>
           </div>
           <div class="member-progress-bar" aria-label="Goal progress ${progress}%">
-            <span style="width: ${progress}%"></span>
+            <span class="member-progress-fill" style="width: ${progress}%"></span>
           </div>
         </div>
       </div>
-      <details class="member-details">
-        <summary>
-          <span>Micro-goals & uploads</span>
-          <i class="fas fa-chevron-down"></i>
-        </summary>
-        ${renderMemberGoals(memberData)}
-      </details>
+      <button
+        class="member-goals-button"
+        type="button"
+        data-member-user-id="${memberData.user_id}"
+      >
+        <span>Micro-goals & uploads</span>
+        <i class="fas fa-arrow-up-right-from-square"></i>
+      </button>
     </article>
   `;
+}
+
+function getCurrentMember() {
+  return (sessionData.members || []).find(
+    (memberData) => Number(memberData.user_id) === CURRENT_USER_ID,
+  );
+}
+
+function getCurrentMemberGoal() {
+  const currentGoalId = Number(sessionData.micro_goal?.id);
+  return (getCurrentMember()?.goals || []).find((item) => Number(item.id) === currentGoalId);
 }
 
 function renderMemberGoals(memberData) {
@@ -385,10 +459,11 @@ function renderEvidenceItem(item) {
 
   return `
     <a class="evidence-chip evidence-${escapeHtml(type)}" href="${escapeHtml(url || '#')}" target="_blank" rel="noreferrer">
-      ${type === 'image' && url
-      ? `<img src="${escapeHtml(url)}" alt="${label}" />`
-      : `<i class="fas ${fileIcon(type)}"></i>`
-    }
+      ${
+        type === 'image' && url
+          ? `<img src="${escapeHtml(url)}" alt="${label}" />`
+          : `<i class="fas ${fileIcon(type)}"></i>`
+      }
       <span>${label}</span>
     </a>
   `;
@@ -418,10 +493,19 @@ function startTimer() {
   timerInterval = setInterval(renderTimer, 1000);
 }
 
+function startStatusTimer() {
+  clearInterval(statusTimerInterval);
+  renderStatusTimers();
+  statusTimerInterval = setInterval(renderStatusTimers, 1000);
+}
+
 function renderTimer() {
   const elapsedSeconds = Math.floor((Date.now() - timerStartedAt) / 1000);
   const remainingSeconds = Math.max(0, Number(sessionData.remaining_seconds || 0) - elapsedSeconds);
-  const totalSeconds = Math.max(remainingSeconds, Number(sessionData.planned_duration_seconds || 0));
+  const totalSeconds = Math.max(
+    remainingSeconds,
+    Number(sessionData.planned_duration_seconds || 0),
+  );
 
   page.timer.textContent = timerText(remainingSeconds);
   page.timer.parentElement.style.setProperty(
@@ -430,7 +514,6 @@ function renderTimer() {
   );
 }
 
-// Actions
 async function loadSession() {
   clearMessage();
 
@@ -509,6 +592,9 @@ async function uploadEvidence(event) {
 
   if (isPreviewMode) {
     addPreviewEvidence(form, equationText, file);
+    if (!page.memberGoalsModal.classList.contains('d-none')) {
+      openMemberGoalsModal(form.dataset.userId);
+    }
     return;
   }
 
@@ -518,13 +604,186 @@ async function uploadEvidence(event) {
     await postForm(`${apiBase}/micro-goals/${form.dataset.goalId}/evidence`, formData);
     form.reset();
     await loadSession();
+    if (!page.memberGoalsModal.classList.contains('d-none')) {
+      openMemberGoalsModal(form.dataset.userId);
+    }
+  } catch (error) {
+    showMessage(error.message, 'danger');
+  }
+}
+
+function progressFromPointer(event) {
+  const rect = page.statusProgressBar.getBoundingClientRect();
+  const offset = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+  return Math.round((offset / rect.width) * 100);
+}
+
+function paintProgress(progress) {
+  page.statusProgressText.textContent = `${progress}%`;
+  page.statusProgressFill.style.width = `${progress}%`;
+  page.statusProgressBar.style.setProperty('--status-progress', `${progress}%`);
+  page.statusProgressBar.setAttribute('aria-valuenow', String(progress));
+
+  const currentCard = page.membersList.querySelector(
+    `.session-member-card[data-member-user-id="${CURRENT_USER_ID}"]`,
+  );
+  const memberProgressValue = currentCard?.querySelector('.member-progress-value');
+  const memberProgressBar = currentCard?.querySelector('.member-progress-bar');
+  const memberProgressFill = currentCard?.querySelector('.member-progress-fill');
+
+  if (memberProgressValue) memberProgressValue.textContent = `${progress}%`;
+  if (memberProgressBar) memberProgressBar.setAttribute('aria-label', `Goal progress ${progress}%`);
+  if (memberProgressFill) memberProgressFill.style.width = `${progress}%`;
+}
+
+function isProgressLocked() {
+  const currentMember = getCurrentMember();
+  const currentGoal = getCurrentMemberGoal();
+  return Boolean(currentGoal?.is_completed || asPercent(currentMember?.progress_percent) >= 100);
+}
+
+function startProgressDrag(event) {
+  if (isProgressLocked()) return;
+
+  event.preventDefault();
+  activeProgressDrag = {
+    pointerId: event.pointerId,
+    progress: progressFromPointer(event),
+  };
+  page.statusProgressBar.classList.add('is-dragging');
+  page.statusProgressBar.setPointerCapture?.(event.pointerId);
+  paintProgress(activeProgressDrag.progress);
+}
+
+function moveProgressDrag(event) {
+  if (!activeProgressDrag || activeProgressDrag.pointerId !== event.pointerId) return;
+
+  activeProgressDrag.progress = progressFromPointer(event);
+  paintProgress(activeProgressDrag.progress);
+}
+
+function finishProgressDrag(event) {
+  if (!activeProgressDrag || activeProgressDrag.pointerId !== event.pointerId) return;
+
+  moveProgressDrag(event);
+  const progress = activeProgressDrag.progress;
+  activeProgressDrag = null;
+  page.statusProgressBar.classList.remove('is-dragging');
+  if (page.statusProgressBar.hasPointerCapture?.(event.pointerId)) {
+    page.statusProgressBar.releasePointerCapture(event.pointerId);
+  }
+  updateCurrentProgress(progress);
+}
+
+function cancelProgressDrag(event) {
+  if (!activeProgressDrag || activeProgressDrag.pointerId !== event.pointerId) return;
+
+  activeProgressDrag = null;
+  page.statusProgressBar.classList.remove('is-dragging');
+  if (page.statusProgressBar.hasPointerCapture?.(event.pointerId)) {
+    page.statusProgressBar.releasePointerCapture(event.pointerId);
+  }
+  renderStatusProgress();
+}
+
+function openCompletionModal() {
+  const currentGoal = sessionData.micro_goal;
+  if (!currentGoal?.id) {
+    showMessage('Choose an active micro-goal before completing progress.', 'danger');
+    return;
+  }
+
+  page.completionForm.dataset.userId = CURRENT_USER_ID;
+  page.completionForm.dataset.goalId = currentGoal.id;
+  page.completionForm.reset();
+  showModal(page.completionModal, true);
+}
+
+async function updateCurrentProgress(progress) {
+  const currentMember = getCurrentMember();
+  const currentGoal = getCurrentMemberGoal();
+
+  if (!currentMember || !sessionData.micro_goal?.id) return;
+  if (currentGoal?.is_completed || asPercent(currentMember.progress_percent) >= 100) {
+    showMessage('This micro-goal is already locked at 100%.', 'info');
+    renderStatusProgress();
+    return;
+  }
+  if (progress >= 100) {
+    renderStatusProgress();
+    openCompletionModal();
+    return;
+  }
+
+  syncRenderedStatusTimers();
+
+  if (isPreviewMode) {
+    updatePreviewProgress(progress);
+    return;
+  }
+
+  try {
+    const updatedProgress = await getJson(`${apiBase}/micro-goals/${sessionData.micro_goal.id}/progress`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        user_id: CURRENT_USER_ID,
+        progress_percent: progress,
+      }),
+    });
+    updatePreviewProgress(asPercent(updatedProgress.progress_percent));
+    clearMessage();
+  } catch (error) {
+    renderStatusProgress();
+    showMessage(error.message, 'danger');
+  }
+}
+
+function updatePreviewProgress(progress) {
+  const currentMember = getCurrentMember();
+  const currentGoal = getCurrentMemberGoal();
+  if (!currentMember || !currentGoal) return;
+
+  currentMember.progress_percent = progress;
+  currentGoal.progress_percent = progress;
+  showMessage('Progress updated in the static preview.', 'info');
+  renderStatusProgress();
+}
+
+async function submitCompletionEvidence(event) {
+  event.preventDefault();
+
+  const form = event.target;
+  const equationText = form.elements.equation_text.value.trim();
+  const file = form.elements.evidence_file.files[0];
+
+  if (!equationText && !file) {
+    showMessage('Add your workings or upload a file to mark this as 100%.', 'danger');
+    return;
+  }
+
+  if (isPreviewMode) {
+    addPreviewEvidence(form, equationText, file);
+    showModal(page.completionModal, false);
+    renderStatusProgress();
+    return;
+  }
+
+  try {
+    const formData = new FormData(form);
+    formData.set('user_id', form.dataset.userId);
+    await postForm(`${apiBase}/micro-goals/${form.dataset.goalId}/evidence`, formData);
+    form.reset();
+    showModal(page.completionModal, false);
+    await loadSession();
   } catch (error) {
     showMessage(error.message, 'danger');
   }
 }
 
 function normalizeStatusForApi(status) {
-  const normalized = String(status || 'focus').toLowerCase().replace(/[\s-]+/g, '_');
+  const normalized = String(status || 'focus')
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
   if (normalized === 'focusing') return 'focus';
   if (normalized === 'on_break') return 'break';
   return normalized;
@@ -535,20 +794,29 @@ async function updateCurrentStatus(event) {
   const status = button.dataset.status;
   if (!status) return;
 
+  syncRenderedStatusTimers();
+
   if (isPreviewMode) {
     updatePreviewStatus(status);
     return;
   }
 
   try {
-    await getJson(`${apiBase}/members/status`, {
+    const updatedMember = await getJson(`${apiBase}/members/status`, {
       method: 'PATCH',
       body: JSON.stringify({
         user_id: CURRENT_USER_ID,
         status,
       }),
     });
-    await loadSession();
+    const currentMember = getCurrentMember();
+    if (currentMember) {
+      currentMember.current_status = updatedMember.current_status;
+      currentMember.status_class = updatedMember.status_class;
+      currentMember.status_timer = updatedMember.status_timer || 0;
+    }
+    renderMemberCardInPlace(currentMember);
+    renderStatusControls();
   } catch (error) {
     showMessage(error.message, 'danger');
   }
@@ -570,7 +838,7 @@ function updatePreviewStatus(status) {
   currentMember.status_class = status.replace(/_/g, '-');
   currentMember.status_timer = 0;
   showMessage('Status updated in the static preview.', 'info');
-  renderMembers();
+  renderMemberCardInPlace(currentMember);
   renderStatusControls();
 }
 
@@ -584,6 +852,26 @@ function handleMemberActivation(event) {
   if (!button) return;
 
   openConsultationModal(button.dataset.consultationName);
+}
+
+function openMemberGoalsModal(userId) {
+  const memberData = (sessionData.members || []).find(
+    (item) => Number(item.user_id) === Number(userId),
+  );
+  if (!memberData) return;
+
+  const displayName = Number(memberData.user_id) === CURRENT_USER_ID ? 'You' : memberData.name;
+
+  page.memberGoalsModalTitle.textContent = `${displayName || 'Member'}: Micro-goals & Uploads`;
+  page.memberGoalsModalContent.innerHTML = renderMemberGoals(memberData);
+  showModal(page.memberGoalsModal, true);
+}
+
+function handleMemberGoalsButton(event) {
+  const button = event.target.closest('.member-goals-button');
+  if (!button) return;
+
+  openMemberGoalsModal(button.dataset.memberUserId);
 }
 
 function addPreviewEvidence(form, equationText, file) {
@@ -618,6 +906,7 @@ function addPreviewEvidence(form, equationText, file) {
   form.reset();
   showMessage('Evidence added to the static preview.', 'info');
   renderMembers();
+  renderStatusProgress();
 }
 
 async function exitSession() {
@@ -627,10 +916,9 @@ async function exitSession() {
     console.info('Static exit fallback:', error.message);
   }
 
-  window.location.href = 'sessions.html';
+  window.location.href = 'personal-summary.html';
 }
 
-// Events
 document.addEventListener('DOMContentLoaded', () => {
   bindPage();
 
@@ -642,6 +930,8 @@ document.addEventListener('DOMContentLoaded', () => {
   page.goalForm.addEventListener('submit', addMicroGoal);
   page.membersList.addEventListener('submit', uploadEvidence);
   page.membersList.addEventListener('click', handleMemberActivation);
+  page.membersList.addEventListener('click', handleMemberGoalsButton);
+  page.memberGoalsModal.addEventListener('submit', uploadEvidence);
   page.membersToggle.addEventListener('click', () => {
     membersExpanded = !membersExpanded;
     renderMembers();
@@ -649,10 +939,18 @@ document.addEventListener('DOMContentLoaded', () => {
   page.statusControls.forEach((button) => {
     button.addEventListener('click', updateCurrentStatus);
   });
+  page.statusProgressBar.addEventListener('pointerdown', startProgressDrag);
+  page.statusProgressBar.addEventListener('pointermove', moveProgressDrag);
+  page.statusProgressBar.addEventListener('pointerup', finishProgressDrag);
+  page.statusProgressBar.addEventListener('pointercancel', cancelProgressDrag);
+  page.completionForm.addEventListener('submit', submitCompletionEvidence);
 
   byId('exitSessionButton').addEventListener('click', () => showModal(page.exitModal, true));
   byId('cancelExitButton').addEventListener('click', () => showModal(page.exitModal, false));
   byId('confirmExitButton').addEventListener('click', exitSession);
+  byId('cancelCompletionButton').addEventListener('click', () =>
+    showModal(page.completionModal, false),
+  );
   byId('cancelConsultationButton').addEventListener('click', () =>
     showModal(page.consultationModal, false),
   );
@@ -663,6 +961,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   byId('viewQueueButton').addEventListener('click', () => showModal(page.queueModal, true));
   byId('closeQueueButton').addEventListener('click', () => showModal(page.queueModal, false));
+  byId('closeMemberGoalsButton').addEventListener('click', () =>
+    showModal(page.memberGoalsModal, false),
+  );
 
   page.exitModal.addEventListener('click', (event) => {
     if (event.target === page.exitModal) showModal(page.exitModal, false);
@@ -672,6 +973,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   page.consultationModal.addEventListener('click', (event) => {
     if (event.target === page.consultationModal) showModal(page.consultationModal, false);
+  });
+  page.memberGoalsModal.addEventListener('click', (event) => {
+    if (event.target === page.memberGoalsModal) showModal(page.memberGoalsModal, false);
+  });
+  page.completionModal.addEventListener('click', (event) => {
+    if (event.target === page.completionModal) showModal(page.completionModal, false);
   });
 
   loadSession();
