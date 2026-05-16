@@ -20,6 +20,10 @@ export function sendMessageRequest(conversationId, text) {
   return apiRequest(`/api/chats/${conversationId}/messages`, 'POST', { text });
 }
 
+export function editMessageRequest(conversationId, messageId, text) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}`, 'PATCH', { text });
+}
+
 export async function uploadVoiceRequest(conversationId, audioBlob, duration) {
   const formData = new FormData();
   formData.append('audio', audioBlob, 'voice-message.webm');

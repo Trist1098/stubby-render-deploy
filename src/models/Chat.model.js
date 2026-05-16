@@ -140,7 +140,8 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
        cm.file_size,
        cm.duration,
        cm.is_announcement,
-       cm.created_at
+       cm.created_at,
+       cm.edited_at
      FROM ChatMessage cm
      JOIN "User" u ON u.user_id = cm.sender_id
      WHERE cm.conversation_id = $1
@@ -165,6 +166,17 @@ module.exports.uploadVoiceMessage = async (conversationId, senderId, fileUrl, fi
     [senderId]
   );
   return { ...message, sender_username: senderResult.rows[0]?.username || 'Unknown user' };
+};
+
+module.exports.editMessage = async (messageId, senderId, text) => {
+  const result = await pool.query(
+    `UPDATE ChatMessage
+     SET text = $1, edited_at = NOW()
+     WHERE message_id = $2 AND sender_id = $3
+     RETURNING message_id, conversation_id, sender_id, text, file_url, file_type, file_name, file_size, duration, is_announcement, created_at, edited_at`,
+    [text, messageId, senderId]
+  );
+  return result.rows[0] || null;
 };
 
 module.exports.uploadFile = async (conversationId, senderId, fileUrl, fileType, fileName, fileSize) => {

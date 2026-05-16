@@ -1,4 +1,4 @@
-import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest } from './chatApi.js';
+import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
@@ -100,6 +100,7 @@ export function renderChatPanel() {
   document.getElementById('voiceBtn').addEventListener('click', startVoiceRecording);
 
   const messagesList = document.getElementById('messagesList');
+  messagesList.addEventListener('click', handleMessageAction);
   messagesList.addEventListener('dragover', (e) => {
     e.preventDefault();
     messagesList.classList.add('drag-over');
@@ -140,11 +141,19 @@ function renderMessages() {
         ? ''
         : 'new-message';
       chatState.animatedMessageIds.add(message.message_id);
+      const editedLabel = message.edited_at
+        ? `<span class="msg-edited" title="Edited ${formatTime(message.edited_at)}">(edited)</span>`
+        : '';
+      const editBtn = isSent && message.text && !message.file_url
+        ? `<button class="msg-action-btn edit-btn" data-message-id="${message.message_id}" title="Edit"><i class="fas fa-pen"></i></button>`
+        : '';
       return `
-      <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}">
+      <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}" data-message-id="${message.message_id}">
+        <div class="msg-actions ${isSent ? 'msg-actions-sent' : ''}">${editBtn}</div>
         <div class="message-bubble">
           <div class="message-meta mb-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</div>
           ${renderMessageContent(message)}
+          ${editedLabel}
         </div>
       </div>`;
     })
@@ -194,6 +203,57 @@ function formatFileSize(bytes) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function handleMessageAction(e) {
+  const editBtn = e.target.closest('.edit-btn');
+  if (editBtn) startEditMessage(Number(editBtn.dataset.messageId));
+}
+
+function startEditMessage(messageId) {
+  const message = chatState.activeMessages.find((m) => m.message_id === messageId);
+  if (!message) return;
+  const row = document.querySelector(`.message-row[data-message-id="${messageId}"]`);
+  if (!row) return;
+  const bubble = row.querySelector('.message-bubble');
+  bubble.innerHTML = `
+    <div class="message-meta mb-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</div>
+    <div class="msg-edit-form">
+      <input class="form-control form-control-sm msg-edit-input" value="${escapeHtml(message.text || '')}" autocomplete="off">
+      <div class="d-flex gap-2 mt-1">
+        <button class="btn btn-sm btn-primary msg-edit-save" type="button">Save</button>
+        <button class="btn btn-sm btn-outline-secondary msg-edit-cancel" type="button">Cancel</button>
+      </div>
+    </div>`;
+  const input = bubble.querySelector('.msg-edit-input');
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  bubble.querySelector('.msg-edit-save').addEventListener('click', () => saveEditMessage(messageId, input.value));
+  bubble.querySelector('.msg-edit-cancel').addEventListener('click', () => renderMessageList(false));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) saveEditMessage(messageId, input.value);
+    if (e.key === 'Escape') renderMessageList(false);
+  });
+}
+
+async function saveEditMessage(messageId, newText) {
+  const text = newText.trim();
+  if (!text) return;
+  const result = await editMessageRequest(chatState.activeConversationId, messageId, text);
+  if (!result || !result.message_id) {
+    alert(result?.message || 'Failed to edit message.');
+    renderMessageList(false);
+    return;
+  }
+  const idx = chatState.activeMessages.findIndex((m) => m.message_id === messageId);
+  if (idx !== -1) {
+    chatState.activeMessages[idx] = {
+      ...chatState.activeMessages[idx],
+      text: result.text,
+      edited_at: result.edited_at,
+    };
+  }
+  renderMessageList(false);
 }
 
 function scrollMessagesToBottom(behavior = 'smooth') {

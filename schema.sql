@@ -295,6 +295,7 @@ CREATE TABLE ChatMessage (
     duration        INT,
     is_announcement BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    edited_at       TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE
 );

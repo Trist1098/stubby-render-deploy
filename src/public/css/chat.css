@@ -92,6 +92,9 @@
 .message-row {
   display: flex;
   margin-bottom: 0.75rem;
+  position: relative;
+  align-items: flex-end;
+  gap: 0.35rem;
 }
 
 .message-row.new-message {
@@ -239,6 +242,73 @@
 @keyframes voicePulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.25; }
+}
+
+/* Message edit */
+.msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  opacity: 0;
+  transition: opacity 0.12s;
+  order: -1;
+}
+
+.msg-actions-sent {
+  order: 1;
+}
+
+.message-row:hover .msg-actions {
+  opacity: 1;
+}
+
+.msg-action-btn {
+  background: none;
+  border: none;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #6c757d;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.msg-action-btn:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: #0d6efd;
+}
+
+.msg-edited {
+  display: inline-block;
+  font-size: 0.68rem;
+  opacity: 0.65;
+  margin-top: 0.15rem;
+  cursor: default;
+}
+
+.msg-edit-form {
+  margin-top: 0.25rem;
+}
+
+.msg-edit-input {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: inherit;
+}
+
+.message-row.received .msg-edit-input {
+  background: #fff;
+  border-color: #dee2e6;
+  color: #212529;
+}
+
+.msg-edit-input:focus {
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.message-row.received .msg-edit-input:focus {
+  border-color: #86b7fe;
 }
 
 /* Responsive */
