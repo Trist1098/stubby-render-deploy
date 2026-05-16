@@ -22,7 +22,9 @@ async function apiRequest(endpoint, method = 'GET', data = null) {
 
     try {
         const response = await fetch(`${API_URL}${endpoint}`, options);
-        if (response.status === 401) auth.logout();
+        if (response.status === 401 && endpoint !== '/api/users/login') {
+            auth.logout();
+        }
         return await response.json();
     } catch (err) {
         console.error('API Error:', err);

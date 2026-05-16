@@ -10,6 +10,12 @@ module.exports.getInstitutionByInstitutionId = async function selectInstitutionB
   return rows;
 };
 
+module.exports.selectAllInstitutions = async function selectAllInstitutions() {
+    const SQLSTATEMENT = 'SELECT * FROM Institution ORDER BY name ASC';
+    const { rows } = await pool.query(SQLSTATEMENT);
+    return rows;
+};
+
 module.exports.updateInstitutionByInstitutionId = async function updateInstitutionByInstitutionId(data) {
   const SQLSTATEMENT = `
     UPDATE "User"

@@ -7,6 +7,7 @@ const institutionController = require('../controllers/Institution.controller');
 // FEATURE: Institution CRUD
 // ##############################################################
 
+router.get('/', jwtMiddleware.verifyToken, institutionController.getAllInstitutions);
 router.get('/:institutionId', jwtMiddleware.verifyToken, institutionController.getInstitution);
 router.put('/:institutionId', jwtMiddleware.verifyToken, institutionController.updateInstitution);
 

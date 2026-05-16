@@ -7,6 +7,7 @@ const diplomaController = require('../controllers/Diploma.controller');
 // FEATURE: Diploma CRUD
 // ##############################################################
 
+router.get('/', jwtMiddleware.verifyToken, diplomaController.getAllDiplomas);
 router.get('/:diplomaId', jwtMiddleware.verifyToken, diplomaController.getDiploma);
 router.put('/:diplomaId', jwtMiddleware.verifyToken, diplomaController.updateDiploma);
 
