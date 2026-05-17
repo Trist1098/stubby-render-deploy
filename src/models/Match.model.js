@@ -16,28 +16,48 @@ module.exports.selectAllByUser = async function selectAllByUser(data) {
 
 module.exports.selectBySender = async function selectBySender(data) {
     const SQLSTATEMENT = `
-        SELECT mr.*, u.name as receiver_name, m.code as module_code
+        SELECT mr.*, u.name as receiver_name, u.username as receiver_username, u.profile_pic as receiver_pic,
+            m.code as module_code, m.name as module_name,
+            count(*) OVER() AS total_count,
+            SUM(CASE WHEN mr.status = 'Pending' THEN 1 ELSE 0 END) OVER() AS pending_count
         FROM MatchRequest mr
         JOIN "User" u ON mr.receiver_id = u.user_id
         LEFT JOIN Module m ON mr.module_id = m.module_id
         WHERE mr.sender_id = $1 
-        ORDER BY mr.created_at DESC
+        ORDER BY 
+            CASE 
+                WHEN mr.status = 'Pending' THEN 1
+                WHEN mr.status = 'Accepted' THEN 2
+                ELSE 3
+            END ASC,
+            mr.request_id DESC
+        LIMIT $2 OFFSET $3
     `;
-    const VALUES = [data.sender_id];
+    const VALUES = [data.sender_id, data.limit || 6, data.offset || 0];
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows;
 };
 
 module.exports.selectByReceiver = async function selectByReceiver(data) {
     const SQLSTATEMENT = `
-        SELECT mr.*, u.name as sender_name, m.code as module_code
+        SELECT mr.*, u.name as sender_name, u.username as sender_username, u.profile_pic as sender_pic,
+            m.code as module_code, m.name as module_name,
+            count(*) OVER() AS total_count,
+            SUM(CASE WHEN mr.status = 'Pending' THEN 1 ELSE 0 END) OVER() AS pending_count
         FROM MatchRequest mr
         JOIN "User" u ON mr.sender_id = u.user_id
         LEFT JOIN Module m ON mr.module_id = m.module_id
         WHERE mr.receiver_id = $1 
-        ORDER BY mr.created_at DESC
+        ORDER BY 
+            CASE 
+                WHEN mr.status = 'Pending' THEN 1
+                WHEN mr.status = 'Accepted' THEN 2
+                ELSE 3
+            END ASC,
+            mr.request_id DESC
+        LIMIT $2 OFFSET $3
     `;
-    const VALUES = [data.receiver_id];
+    const VALUES = [data.receiver_id, data.limit || 6, data.offset || 0];
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows;
 };
@@ -83,18 +103,28 @@ module.exports.updateStatus = async function updateStatus(data) {
 
 module.exports.autoMatch = async function autoMatch(data) {
     const SQLSTATEMENT = `
-        SELECT u.user_id, u.name, u.username, u.profile_pic, 
+        SELECT u.user_id, u.name, u.username, u.profile_pic, u.year,
+        d.name as diploma_name, d.code as diploma_code,
+        (
+            SELECT STRING_AGG(m.code, ', ') 
+            FROM UserModule um 
+            JOIN Module m ON um.module_id = m.module_id 
+            WHERE um.user_id = u.user_id
+        ) as modules,
         COUNT(um2.module_id) as shared_modules_count,
-        (SELECT status FROM MatchRequest 
-         WHERE ((sender_id = $1 AND receiver_id = u.user_id) 
+        (
+            SELECT status FROM MatchRequest 
+            WHERE ((sender_id = $1 AND receiver_id = u.user_id) 
             OR (sender_id = u.user_id AND receiver_id = $1))
-           AND status != 'Rejected'
-         LIMIT 1) as request_status
+            ORDER BY request_id DESC
+            LIMIT 1
+        ) as request_status
         FROM "User" u
+        LEFT JOIN Diploma d ON u.diploma_id = d.diploma_id
         JOIN UserModule um2 ON u.user_id = um2.user_id
         JOIN UserModule um1 ON um1.module_id = um2.module_id
         WHERE um1.user_id = $1 AND u.user_id != $2
-        GROUP BY u.user_id, u.name, u.username, u.profile_pic
+        GROUP BY u.user_id, u.name, u.username, u.profile_pic, u.year, d.name, d.code
         ORDER BY shared_modules_count DESC
         LIMIT 5
     `;
@@ -114,4 +144,21 @@ module.exports.selectSharedModules = async function selectSharedModules(data) {
     const VALUES = [data.user1_id, data.user2_id];
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows;
+};
+
+module.exports.selectById = async function selectById(data) {
+    const SQLSTATEMENT = `
+        SELECT mr.*, 
+            u1.name as sender_name, u1.username as sender_username, u1.profile_pic as sender_pic,
+            u2.name as receiver_name, u2.username as receiver_username, u2.profile_pic as receiver_pic,
+            m.code as module_code, m.name as module_name
+        FROM MatchRequest mr
+        JOIN "User" u1 ON mr.sender_id = u1.user_id
+        JOIN "User" u2 ON mr.receiver_id = u2.user_id
+        LEFT JOIN Module m ON mr.module_id = m.module_id
+        WHERE mr.request_id = $1
+    `;
+    const VALUES = [data.id];
+    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+    return rows[0];
 };

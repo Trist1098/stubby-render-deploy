@@ -12,6 +12,16 @@ module.exports.getInstitution = async function (req, res, next) {
   }
 };
 
+module.exports.getAllInstitutions = async function (req, res, next) {
+  try {
+    const institutions = await institutionModel.selectAllInstitutions();
+    res.status(200).json(institutions);
+  } catch (error) {
+    console.error('Error getAllInstitutions:', error);
+    next(error);
+  }
+};
+
 
 module.exports.updateInstitution = async function (req, res, next) {
   const data = {

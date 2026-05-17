@@ -10,6 +10,12 @@ module.exports.getDiplomaByDiplomaId = async function selectDiplomaByDiplomaId(d
   return rows;
 };
 
+module.exports.selectAllDiplomas = async function selectAllDiplomas() {
+    const SQLSTATEMENT = 'SELECT * FROM Diploma ORDER BY name ASC';
+    const { rows } = await pool.query(SQLSTATEMENT);
+    return rows;
+};
+
 module.exports.updateDiplomaByDiplomaId = async function updateDiplomaByDiplomaId(data) {
   const SQLSTATEMENT = `
     UPDATE "User"

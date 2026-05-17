@@ -12,7 +12,12 @@ module.exports.getAllRequests = async (req, res, next) => {
 
 module.exports.getSentRequests = async (req, res, next) => {
     try {
-        const data = { sender_id: res.locals.userId };
+        const { limit, offset } = req.query;
+        const data = { 
+            sender_id: res.locals.userId,
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+        };
         const results = await model.selectBySender(data);
         res.status(200).json(results);
     } catch (error) {
@@ -22,7 +27,12 @@ module.exports.getSentRequests = async (req, res, next) => {
 
 module.exports.getReceivedRequests = async (req, res, next) => {
     try {
-        const data = { receiver_id: res.locals.userId };
+        const { limit, offset } = req.query;
+        const data = { 
+            receiver_id: res.locals.userId,
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+        };
         const results = await model.selectByReceiver(data);
         res.status(200).json(results);
     } catch (error) {
@@ -72,13 +82,13 @@ module.exports.sendRequest = async (req, res, next) => {
 module.exports.getRequestById = async (req, res, next) => {
     try {
         const data = { id: req.params.id };
-        const results = await model.selectById(data);
+        const result = await model.selectById(data);
         
-        if (results.length === 0) {
+        if (!result) {
             return res.status(404).json({ message: "Request not found" });
         }
         
-        res.status(200).json(results[0]);
+        res.status(200).json(result);
     } catch (error) {
         next(error);
     }

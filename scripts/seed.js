@@ -190,10 +190,10 @@ const users = [
 ];
 
 const matchRequests = [
-  { s: 2, r: 4, m: 2, t: '16/05/2026, 15:00', l: 'Online (Zoom)', ty: 'one-on-one', st: 'Accepted', msg: 'Hey Marcus! Want to work on the BED project together?' },
-  { s: 2, r: 5, m: 1, t: '17/05/2026, 10:00', l: 'Library Level 6', ty: 'one-on-one', st: 'Pending', msg: 'Hi Emily, would you like to prep for the FOP2 mock test?' },
-  { s: 9, r: 2, m: 4, t: '18/05/2026, 14:00', l: 'Campus Lab 3', ty: 'one-on-one', st: 'Pending', msg: 'Hi James! I need help with DF assignments.' },
-  { s: 3, r: 5, m: 1, t: '19/05/2026, 11:00', l: 'Library Level 3', ty: 'group', st: 'Accepted', msg: 'Group study for FOP2 exam prep!' }
+  { s: 2, r: 4, m: 2, t: '16/05/2026 15:00', l: 'Online (Zoom)', ty: 'one-on-one', st: 'Accepted', msg: 'Hey Marcus! Want to work on the BED project together?', tp: 'BED Project Assignment' },
+  { s: 2, r: 5, m: 1, t: '17/05/2026 10:00', l: 'Library Level 6', ty: 'one-on-one', st: 'Pending', msg: 'Hi Emily, would you like to prep for the FOP2 mock test?', tp: 'FOP2 Mock Test Prep' },
+  { s: 9, r: 2, m: 4, t: '18/05/2026 14:00', l: 'Campus Lab 3', ty: 'one-on-one', st: 'Pending', msg: 'Hi James! I need help with DF assignments.', tp: 'Digital Forensics Help' },
+  { s: 3, r: 5, m: 1, t: '19/05/2026 11:00', l: 'Library Level 3', ty: 'group', st: 'Accepted', msg: 'Group study for FOP2 exam prep!', tp: 'FOP2 Group Study' }
 ];
 
 const badges = [
@@ -279,9 +279,9 @@ const userInterests = [
 ];
 
 const matchPrefs = [
-  {u:2, mods:'["FOP2", "BED", "PDS"]', sched:true, auto:false, days:'["Mon", "Wed", "Fri"]', modes:'["online", "campus"]', times:'["morning", "afternoon"]', st:'09:00', en:'17:00', rate:'High', style:'collaborative', langs:'["English", "Malay"]', dur:60, pri:1, gen:'Any', lvl:'same'},
-  {u:3, mods:'["FOP2", "BED"]', sched:true, auto:false, days:'["Tue", "Thu"]', modes:'["campus"]', times:'["afternoon"]', st:'13:00', en:'18:00', rate:'Medium', style:'discussion', langs:'["English"]', dur:45, pri:1, gen:'Any', lvl:'same'},
-  {u:4, mods:'["BED", "PDS"]', sched:true, auto:true, days:'["Mon", "Tue", "Wed"]', modes:'["online"]', times:'["morning"]', st:'08:00', en:'12:00', rate:'High', style:'quiet', langs:'["English"]', dur:90, pri:2, gen:'Any', lvl:'higher'}
+  {u:2, mods:'[1, 2, 3]', sched:true, auto:false, days:'["mon", "wed", "fri"]', modes:'["online", "campus"]', times:'["morning", "afternoon"]', st:'09:00', en:'17:00', rate:'High', style:'collaborative', langs:'[1, 3]', dur:60, pri:1, gen:'any', lvl:'same'},
+  {u:3, mods:'[1, 2]', sched:true, auto:false, days:'["tue", "thu"]', modes:'["campus"]', times:'["afternoon"]', st:'13:00', en:'18:00', rate:'Medium', style:'discussion', langs:'[1]', dur:45, pri:1, gen:'any', lvl:'same'},
+  {u:4, mods:'[2, 3]', sched:true, auto:true, days:'["mon", "tue", "wed"]', modes:'["online"]', times:'["morning"]', st:'08:00', en:'12:00', rate:'High', style:'quiet', langs:'[1]', dur:90, pri:2, gen:'any', lvl:'higher'}
 ];
 
 const conversations = [
@@ -299,18 +299,18 @@ const convMembers = [
 ];
 
 const messages = [
-  {c: 1, s: 3, t:'Hey James! Ready for the study session tomorrow?', a: false},
-  {c: 1, s: 2, t:'Yes! I have been reviewing the BED notes. See you at 3pm!', a: false},
-  {c: 2, s: 4, t:'James, did you finish the PDS assignment?', a: false},
-  {c: 2, s: 2, t:'Almost done! Need help with Question 5 though', a: false},
-  {c: 2, s: 3, t:'Sure, let me take a look and get back to you', a: false},
-  {c: 3, s: 2, t:'Team, let us divide the BED project tasks', a: false},
-  {c: 3, s: 3, t:'I can handle the front-end part', a: false},
-  {c: 3, s: 4, t:'I will do the API endpoints', a: false},
-  {c: 3, s: 5, t:'I will work on the database schema', a: false},
-  {c: 4, s: 5, t:'Welcome to the SP IT Community! Introduce yourselves here.', a: true},
-  {c: 4, s: 2, t:'Hi everyone! Year 2 DIT student here', a: false},
-  {c: 4, s: 7, t:'Hello! Year 1 DIT, excited to be here!', a:false}
+  {c: 1, s: 3, t:'Hey James! Ready for the study session tomorrow?', a: false, ca: '2026-05-14 10:00:00'},
+  {c: 1, s: 2, t:'Yes! I have been reviewing the BED notes. See you at 3pm!', a: false, ca: '2026-05-14 10:05:00'},
+  {c: 2, s: 4, t:'James, did you finish the PDS assignment?', a: false, ca: '2026-05-14 11:00:00'},
+  {c: 2, s: 2, t:'Almost done! Need help with Question 5 though', a: false, ca: '2026-05-14 11:02:00'},
+  {c: 2, s: 3, t:'Sure, let me take a look and get back to you', a: false, ca: '2026-05-14 11:10:00'},
+  {c: 3, s: 2, t:'Team, let us divide the BED project tasks', a: false, ca: '2026-05-14 12:00:00'},
+  {c: 3, s: 3, t:'I can handle the front-end part', a: false, ca: '2026-05-14 12:05:00'},
+  {c: 3, s: 4, t:'I will do the API endpoints', a: false, ca: '2026-05-14 12:06:00'},
+  {c: 3, s: 5, t:'I will work on the database schema', a: false, ca: '2026-05-14 12:10:00'},
+  {c: 4, s: 5, t:'Welcome to the SP IT Community! Introduce yourselves here.', a: true, ca: '2026-05-14 09:00:00'},
+  {c: 4, s: 2, t:'Hi everyone! Year 2 DIT student here', a: false, ca: '2026-05-14 09:05:00'},
+  {c: 4, s: 7, t:'Hello! Year 1 DIT, excited to be here!', a:false, ca: '2026-05-14 09:10:00'}
 ];
 
 const sessions = [
@@ -409,9 +409,9 @@ async function seed() {
 
   // 8. Match Requests
   if (matchRequests.length > 0) {
-    const placeholders = matchRequests.map((_, i) => `($${i * 8 + 1}, $${i * 8 + 2}, $${i * 8 + 3}, $${i * 8 + 4}, $${i * 8 + 5}, $${i * 8 + 6}, $${i * 8 + 7}, $${i * 8 + 8})`).join(', ');
-    const values = matchRequests.flatMap(r => [r.s, r.r, r.m, r.t, r.l, r.ty, r.st, r.msg]);
-    await pool.query(`INSERT INTO MatchRequest ("sender_id", "receiver_id", "module_id", "time_slot", "location", "type", "status", "message") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+    const placeholders = matchRequests.map((_, i) => `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`).join(', ');
+    const values = matchRequests.flatMap(r => [r.s, r.r, r.m, r.tp, r.t, r.l, r.ty, r.st, r.msg]);
+    await pool.query(`INSERT INTO MatchRequest ("sender_id", "receiver_id", "module_id", "topic", "time_slot", "location", "type", "status", "message") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
   // 9. Badges
@@ -486,9 +486,9 @@ async function seed() {
 
   // 18. ChatMessage
   if (messages.length > 0) {
-    const placeholders = messages.map((_, i) => `($${i*4+1},$${i*4+2},$${i*4+3},$${i*4+4})`).join(', ');
-    const values = messages.flatMap(m => [m.c, m.s, m.t, m.a]);
-    await pool.query(`INSERT INTO ChatMessage ("conversation_id","sender_id","text","is_announcement") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+    const placeholders = messages.map((_, i) => `($${i * 5 + 1},$${i * 5 + 2},$${i * 5 + 3},$${i * 5 + 4},$${i * 5 + 5})`).join(', ');
+    const values = messages.flatMap(m => [m.c, m.s, m.t, m.a, m.ca]);
+    await pool.query(`INSERT INTO ChatMessage ("conversation_id","sender_id","text","is_announcement","created_at") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
   // 19. StudySession

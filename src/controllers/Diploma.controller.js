@@ -12,6 +12,16 @@ module.exports.getDiploma = async function (req, res, next) {
   }
 };
 
+module.exports.getAllDiplomas = async function (req, res, next) {
+  try {
+    const diplomas = await diplomaModel.selectAllDiplomas();
+    res.status(200).json(diplomas);
+  } catch (error) {
+    console.error('Error getAllDiplomas:', error);
+    next(error);
+  }
+};
+
 module.exports.updateDiploma = async function (req, res, next) {
   const data = {
     diplomaId : req.params.diplomaId,
