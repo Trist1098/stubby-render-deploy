@@ -278,6 +278,16 @@
   color: #0d6efd;
 }
 
+.delete-btn:hover {
+  color: #dc3545;
+}
+
+.msg-deleted {
+  font-size: 0.85rem;
+  opacity: 0.55;
+  font-style: italic;
+}
+
 .msg-edited {
   display: inline-block;
   font-size: 0.68rem;

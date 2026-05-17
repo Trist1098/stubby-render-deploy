@@ -140,6 +140,7 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
        cm.file_size,
        cm.duration,
        cm.is_announcement,
+       cm.is_deleted,
        cm.created_at,
        cm.edited_at
      FROM ChatMessage cm
@@ -166,6 +167,17 @@ module.exports.uploadVoiceMessage = async (conversationId, senderId, fileUrl, fi
     [senderId]
   );
   return { ...message, sender_username: senderResult.rows[0]?.username || 'Unknown user' };
+};
+
+module.exports.deleteMessage = async (messageId, senderId) => {
+  const result = await pool.query(
+    `UPDATE ChatMessage
+     SET is_deleted = TRUE
+     WHERE message_id = $1 AND sender_id = $2
+     RETURNING message_id`,
+    [messageId, senderId]
+  );
+  return result.rows[0] || null;
 };
 
 module.exports.editMessage = async (messageId, senderId, text) => {

@@ -24,6 +24,10 @@ export function editMessageRequest(conversationId, messageId, text) {
   return apiRequest(`/api/chats/${conversationId}/messages/${messageId}`, 'PATCH', { text });
 }
 
+export function deleteMessageRequest(conversationId, messageId) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}`, 'DELETE');
+}
+
 export async function uploadVoiceRequest(conversationId, audioBlob, duration) {
   const formData = new FormData();
   formData.append('audio', audioBlob, 'voice-message.webm');

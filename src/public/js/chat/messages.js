@@ -1,4 +1,4 @@
-import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest } from './chatApi.js';
+import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest, deleteMessageRequest } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
@@ -141,15 +141,18 @@ function renderMessages() {
         ? ''
         : 'new-message';
       chatState.animatedMessageIds.add(message.message_id);
-      const editedLabel = message.edited_at
+      const editedLabel = message.edited_at && !message.is_deleted
         ? `<span class="msg-edited" title="Edited ${formatTime(message.edited_at)}">(edited)</span>`
         : '';
-      const editBtn = isSent && message.text && !message.file_url
+      const editBtn = isSent && message.text && !message.file_url && !message.is_deleted
         ? `<button class="msg-action-btn edit-btn" data-message-id="${message.message_id}" title="Edit"><i class="fas fa-pen"></i></button>`
+        : '';
+      const deleteBtn = isSent && !message.is_deleted
+        ? `<button class="msg-action-btn delete-btn" data-message-id="${message.message_id}" title="Delete"><i class="fas fa-trash"></i></button>`
         : '';
       return `
       <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}" data-message-id="${message.message_id}">
-        <div class="msg-actions ${isSent ? 'msg-actions-sent' : ''}">${editBtn}</div>
+        <div class="msg-actions ${isSent ? 'msg-actions-sent' : ''}">${editBtn}${deleteBtn}</div>
         <div class="message-bubble">
           <div class="message-meta mb-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</div>
           ${renderMessageContent(message)}
@@ -161,6 +164,9 @@ function renderMessages() {
 }
 
 function renderMessageContent(message) {
+  if (message.is_deleted) {
+    return `<span class="msg-deleted"><i class="fas fa-ban me-1"></i>This message was deleted</span>`;
+  }
   if (message.file_url) {
     if (message.file_type && message.file_type.startsWith('audio/')) {
       return renderVoiceMessage(message);
@@ -208,6 +214,20 @@ function formatFileSize(bytes) {
 function handleMessageAction(e) {
   const editBtn = e.target.closest('.edit-btn');
   if (editBtn) startEditMessage(Number(editBtn.dataset.messageId));
+  const deleteBtn = e.target.closest('.delete-btn');
+  if (deleteBtn) confirmDeleteMessage(Number(deleteBtn.dataset.messageId));
+}
+
+async function confirmDeleteMessage(messageId) {
+  if (!confirm('Delete this message?')) return;
+  const result = await deleteMessageRequest(chatState.activeConversationId, messageId);
+  if (!result || !result.message_id) {
+    alert(result?.message || 'Failed to delete message.');
+    return;
+  }
+  const idx = chatState.activeMessages.findIndex((m) => m.message_id === messageId);
+  if (idx !== -1) chatState.activeMessages[idx].is_deleted = true;
+  renderMessageList(false);
 }
 
 function startEditMessage(messageId) {

@@ -1,4 +1,4 @@
-const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, editMessage: editMessageModel, uploadFile: uploadFileModel, uploadVoiceMessage: uploadVoiceMessageModel } = require('../models/Chat.model');
+const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, deleteMessage: deleteMessageModel, editMessage: editMessageModel, uploadFile: uploadFileModel, uploadVoiceMessage: uploadVoiceMessageModel } = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
   const userId = res.locals.userId;
@@ -132,6 +132,24 @@ module.exports.getMessages = async (req, res, next) => {
 
     const messages = await getMessagesByConversationId(conversationId, limit, offset);
     res.json(messages);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.deleteMessage = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const messageId = Number(req.params.messageId);
+
+  if (!Number.isInteger(conversationId) || !Number.isInteger(messageId)) {
+    return res.status(400).json({ message: 'Invalid id' });
+  }
+
+  try {
+    const deleted = await deleteMessageModel(messageId, userId);
+    if (!deleted) return res.status(404).json({ message: 'Message not found or not yours' });
+    res.json({ message_id: messageId });
   } catch (error) {
     next(error);
   }
