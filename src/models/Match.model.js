@@ -103,7 +103,14 @@ module.exports.updateStatus = async function updateStatus(data) {
 
 module.exports.autoMatch = async function autoMatch(data) {
     const SQLSTATEMENT = `
-        SELECT u.user_id, u.name, u.username, u.profile_pic, 
+        SELECT u.user_id, u.name, u.username, u.profile_pic, u.year,
+        d.name as diploma_name, d.code as diploma_code,
+        (
+            SELECT STRING_AGG(m.code, ', ') 
+            FROM UserModule um 
+            JOIN Module m ON um.module_id = m.module_id 
+            WHERE um.user_id = u.user_id
+        ) as modules,
         COUNT(um2.module_id) as shared_modules_count,
         (
             SELECT status FROM MatchRequest 
@@ -113,10 +120,11 @@ module.exports.autoMatch = async function autoMatch(data) {
             LIMIT 1
         ) as request_status
         FROM "User" u
+        LEFT JOIN Diploma d ON u.diploma_id = d.diploma_id
         JOIN UserModule um2 ON u.user_id = um2.user_id
         JOIN UserModule um1 ON um1.module_id = um2.module_id
         WHERE um1.user_id = $1 AND u.user_id != $2
-        GROUP BY u.user_id, u.name, u.username, u.profile_pic
+        GROUP BY u.user_id, u.name, u.username, u.profile_pic, u.year, d.name, d.code
         ORDER BY shared_modules_count DESC
         LIMIT 5
     `;

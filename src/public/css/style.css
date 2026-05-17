@@ -229,10 +229,10 @@ header {
 
 .student-card {
     background: white;
-    border-radius: 30px;
-    padding: 25px;
-    border: 1px solid #f1f5f9;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid var(--border);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -241,58 +241,68 @@ header {
 }
 
 .student-card:hover {
-    transform: translateY(-10px);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.05);
-    border-color: #e2e8f0;
+    transform: translateY(-6px);
+    box-shadow: 0 20px 40px rgba(99, 102, 241, 0.04), 0 1px 3px rgba(99, 102, 241, 0.02);
+    border-color: rgba(99, 102, 241, 0.2);
 }
 
 .match-score {
     position: absolute;
     top: 20px;
     right: 20px;
-    background: #f1f5f9;
-    color: #6366f1;
-    padding: 5px 15px;
-    border-radius: 12px;
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--primary);
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.75rem;
     font-weight: 800;
-    font-size: 12px;
+    font-size: 0.75rem;
 }
 
 .online-dot {
+    position: absolute;
+    top: 0px;
+    right: -3px;
     width: 12px;
     height: 12px;
-    background: #10b981;
-    border-radius: 50%;
+    background-color: #10b981;
     border: 2px solid white;
-    position: absolute;
-    bottom: 0;
-    right: 0;
+    border-radius: 50%;
+    z-index: 2;
 }
 
 .avatar-wrap {
+    position: relative;
     width: 60px;
     height: 60px;
-    border-radius: 20px;
+    border-radius: 1rem;
     background: #f8fafc;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 24px;
-    position: relative;
-    margin-bottom: 20px;
+    border: 1px solid var(--border);
+}
+
+.avatar-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0.9rem;
 }
 
 .module-tag {
-    background: #f1f5f9;
-    color: #64748b;
-    padding: 5px 12px;
-    border-radius: 10px;
-    font-size: 11px;
+    display: inline-block;
+    font-size: 0.7rem;
     font-weight: 800;
+    color: var(--primary);
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.1);
+    border-radius: 0.5rem;
+    padding: 0.3rem 0.6rem;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
     margin-right: 5px;
     margin-bottom: 5px;
-    display: inline-block;
 }
 
 .status-badge {
@@ -308,7 +318,7 @@ header {
 .status-declined { background: #fef2f2; color: #ef4444; }
 
 .btn-premium {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
     color: white !important;
     border: none;
     border-radius: 15px;
@@ -317,12 +327,18 @@ header {
     text-transform: uppercase;
     font-size: 12px;
     letter-spacing: 1px;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-premium:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(79, 70, 229, 0.2);
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+    color: white !important;
+}
+
+.btn-premium:active {
+    transform: translateY(0);
 }
 
 .rounded-4 {
@@ -347,7 +363,7 @@ header {
 }
 
 .shadow-premium {
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.05) !important;
 }
 
 .dropdown-menu.shadow-premium {
@@ -494,4 +510,65 @@ header {
 #moduleList {
     max-height: 300px;
     overflow-y: auto;
+}
+
+/* Matchmaking Profile */
+.bg-indigo {
+    background-color: var(--primary) !important;
+}
+
+.bg-indigo-subtle {
+    background-color: rgba(99, 102, 241, 0.08) !important;
+}
+
+.text-primary-dark {
+    color: #4338ca !important;
+}
+
+.border-indigo-subtle-200 {
+    border: 1px solid rgba(99, 102, 241, 0.18) !important;
+}
+
+.translate-y-avatar {
+    transform: translateY(0px);
+}
+
+.border-end-lg {
+    border-bottom: none;
+}
+@media (min-width: 992px) {
+    .border-end-lg {
+        border-right: 1px solid var(--border) !important;
+        border-bottom: none !important;
+    }
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Best Match card */
+.best-match-card {
+    background: white;
+    border: 1px solid rgba(99, 102, 241, 0.25) !important;
+    border-radius: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.best-match-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 30px 60px rgba(99, 102, 241, 0.08) !important;
+}
+.best-match-glow {
+    position: absolute;
+    top: -100px;
+    right: -100px;
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, rgba(99,102,241,0) 70%);
+    pointer-events: none;
 }

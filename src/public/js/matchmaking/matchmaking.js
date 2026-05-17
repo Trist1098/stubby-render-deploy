@@ -449,30 +449,119 @@ document.addEventListener("DOMContentLoaded", function () {
             grid.innerHTML = '<div class="col-12 text-center py-5"><p class="text-muted">No matches found. Try adjusting your preferences.</p></div>';
             return;
         }
-        students.forEach(s => {
-            const matchScore = s.shared_modules_count ? Math.min(s.shared_modules_count * 25, 100) : 0;
-            grid.innerHTML += `
-                <div class="col-md-6 col-xl-4">
-                    <div class="student-card h-100">
-                        <div class="d-flex align-items-start justify-content-between mb-3">
-                            <div class="avatar-wrap">
-                                ${s.profile_pic ? `<img src="${s.profile_pic}" class="rounded-2" width="60">` : `<i class="fas fa-user text-muted"></i>`}
-                                ${s.is_online ? '<span class="online-dot"></span>' : ''}
-                            </div>
-                            <div class="match-score">${matchScore}% Match</div>
+
+        // Sort students: highest shared_modules_count first
+        const sorted = [...students].sort((a, b) => {
+            const scoreA = a.shared_modules_count ? Math.min(a.shared_modules_count * 25, 100) : 0;
+            const scoreB = b.shared_modules_count ? Math.min(b.shared_modules_count * 25, 100) : 0;
+            return scoreB - scoreA;
+        });
+
+        const bestMatch = sorted[0];
+        const recommended = sorted.slice(1);
+
+        let html = '';
+
+        if (bestMatch) {
+            const matchScore = bestMatch.shared_modules_count ? Math.min(bestMatch.shared_modules_count * 25, 100) : 0;
+            const studentModules = (bestMatch.modules || '').split(',').filter(m => m.trim().length > 0);
+            const moduleTagsHTML = studentModules.map(m => `<span class="module-tag">${m.trim()}</span>`).join(' ');
+            const avatars = ["👩‍🎓", "👨‍🎓", "🧑", "👩🏽‍🎓", "👨🏾‍🎓"];
+            const fallbackAvatar = avatars[bestMatch.user_id % avatars.length];
+            
+            html += `
+                <div class="col-12 mb-4">
+                    <div class="best-match-card p-4 p-md-5 shadow-premium position-relative overflow-hidden cursor-pointer" onclick="window.openProfileModal(${bestMatch.user_id})">
+                        <div class="best-match-glow"></div>
+                        <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                            <span class="badge bg-warning text-dark fw-black uppercase px-3 py-2 rounded-pill shadow-sm"><i class="fas fa-star me-1"></i> BEST MATCH</span>
+                            <div class="match-score fs-6 px-3 py-2 shadow-sm">${matchScore}% Match</div>
                         </div>
-                        <h5 class="fw-black mb-1">${s.name}</h5>
-                        <p class="text-muted small mb-3">@${s.username}</p>
-                        ${s.request_status === 'Pending' ? 
-                            `<button class="btn btn-secondary w-100 py-2 rounded-4 fw-bold text-white" disabled>REQUEST SENT</button>` :
-                          s.request_status === 'Accepted' ?
-                            `<button class="btn btn-success w-100 py-2 rounded-4 fw-bold" disabled>MATCHED</button>` :
-                            `<button class="btn btn-primary w-100 py-2 rounded-4 fw-bold" onclick="window.openMatchModal(${s.user_id}, '${s.name}')">CONNECT</button>`
-                        }
+                        
+                        <div class="d-flex align-items-center gap-4 mb-4 flex-wrap">
+                            <div class="avatar-wrap position-relative" style="width: 80px; height: 80px; min-width: 80px; border-radius: 1.5rem;">
+                                ${bestMatch.profile_pic ? `<img src="${bestMatch.profile_pic}" style="border-radius: 1.3rem;">` : `<span style="font-size: 40px;">${fallbackAvatar}</span>`}
+                                <span class="online-dot" style="width: 14px; height: 14px; border-width: 3px; bottom: -3px; right: -3px;"></span>
+                            </div>
+                            <div>
+                                <h3 class="fw-black text-dark mb-1">${bestMatch.name}</h3>
+                                <p class="text-muted fw-bold small uppercase tracking-wider mb-0">Year ${bestMatch.year || 2} • ${bestMatch.diploma_name || 'Diploma in IT'}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex-wrap gap-2 mb-4 d-flex">
+                            ${moduleTagsHTML || '<span class="text-muted small">No modules enrolled</span>'}
+                        </div>
+
+                        <p class="text-muted italic small mb-4">"Looking for a study partner to prepare for upcoming tests. Let's work together!"</p>
+
+                        <div class="d-flex gap-3 position-relative" style="z-index: 5;">
+                            <button class="btn btn-white px-4 py-3 rounded-4 fw-bold flex-grow-1" onclick="event.stopPropagation(); window.openProfileModal(${bestMatch.user_id})">View Profile</button>
+                            ${bestMatch.request_status === 'Pending' ? 
+                                `<button class="btn btn-secondary py-3 rounded-4 fw-bold text-white flex-grow-1" disabled>REQUEST SENT</button>` :
+                              bestMatch.request_status === 'Accepted' ?
+                                `<button class="btn btn-success py-3 rounded-4 fw-bold flex-grow-1" disabled>MATCHED</button>` :
+                                `<button class="btn btn-premium py-3 rounded-4 fw-bold flex-grow-1" onclick="event.stopPropagation(); window.openMatchModal(${bestMatch.user_id}, '${bestMatch.name}')">CONNECT</button>`
+                            }
+                        </div>
                     </div>
                 </div>
             `;
-        });
+        }
+
+        if (recommended.length > 0) {
+            html += `
+                <div class="col-12 mt-2 mb-2">
+                    <h5 class="fw-black text-muted uppercase tracking-wider mb-0">RECOMMENDED FOR YOU</h5>
+                </div>
+            `;
+
+            recommended.forEach(s => {
+                const matchScore = s.shared_modules_count ? Math.min(s.shared_modules_count * 25, 100) : 0;
+                const studentModules = (s.modules || '').split(',').filter(m => m.trim().length > 0);
+                const moduleTagsHTML = studentModules.slice(0, 3).map(m => `<span class="module-tag">${m.trim()}</span>`).join(' ');
+                const avatars = ["👩‍🎓", "👨‍🎓", "🧑", "👩🏽‍🎓", "👨🏾‍🎓"];
+                const fallbackAvatar = avatars[s.user_id % avatars.length];
+
+                html += `
+                    <div class="col-lg-6">
+                        <div class="student-card h-100 d-flex flex-column justify-content-between cursor-pointer" onclick="window.openProfileModal(${s.user_id})">
+                            <div>
+                                <div class="d-flex align-items-start justify-content-between mb-3 gap-2">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="avatar-wrap">
+                                            ${s.profile_pic ? `<img src="${s.profile_pic}">` : `<span style="font-size: 30px;">${fallbackAvatar}</span>`}
+                                            <span class="online-dot"></span>
+                                        </div>
+                                        <div>
+                                            <h5 class="fw-black text-dark mb-1">${s.name}</h5>
+                                            <p class="text-muted fw-bold small uppercase tracking-wider mb-0" style="font-size: 11px;">Year ${s.year || 2} • ${s.diploma_code || 'DIT'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="match-score">${matchScore}% Match</div>
+                                </div>
+                                
+                                <div class="flex-wrap gap-1 mb-4 d-flex">
+                                    ${moduleTagsHTML || '<span class="text-muted small">No modules</span>'}
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-white py-2 rounded-4 fw-bold flex-grow-1 small" onclick="event.stopPropagation(); window.openProfileModal(${s.user_id})">Profile</button>
+                                ${s.request_status === 'Pending' ? 
+                                    `<button class="btn btn-secondary py-2 rounded-4 fw-bold text-white flex-grow-1 small" disabled>SENT</button>` :
+                                  s.request_status === 'Accepted' ?
+                                    `<button class="btn btn-success py-2 rounded-4 fw-bold flex-grow-1 small" disabled>MATCHED</button>` :
+                                    `<button class="btn btn-primary py-2 rounded-4 fw-bold flex-grow-1 small" onclick="event.stopPropagation(); window.openMatchModal(${s.user_id}, '${s.name}')">CONNECT</button>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        grid.innerHTML = html;
     }
 
     function toggleAutoMatchVisibility() {
@@ -1048,6 +1137,136 @@ document.addEventListener("DOMContentLoaded", function () {
             alert("Network error sending request");
         }
     }
+
+    window.openProfileModal = async function(userId) {
+        const student = allStudents.find(s => s.user_id == userId);
+        if (!student) return;
+
+        document.getElementById('modalName').innerText = student.name;
+        document.getElementById('modalYear').innerText = `Year ${student.year || 2}`;
+        document.getElementById('modalDiploma').innerText = student.diploma_name || 'Diploma in IT';
+        
+        const matchScore = student.shared_modules_count ? Math.min(student.shared_modules_count * 25, 100) : 0;
+        document.getElementById('modalMatchRate').innerText = `${matchScore}%`;
+        
+        const randomHours = Math.floor(Math.random() * 8) + 2;
+        const randomMinutes = Math.floor(Math.random() * 50) + 10;
+        document.getElementById('modalActiveHours').innerText = `${randomHours}h ${randomMinutes}m`;
+        
+        const avatars = ["👩‍🎓", "👨‍🎓", "🧑", "👩🏽‍🎓", "👨🏾‍🎓"];
+        const avatar = student.profile_pic ? `<img src="${student.profile_pic}" class="rounded-4" style="width:100%; height:100%; object-fit:cover;">` : `<span style="font-size: 60px;">${avatars[userId % avatars.length]}</span>`;
+        document.getElementById('modalAvatarWrap').innerHTML = avatar;
+
+        const modulesList = document.getElementById('modalModulesList');
+        modulesList.innerHTML = '';
+        const studentModules = (student.modules || '').split(',').filter(m => m.trim().length > 0);
+        studentModules.forEach(m => {
+            modulesList.innerHTML += `<span class="badge bg-indigo-subtle text-primary px-3 py-2 rounded-3 fw-bold small uppercase tracking-wider">${m.trim()}</span>`;
+        });
+
+        const firstModule = studentModules[0] || 'Core';
+        const studentFirstWord = student.name.split(' ')[0];
+        
+        const locations = ["Library Level 5 & Online", "T11A Study Area & Discord", "FC5 Study Zone", "Makerspace Hall", "Library Level 4 Quiet Zone"];
+        const prefTimes = ["Morning Sessions", "Afternoon Labs", "Weekday Evenings", "Weekend Focus Groups"];
+        const goals = [
+            `"Aiming for an A in ${firstModule} and keeping up consistency in other subjects."`,
+            `"Looking to collaborate on peer coding sessions for upcoming ${firstModule} practicals."`,
+            `"Hoping to find a motivated partner for review classes and exam preparation."`
+        ];
+        const abouts = [
+            `"Hi! I prefer quiet study rooms or library sessions. Mostly focus on structured Pomodoro sessions."`,
+            `"Looking for a study partner to bounce ideas off and complete review sheets weekly."`,
+            `"Always online and available for quick Discord debug sessions or group labs."`
+        ];
+
+        const location = locations[userId % locations.length];
+        const prefTime = prefTimes[userId % prefTimes.length];
+        const goal = goals[userId % goals.length];
+        const about = abouts[userId % abouts.length];
+
+        document.getElementById('modalLocation').innerText = location;
+        document.getElementById('modalTimePreference').innerText = prefTime;
+        document.getElementById('modalGoals').innerText = goal;
+        document.getElementById('modalAbout').innerText = about;
+        document.getElementById('modalAiInsight').innerText = `Based on your shared interest in ${firstModule}, ${studentFirstWord}'s high schedule compatibility makes them a perfect peer for lab work and test prep.`;
+
+        const compatList = document.getElementById('modalCompatibilityList');
+        compatList.innerHTML = `
+            <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
+                <i class="fas fa-check-circle text-success"></i>
+                <span class="small fw-bold">Focus on ${firstModule}</span>
+            </div>
+            <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
+                <i class="fas fa-check-circle text-success"></i>
+                <span class="small fw-bold">Matching Schedule Windows</span>
+            </div>
+            <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
+                <i class="fas fa-check-circle text-success"></i>
+                <span class="small fw-bold">High Collaboration Score</span>
+            </div>
+            <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
+                <i class="fas fa-check-circle text-success"></i>
+                <span class="small fw-bold">Course Path Alignment</span>
+            </div>
+        `;
+
+        const featuredReviews = [
+            { comment: `"One of the best partners I've worked with. Very meticulous with ${firstModule}!"`, author: "- Jason Lee (Peer Tutor)" },
+            { comment: `"Explains difficult concepts very clearly during our sessions."`, author: "- Sarah Tan (Study Partner)" },
+            { comment: `"Super focused and very organized. Great motivator."`, author: "- Mike Chen (Classmate)" }
+        ];
+        const featured = featuredReviews[userId % featuredReviews.length];
+        document.getElementById('modalFeaturedReviewComment').innerText = featured.comment;
+        document.getElementById('modalFeaturedReviewAuthor').innerText = featured.author;
+
+        const reviewsList = document.getElementById('modalReviewsList');
+        reviewsList.innerHTML = '';
+        const classmates = [
+            { name: "Chloe Wong", avatar: "👩🏽‍🎨", role: "Classmate", comment: "Really easy to communicate with!" },
+            { name: "Aaron Tan", avatar: "👨🏽‍💻", role: "Study Partner", comment: "Helped me debug my projects!" },
+            { name: "Rachel Lim", avatar: "👩🏼‍🔬", role: "Classmate", comment: "Super friendly and helpful!" }
+        ];
+        classmates.forEach(c => {
+            reviewsList.innerHTML += `
+                <div class="p-3 bg-light rounded-4 flex-shrink-0" style="width: 220px; min-width: 220px;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="fs-4">${c.avatar}</span>
+                        <div>
+                            <div class="fw-bold small text-dark" style="font-size: 11px;">${c.name}</div>
+                            <div class="text-muted" style="font-size: 9px;">${c.role}</div>
+                        </div>
+                    </div>
+                    <div class="small text-muted italic" style="font-size: 11px;">"${c.comment}"</div>
+                </div>
+            `;
+        });
+
+        const connectBtn = document.getElementById('modalConnectBtn');
+        if (student.request_status === 'Pending') {
+            connectBtn.className = "btn btn-secondary w-100 py-3 rounded-4 fw-black uppercase small";
+            connectBtn.innerHTML = `<i class="fas fa-check-circle me-2"></i>Request Sent`;
+            connectBtn.disabled = true;
+        } else if (student.request_status === 'Accepted') {
+            connectBtn.className = "btn btn-success w-100 py-3 rounded-4 fw-black uppercase small";
+            connectBtn.innerHTML = `<i class="fas fa-handshake me-2"></i>Matched`;
+            connectBtn.disabled = true;
+        } else {
+            connectBtn.className = "btn btn-premium w-100 py-3 rounded-4 fw-black uppercase small shadow-premium";
+            connectBtn.innerHTML = `<i class="fas fa-paper-plane me-2"></i>Send Request`;
+            connectBtn.disabled = false;
+            connectBtn.onclick = function() {
+                const profModalEl = document.getElementById('studentProfileModal');
+                const profModal = bootstrap.Modal.getInstance(profModalEl);
+                if (profModal) profModal.hide();
+                window.openMatchModal(student.user_id, student.name);
+            };
+        }
+
+        const profileModalEl = document.getElementById('studentProfileModal');
+        const modal = new bootstrap.Modal(profileModalEl);
+        modal.show();
+    };
 
     init();
 });
