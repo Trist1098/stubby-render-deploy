@@ -236,6 +236,30 @@
         </section>
     </main>
 
+    <!-- Event details modal -->
+    <div class="modal fade" id="eventModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Event</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2"><span id="modalColorBadge" class="badge bg-primary text-white">&nbsp;</span></div>
+                    <p id="modalDateTime" class="text-muted small"></p>
+                    <p id="modalDescription" class="mb-2"></p>
+                    <p><strong>Priority:</strong> <span id="modalPriority"></span></p>
+                    <p><strong>Goal:</strong> <span id="modalGoal"></span></p>
+                </div>
+                <div class="modal-footer">
+                    <button id="modalEditButton" type="button" class="btn btn-sm btn-primary">Edit</button>
+                    <button id="modalDeleteButton" type="button" class="btn btn-sm btn-danger">Delete</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer class="mt-auto py-4 border-top">
         <div class="container text-center">
             <p class="text-muted mb-0">&copy; 2026 Stubby. All rights reserved.</p>
@@ -321,6 +345,11 @@
                         const eventPill = document.createElement('span');
                         eventPill.className = `event-pill badge bg-${event.color} text-white`;
                         eventPill.textContent = `${event.start} ${event.title}`;
+                        // show detail modal when clicking an event
+                        eventPill.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openEventModal(event.id);
+                        });
                         cell.appendChild(eventPill);
                     });
 
@@ -452,6 +481,41 @@
                 }
                 await apiRequest(`/api/calendar/${id}`, 'DELETE');
                 await loadEvents();
+            };
+
+            // Open event details modal
+            const openEventModal = (id) => {
+                const event = events.find((ev) => ev.id === id);
+                if (!event) return;
+
+                const modalEl = document.getElementById('eventModal');
+                if (!modalEl) return;
+
+                modalEl.querySelector('.modal-title').textContent = event.title;
+                modalEl.querySelector('#modalDateTime').textContent = `${event.date} · ${event.start} — ${event.end}`;
+                modalEl.querySelector('#modalDescription').textContent = event.description || 'No description';
+                modalEl.querySelector('#modalPriority').textContent = event.priority;
+                modalEl.querySelector('#modalGoal').textContent = event.goal || 'No goal';
+                const colorBadge = modalEl.querySelector('#modalColorBadge');
+                colorBadge.className = `badge bg-${event.color} text-white`;
+
+                const editBtn = modalEl.querySelector('#modalEditButton');
+                const deleteBtn = modalEl.querySelector('#modalDeleteButton');
+
+                editBtn.onclick = () => {
+                    openEventForm(event.id);
+                    const bs = bootstrap.Modal.getInstance(modalEl);
+                    if (bs) bs.hide();
+                };
+                deleteBtn.onclick = async () => {
+                    if (!confirm('Delete this event?')) return;
+                    await handleDeleteEvent(event.id);
+                    const bs = bootstrap.Modal.getInstance(modalEl);
+                    if (bs) bs.hide();
+                };
+
+                const bsModal = new bootstrap.Modal(modalEl);
+                bsModal.show();
             };
 
             addEventButton.addEventListener('click', () => openEventForm(null, new Date().toISOString().slice(0, 10)));

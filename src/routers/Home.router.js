@@ -6,6 +6,7 @@ const {
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  getCalendarEventById,
 } = require('../controllers/Home.controller');
 
 // ##############################################################
@@ -13,6 +14,7 @@ const {
 // ##############################################################
 
 router.get('/calendar', jwtMiddleware.verifyToken, getCalendarEvents);
+router.get('/calendar/:id', jwtMiddleware.verifyToken, getCalendarEventById);
 router.post('/calendar', jwtMiddleware.verifyToken, createCalendarEvent);
 router.put('/calendar/:id', jwtMiddleware.verifyToken, updateCalendarEvent);
 router.delete('/calendar/:id', jwtMiddleware.verifyToken, deleteCalendarEvent);

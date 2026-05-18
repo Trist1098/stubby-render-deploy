@@ -36,9 +36,22 @@ const deleteCalendarEvent = (req, res, next) => {
     .catch(next);
 };
 
+const getCalendarEventById = (req, res, next) => {
+  const id = Number(req.params.id);
+  model.getCalendarEventById(id)
+    .then((event) => {
+      if (!event) {
+        return res.status(404).json({ error: 'Event not found' });
+      }
+      res.status(200).json({ event });
+    })
+    .catch(next);
+};
+
 module.exports = {
   getCalendarEvents,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  getCalendarEventById,
 };
