@@ -138,8 +138,11 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
        cm.file_type,
        cm.file_name,
        cm.file_size,
+       cm.duration,
        cm.is_announcement,
-       cm.created_at
+       cm.is_deleted,
+       cm.created_at,
+       cm.edited_at
      FROM ChatMessage cm
      JOIN "User" u ON u.user_id = cm.sender_id
      WHERE cm.conversation_id = $1
@@ -149,6 +152,43 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
   );
 
   return result.rows.reverse();
+};
+
+module.exports.uploadVoiceMessage = async (conversationId, senderId, fileUrl, fileType, duration) => {
+  const result = await pool.query(
+    `INSERT INTO ChatMessage (conversation_id, sender_id, file_url, file_type, duration)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING message_id, conversation_id, sender_id, text, file_url, file_type, file_name, file_size, duration, is_announcement, created_at`,
+    [conversationId, senderId, fileUrl, fileType, duration || null]
+  );
+  const message = result.rows[0];
+  const senderResult = await pool.query(
+    `SELECT username FROM "User" WHERE user_id = $1`,
+    [senderId]
+  );
+  return { ...message, sender_username: senderResult.rows[0]?.username || 'Unknown user' };
+};
+
+module.exports.deleteMessage = async (messageId, senderId) => {
+  const result = await pool.query(
+    `UPDATE ChatMessage
+     SET is_deleted = TRUE
+     WHERE message_id = $1 AND sender_id = $2
+     RETURNING message_id`,
+    [messageId, senderId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.editMessage = async (messageId, senderId, text) => {
+  const result = await pool.query(
+    `UPDATE ChatMessage
+     SET text = $1, edited_at = NOW()
+     WHERE message_id = $2 AND sender_id = $3
+     RETURNING message_id, conversation_id, sender_id, text, file_url, file_type, file_name, file_size, duration, is_announcement, created_at, edited_at`,
+    [text, messageId, senderId]
+  );
+  return result.rows[0] || null;
 };
 
 module.exports.uploadFile = async (conversationId, senderId, fileUrl, fileType, fileName, fileSize) => {
