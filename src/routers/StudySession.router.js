@@ -14,8 +14,12 @@ router.post(
 );
 router.post(
   '/:sessionId/micro-goals/:microGoalId/work-check',
-  upload.memoryText.single('evidence_file'),
+  upload.memoryWorkCheck.single('evidence_file'),
   studySessionController.checkMicroGoalWork,
+);
+router.get(
+  '/:sessionId/micro-goals/:microGoalId/work-checks',
+  studySessionController.getMicroGoalWorkChecks,
 );
 router.patch(
   '/:sessionId/micro-goals/:microGoalId/progress',

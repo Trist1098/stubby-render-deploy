@@ -475,3 +475,201 @@
 .work-check-feedback ul {
   padding-left: 18px;
 }
+
+.work-check-history {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.work-check-history-heading,
+.work-check-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.work-check-history-heading strong {
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+.work-check-history-heading span,
+.work-check-card small {
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+
+.work-check-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.work-check-empty {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.76rem;
+}
+
+.work-check-empty-danger {
+  color: #be123c;
+}
+
+.work-check-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+.work-check-card summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 9px 10px;
+}
+
+.work-check-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.work-check-card summary > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.work-check-card-body {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid #eef2f7;
+  padding: 9px 10px;
+}
+
+.work-check-card-body p,
+.work-check-card-body ul {
+  margin: 0;
+}
+
+.work-check-card-body ul {
+  padding-left: 18px;
+}
+
+.work-check-card-body > span {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.work-check-status,
+.work-check-file {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.work-check-status {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.work-check-looks_good .work-check-status {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.work-check-needs_more_detail .work-check-status {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.work-check-cannot_verify .work-check-status {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.work-check-file {
+  justify-self: start;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.work-check-checklist {
+  display: grid;
+  gap: 7px;
+  margin: 2px 0 0;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  padding: 9px;
+}
+
+.work-check-checklist legend {
+  float: none;
+  width: auto;
+  margin: 0;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.work-check-checklist label {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 8px;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.work-check-checklist input {
+  width: auto;
+  margin-top: 2px;
+}
+
+.work-check-checklist p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.work-check-checklist.checklist-ready {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.completion-ai-feedback {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0;
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 10px;
+  background: #eef2ff;
+  color: #203047;
+  font-size: 0.82rem;
+}
+
+.completion-ai-feedback-success {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.completion-ai-feedback-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.completion-ai-feedback strong,
+.completion-ai-feedback p,
+.completion-ai-feedback ul {
+  margin: 0;
+}
+
+.completion-ai-feedback ul {
+  padding-left: 18px;
+}

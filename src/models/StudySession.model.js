@@ -78,6 +78,23 @@ const groupBy = (rows, key) =>
     return groups;
   }, {});
 
+const mapAiCheck = (row) => ({
+  id: row.id,
+  study_session_id: row.study_session_id,
+  micro_goal_id: row.micro_goal_id,
+  user_id: row.user_id,
+  equation_text: row.equation_text,
+  file_name: row.file_name,
+  file_type: row.file_type,
+  status: row.feedback_status,
+  summary: row.summary,
+  strengths: row.strengths || [],
+  issues: row.issues || [],
+  next_step: row.next_step,
+  confidence: row.confidence,
+  created_at: row.created_at,
+});
+
 module.exports.selectSessionById = async function selectSessionById(sessionId) {
   const SQLSTATEMENT = `
         SELECT
@@ -257,6 +274,67 @@ module.exports.selectMicroGoalById = async function selectMicroGoalById(sessionI
     `;
   const { rows } = await pool.query(SQLSTATEMENT, [sessionId, microGoalId]);
   return rows[0] || null;
+};
+
+module.exports.insertMicroGoalAiCheck = async function insertMicroGoalAiCheck(data) {
+  const SQLSTATEMENT = `
+    INSERT INTO micro_goal_ai_checks (
+      study_session_id,
+      micro_goal_id,
+      user_id,
+      equation_text,
+      file_name,
+      file_type,
+      feedback_status,
+      summary,
+      strengths,
+      issues,
+      next_step,
+      confidence
+    )
+    SELECT $1, id, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12
+    FROM micro_goals
+    WHERE study_session_id = $1
+      AND id = $2
+    RETURNING id, study_session_id, micro_goal_id, user_id, equation_text, file_name,
+              file_type, feedback_status, summary, strengths, issues, next_step,
+              confidence, created_at
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [
+    data.study_session_id,
+    data.micro_goal_id,
+    data.user_id,
+    data.equation_text || null,
+    data.file_name || null,
+    data.file_type || null,
+    data.status,
+    data.summary,
+    JSON.stringify(data.strengths || []),
+    JSON.stringify(data.issues || []),
+    data.next_step || null,
+    data.confidence || null,
+  ]);
+  return rows[0] ? mapAiCheck(rows[0]) : null;
+};
+
+module.exports.selectMicroGoalAiChecks = async function selectMicroGoalAiChecks(data) {
+  const SQLSTATEMENT = `
+    SELECT id, study_session_id, micro_goal_id, user_id, equation_text, file_name,
+           file_type, feedback_status, summary, strengths, issues, next_step,
+           confidence, created_at
+    FROM micro_goal_ai_checks
+    WHERE study_session_id = $1
+      AND micro_goal_id = $2
+      AND user_id = $3
+    ORDER BY created_at DESC, id DESC
+    LIMIT 20
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [
+    data.study_session_id,
+    data.micro_goal_id,
+    data.user_id,
+  ]);
+  return rows.map(mapAiCheck);
 };
 
 module.exports.selectQueuedMicroGoals = async function selectQueuedMicroGoals(

@@ -135,3 +135,23 @@ CREATE TABLE micro_goal_workings (
     created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (micro_goal_progress_id) REFERENCES micro_goal_progress(id) ON DELETE CASCADE
 );
+
+CREATE TABLE micro_goal_ai_checks (
+    id                SERIAL PRIMARY KEY,
+    study_session_id  INT NOT NULL,
+    micro_goal_id     INT NOT NULL,
+    user_id           INT NOT NULL,
+    equation_text     TEXT,
+    file_name         VARCHAR(255),
+    file_type         VARCHAR(50),
+    feedback_status   VARCHAR(50) NOT NULL,
+    summary           TEXT NOT NULL,
+    strengths         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    issues            JSONB NOT NULL DEFAULT '[]'::jsonb,
+    next_step         TEXT,
+    confidence        VARCHAR(20),
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (micro_goal_id)    REFERENCES micro_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
+);

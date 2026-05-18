@@ -5,8 +5,11 @@ const path = require('path');
 const fs = require('fs');
 
 const uploadDir = 'src/public/uploads/';
-const allowedExtensions = /txt/;
-const allowedMimeTypes = /text\/plain/;
+const allowedTextExtensions = /\.(txt|docx)$/i;
+const allowedTextMimeTypes =
+  /(text\/plain|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|application\/octet-stream)/;
+const allowedWorkCheckExtensions = /\.(txt|docx)$/i;
+const allowedWorkCheckMimeTypes = allowedTextMimeTypes;
 
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -21,13 +24,26 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, callback) => {
-  const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedMimeTypes.test(file.mimetype);
+  const extname = allowedTextExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTextMimeTypes.test(file.mimetype);
 
   if (extname && mimetype) {
     callback(null, true);
   } else {
-    const error = new Error('Only .txt files are allowed');
+    const error = new Error('Only .txt or .docx files are allowed');
+    error.status = 400;
+    callback(error);
+  }
+};
+
+const workCheckFileFilter = (req, file, callback) => {
+  const extname = allowedWorkCheckExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedWorkCheckMimeTypes.test(file.mimetype);
+
+  if (extname && mimetype) {
+    callback(null, true);
+  } else {
+    const error = new Error('Only .txt or .docx files are allowed');
     error.status = 400;
     callback(error);
   }
@@ -43,6 +59,12 @@ upload.memoryText = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
+});
+
+upload.memoryWorkCheck = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: workCheckFileFilter,
 });
 
 module.exports = upload;

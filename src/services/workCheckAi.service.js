@@ -89,12 +89,27 @@ const buildUserPrompt = ({ microGoal, equationText, fileText, fileName }) => {
     equationText || 'None provided.',
     '',
     fileText
-      ? `Uploaded .txt file (${fileName || 'workings.txt'}):\n${fileText}`
-      : 'Uploaded .txt file: None provided.',
+      ? `Uploaded document (${fileName || 'workings.txt'}):\n${fileText}`
+      : 'Uploaded document: None provided.',
   ].join('\n');
 };
 
-const buildRequestBody = ({ model, microGoal, equationText, fileText, fileName }) => ({
+const buildOpenAiUserContent = (input) => {
+  return [
+    {
+      type: 'input_text',
+      text: buildUserPrompt(input),
+    },
+  ];
+};
+
+const buildRequestBody = ({
+  model,
+  microGoal,
+  equationText,
+  fileText,
+  fileName,
+}) => ({
   model,
   input: [
     {
@@ -104,7 +119,12 @@ const buildRequestBody = ({ model, microGoal, equationText, fileText, fileName }
     },
     {
       role: 'user',
-      content: buildUserPrompt({ microGoal, equationText, fileText, fileName }),
+      content: buildOpenAiUserContent({
+        microGoal,
+        equationText,
+        fileText,
+        fileName,
+      }),
     },
   ],
   text: {
@@ -119,7 +139,12 @@ const buildRequestBody = ({ model, microGoal, equationText, fileText, fileName }
   store: false,
 });
 
-const callOpenAi = async ({ microGoal, equationText, fileText, fileName }) => {
+const callOpenAi = async ({
+  microGoal,
+  equationText,
+  fileText,
+  fileName,
+}) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw makeError(503, 'AI work check is not configured yet');
 
@@ -134,7 +159,13 @@ const callOpenAi = async ({ microGoal, equationText, fileText, fileName }) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(
-        buildRequestBody({ model, microGoal, equationText, fileText, fileName }),
+        buildRequestBody({
+          model,
+          microGoal,
+          equationText,
+          fileText,
+          fileName,
+        }),
       ),
       signal: AbortSignal.timeout(20000),
     });
@@ -151,7 +182,12 @@ const callOpenAi = async ({ microGoal, equationText, fileText, fileName }) => {
   return parseFeedback(payload);
 };
 
-const callOllama = async ({ microGoal, equationText, fileText, fileName }) => {
+const callOllama = async ({
+  microGoal,
+  equationText,
+  fileText,
+  fileName,
+}) => {
   const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL;
   const model = process.env.OLLAMA_WORK_CHECK_MODEL || DEFAULT_OLLAMA_MODEL;
   let response;

@@ -5,6 +5,7 @@ const selectedId = Number(urlParams.get('id'));
 const sessionId = Number.isInteger(selectedId) && selectedId > 0 ? selectedId : DEFAULT_SESSION_ID;
 const apiBase = `/api/sessions/${sessionId}`;
 const MEMBER_PREVIEW_LIMIT = 3;
+const CHECKLIST_STORAGE_PREFIX = 'workCheckChecklist:';
 
 let sessionData = createDemoSession();
 let timerStartedAt = Date.now();
@@ -99,6 +100,7 @@ function evidence(id, type, text, url = null) {
 
 function bindPage() {
   page.exitModal = byId('exitModal');
+  page.completionAiFeedback = byId('completionAiFeedback');
   page.completionForm = byId('completionEvidenceForm');
   page.completionModal = byId('completionModal');
   page.consultationModal = byId('consultationModal');
@@ -212,6 +214,14 @@ async function postForm(url, formData) {
   return payload.data || payload;
 }
 
+function workCheckUrl(goalId) {
+  return `${apiBase}/micro-goals/${goalId}/work-check`;
+}
+
+function workCheckHistoryUrl(goalId, userId) {
+  return `${apiBase}/micro-goals/${goalId}/work-checks?user_id=${userId}`;
+}
+
 function renderPage() {
   page.title.textContent = sessionData.title || 'Software Engineering Practice';
   renderCurrentGoal();
@@ -294,7 +304,7 @@ function renderStatusProgress() {
   page.statusProgressBar.setAttribute('aria-disabled', String(isLocked));
   page.statusProgressHint.textContent = isLocked
     ? 'Progress is locked at 100% for this micro-goal.'
-    : 'Drag or click the bar to update progress. 100% requires workings or a .txt file.';
+    : 'Drag or click the bar to update progress. 100% requires workings, a .txt file, or a Word .docx file.';
 }
 
 function renderStatusTimers() {
@@ -478,13 +488,20 @@ function renderEvidenceForm(memberData, goalData) {
         <textarea name="equation_text" rows="2" placeholder="Type workings to check before finishing"></textarea>
       </label>
       <div class="evidence-upload-row">
-        <input name="evidence_file" type="file" accept=".txt,text/plain" />
+        <input name="evidence_file" type="file" accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
         <button type="submit">
           <i class="fas fa-search"></i>
           <span>Check Work</span>
         </button>
       </div>
       <div class="work-check-feedback d-none" aria-live="polite"></div>
+      <section class="work-check-history" data-user-id="${memberData.user_id}" data-goal-id="${goalData.id}">
+        <div class="work-check-history-heading">
+          <strong>Previous AI checks</strong>
+          <span>Newest first</span>
+        </div>
+        <div class="work-check-history-list">${emptyText('Loading AI feedback history...', 'work-check-empty')}</div>
+      </section>
     </form>
   `;
 }
@@ -581,7 +598,23 @@ function resetGoalForm() {
 
 function isTxtFile(file) {
   if (!file) return true;
-  return /\.txt$/i.test(file.name) && (!file.type || file.type === 'text/plain');
+  const supportedTypes = [
+    'text/plain',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+  return /\.(txt|docx)$/i.test(file.name) && (!file.type || supportedTypes.includes(file.type));
+}
+
+function isSupportedWorkCheckFile(file) {
+  if (!file) return true;
+  const hasSupportedName = /\.(txt|docx)$/i.test(file.name);
+  const hasSupportedType =
+    !file.type ||
+    [
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ].includes(file.type);
+  return hasSupportedName && hasSupportedType;
 }
 
 function setWorkCheckLoading(form, isLoading) {
@@ -595,6 +628,153 @@ function setWorkCheckLoading(form, isLoading) {
 
 function feedbackList(items) {
   return (items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+}
+
+function feedbackStatusLabel(status) {
+  const labels = {
+    looks_good: 'Looks good',
+    needs_more_detail: 'Needs more detail',
+    cannot_verify: 'Cannot verify',
+  };
+  return labels[status] || 'AI feedback';
+}
+
+function workCheckChecklistItems(feedback) {
+  const items = [...(feedback.issues || [])];
+  if (feedback.next_step) items.push(feedback.next_step);
+  return [...new Set(items.map((item) => String(item).trim()).filter(Boolean))];
+}
+
+function checklistStorageKey(checkId) {
+  return `${CHECKLIST_STORAGE_PREFIX}${checkId}`;
+}
+
+function readChecklistState(checkId) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(checklistStorageKey(checkId))) || []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeChecklistState(checkId, checkedItems) {
+  localStorage.setItem(checklistStorageKey(checkId), JSON.stringify(checkedItems));
+}
+
+function formatCheckTime(value) {
+  if (!value) return 'Just now';
+  return new Date(value).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderWorkCheckChecklist(feedback) {
+  const items = workCheckChecklistItems(feedback);
+  if (!feedback.id || !items.length) return '';
+
+  const checkedItems = readChecklistState(feedback.id);
+  const allChecked = items.every((item) => checkedItems.has(item));
+
+  return `
+    <fieldset class="work-check-checklist${allChecked ? ' checklist-ready' : ''}" data-check-id="${feedback.id}">
+      <legend>Improvement checklist</legend>
+      ${items
+        .map((item) => {
+          const checked = checkedItems.has(item) ? 'checked' : '';
+          return `
+            <label>
+              <input type="checkbox" data-check-text="${escapeHtml(item)}" ${checked} />
+              <span>${escapeHtml(item)}</span>
+            </label>
+          `;
+        })
+        .join('')}
+      <p>${allChecked ? 'Ready to complete when your evidence is prepared.' : 'Tick items as you improve your work.'}</p>
+    </fieldset>
+  `;
+}
+
+function renderWorkCheckCard(feedback, index = 0) {
+  const status = feedback.status || 'cannot_verify';
+  const fileLabel = feedback.file_name
+    ? `<span class="work-check-file">${escapeHtml(feedback.file_type || 'file')}: ${escapeHtml(feedback.file_name)}</span>`
+    : '';
+
+  return `
+    <details class="work-check-card work-check-${escapeHtml(status)}" ${index === 0 ? 'open' : ''}>
+      <summary>
+        <span>
+          <strong>${feedbackStatusLabel(status)}</strong>
+          <small>${formatCheckTime(feedback.created_at)}</small>
+        </span>
+        <span class="work-check-status">${feedbackStatusLabel(status)}</span>
+      </summary>
+      <div class="work-check-card-body">
+        ${fileLabel}
+        <p>${escapeHtml(feedback.summary || '')}</p>
+        ${
+          feedback.strengths?.length
+            ? `<span>Strengths</span><ul>${feedbackList(feedback.strengths)}</ul>`
+            : ''
+        }
+        ${
+          feedback.issues?.length
+            ? `<span>Improve</span><ul>${feedbackList(feedback.issues)}</ul>`
+            : ''
+        }
+        ${feedback.next_step ? `<p><b>Next:</b> ${escapeHtml(feedback.next_step)}</p>` : ''}
+        ${renderWorkCheckChecklist(feedback)}
+      </div>
+    </details>
+  `;
+}
+
+function renderWorkCheckHistory(form, feedbackListData) {
+  const list = form.querySelector('.work-check-history-list');
+  if (!list) return;
+
+  list.innerHTML = feedbackListData.length
+    ? feedbackListData.map(renderWorkCheckCard).join('')
+    : emptyText('No AI checks yet.', 'work-check-empty');
+}
+
+async function loadWorkCheckHistory(form) {
+  const list = form.querySelector('.work-check-history-list');
+  if (!list) return;
+
+  if (isPreviewMode) {
+    list.innerHTML = emptyText('AI feedback history appears in a live session.', 'work-check-empty');
+    return;
+  }
+
+  try {
+    const feedbackListData = await getJson(workCheckHistoryUrl(form.dataset.goalId, form.dataset.userId));
+    renderWorkCheckHistory(form, feedbackListData);
+  } catch (error) {
+    list.innerHTML = emptyText(error.message, 'work-check-empty work-check-empty-danger');
+  }
+}
+
+function handleWorkCheckChecklistChange(event) {
+  const checkbox = event.target.closest('.work-check-checklist input[type="checkbox"]');
+  if (!checkbox) return;
+
+  const checklist = checkbox.closest('.work-check-checklist');
+  const checkId = checklist.dataset.checkId;
+  const checkedItems = Array.from(
+    checklist.querySelectorAll('input[type="checkbox"]:checked'),
+  ).map((item) => item.dataset.checkText);
+  const allChecked =
+    checkedItems.length === checklist.querySelectorAll('input[type="checkbox"]').length;
+
+  writeChecklistState(checkId, checkedItems);
+  checklist.classList.toggle('checklist-ready', allChecked);
+  checklist.querySelector('p').textContent = allChecked
+    ? 'Ready to complete when your evidence is prepared.'
+    : 'Tick items as you improve your work.';
 }
 
 function setWorkCheckFeedback(form, feedback) {
@@ -616,6 +796,7 @@ function setWorkCheckFeedback(form, feedback) {
         : ''
     }
     ${feedback.next_step ? `<p><b>Next:</b> ${escapeHtml(feedback.next_step)}</p>` : ''}
+    ${renderWorkCheckChecklist(feedback)}
   `;
 }
 
@@ -636,11 +817,11 @@ async function checkWork(event) {
   const file = form.elements.evidence_file.files[0];
 
   if (!equationText && !file) {
-    setWorkCheckError(form, 'Add written equations or a .txt file before checking work.');
+    setWorkCheckError(form, 'Add written equations, a .txt file, or a Word .docx file before checking work.');
     return;
   }
-  if (!isTxtFile(file)) {
-    setWorkCheckError(form, 'AI work check currently supports .txt files only.');
+  if (!isSupportedWorkCheckFile(file)) {
+    setWorkCheckError(form, 'AI work check supports .txt or Word .docx files only.');
     return;
   }
 
@@ -655,11 +836,9 @@ async function checkWork(event) {
   try {
     const formData = new FormData(form);
     formData.set('user_id', form.dataset.userId);
-    const feedback = await postForm(
-      `${apiBase}/micro-goals/${form.dataset.goalId}/work-check`,
-      formData,
-    );
+    const feedback = await postForm(workCheckUrl(form.dataset.goalId), formData);
     setWorkCheckFeedback(form, { title: 'AI feedback', ...feedback });
+    await loadWorkCheckHistory(form);
   } catch (error) {
     setWorkCheckError(form, error.message);
   } finally {
@@ -741,6 +920,57 @@ function cancelProgressDrag(event) {
   renderStatusProgress();
 }
 
+function setCompletionAiFeedback(feedback) {
+  if (!page.completionAiFeedback) return;
+
+  if (!feedback) {
+    page.completionAiFeedback.className = 'completion-ai-feedback completion-ai-feedback-info';
+    page.completionAiFeedback.innerHTML =
+      '<strong>No AI check saved yet</strong><p>You can still submit your workings to complete this micro-goal.</p>';
+    return;
+  }
+
+  const status = feedback.status || 'cannot_verify';
+  const tone = status === 'looks_good' ? 'success' : 'warning';
+  const statusCopy = {
+    looks_good: 'Latest AI check looks good',
+    needs_more_detail: 'Latest AI check needs more detail',
+    cannot_verify: 'Latest AI check cannot verify yet',
+  };
+
+  page.completionAiFeedback.className = `completion-ai-feedback completion-ai-feedback-${tone}`;
+  page.completionAiFeedback.innerHTML = `
+    <strong>${escapeHtml(statusCopy[status] || 'Latest AI feedback')}</strong>
+    <p>${escapeHtml(feedback.summary || '')}</p>
+    ${
+      feedback.issues?.length
+        ? `<ul>${feedbackList(feedback.issues)}</ul>`
+        : ''
+    }
+    ${feedback.next_step ? `<p><b>Next:</b> ${escapeHtml(feedback.next_step)}</p>` : ''}
+  `;
+}
+
+async function loadCompletionAiFeedback(goalId) {
+  if (!page.completionAiFeedback) return;
+
+  page.completionAiFeedback.className = 'completion-ai-feedback completion-ai-feedback-info';
+  page.completionAiFeedback.innerHTML = '<strong>Loading latest AI feedback...</strong>';
+
+  if (isPreviewMode) {
+    setCompletionAiFeedback(null);
+    return;
+  }
+
+  try {
+    const feedbackListData = await getJson(workCheckHistoryUrl(goalId, CURRENT_USER_ID));
+    setCompletionAiFeedback(feedbackListData[0] || null);
+  } catch (error) {
+    page.completionAiFeedback.className = 'completion-ai-feedback completion-ai-feedback-warning';
+    page.completionAiFeedback.innerHTML = `<strong>Could not load latest AI feedback</strong><p>${escapeHtml(error.message)}</p>`;
+  }
+}
+
 function openCompletionModal() {
   const currentGoal = sessionData.micro_goal;
   if (!currentGoal?.id) {
@@ -752,6 +982,7 @@ function openCompletionModal() {
   page.completionForm.dataset.goalId = currentGoal.id;
   page.completionForm.reset();
   showModal(page.completionModal, true);
+  loadCompletionAiFeedback(currentGoal.id);
 }
 
 async function updateCurrentProgress(progress) {
@@ -816,7 +1047,7 @@ async function submitCompletionEvidence(event) {
     return;
   }
   if (!isTxtFile(file)) {
-    showMessage('Only .txt files are supported for completing a micro-goal.', 'danger');
+    showMessage('Only .txt or Word .docx files are supported for completing a micro-goal.', 'danger');
     return;
   }
 
@@ -923,6 +1154,9 @@ function openMemberGoalsModal(userId) {
 
   page.memberGoalsModalTitle.textContent = `${displayName || 'Member'}: Micro-goals & Uploads`;
   page.memberGoalsModalContent.innerHTML = renderMemberGoals(memberData);
+  page.memberGoalsModalContent
+    .querySelectorAll('.work-check-form')
+    .forEach((form) => loadWorkCheckHistory(form));
   showModal(page.memberGoalsModal, true);
 }
 
@@ -990,6 +1224,7 @@ document.addEventListener('DOMContentLoaded', () => {
   page.membersList.addEventListener('click', handleMemberActivation);
   page.membersList.addEventListener('click', handleMemberGoalsButton);
   page.memberGoalsModal.addEventListener('submit', checkWork);
+  page.memberGoalsModal.addEventListener('change', handleWorkCheckChecklistChange);
   page.membersToggle.addEventListener('click', () => {
     membersExpanded = !membersExpanded;
     renderMembers();
