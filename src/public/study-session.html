@@ -168,7 +168,7 @@
             >
               <span id="statusProgressFill"></span>
             </button>
-            <p id="statusProgressHint">Click the bar to update progress. 100% requires workings or a file.</p>
+            <p id="statusProgressHint">Drag or click the bar to update progress. 100% requires workings or a .txt file.</p>
           </div>
         </section>
 
@@ -278,17 +278,17 @@
     >
       <section class="session-modal-card completion-modal-card">
         <h2 id="completionModalTitle">Complete Micro-goal?</h2>
-        <p>Add your workings or upload a file to lock this micro-goal at 100%.</p>
+        <p>Add your written equations or upload a .txt file to lock this micro-goal at 100%.</p>
         <form id="completionEvidenceForm" class="evidence-upload-form">
           <label>
             <span>Workings or completion note</span>
             <textarea name="equation_text" rows="3" placeholder="Show your workings or completion notes"></textarea>
           </label>
           <div class="evidence-upload-row">
-            <input name="evidence_file" type="file" accept="image/*,.pdf,.doc,.docx,.txt" />
+            <input name="evidence_file" type="file" accept=".txt,text/plain" />
             <button type="submit">
               <i class="fas fa-upload"></i>
-              <span>Submit</span>
+              <span>Submit & Complete</span>
             </button>
           </div>
         </form>

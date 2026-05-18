@@ -5,9 +5,8 @@ const path = require('path');
 const fs = require('fs');
 
 const uploadDir = 'src/public/uploads/';
-const allowedExtensions = /jpeg|jpg|png|gif|webp|pdf|doc|docx|txt/;
-const allowedMimeTypes =
-  /image\/(jpeg|png|gif|webp)|application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|text\/plain/;
+const allowedExtensions = /txt/;
+const allowedMimeTypes = /text\/plain/;
 
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -28,13 +27,21 @@ const fileFilter = (req, file, callback) => {
   if (extname && mimetype) {
     callback(null, true);
   } else {
-    callback(new Error('Only images and documents are allowed'));
+    const error = new Error('Only .txt files are allowed');
+    error.status = 400;
+    callback(error);
   }
 };
 
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter,
+});
+
+upload.memoryText = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
 });
 

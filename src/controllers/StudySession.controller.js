@@ -1,4 +1,5 @@
 const model = require('../models/StudySession.model');
+const { checkWorkWithAi } = require('../services/workCheckAi.service');
 const { badReq, created, notFound, ok } = require('../utils/responseHelpers');
 
 const parseId = (value) => {
@@ -89,7 +90,7 @@ module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, r
   if (!microGoalId) return badReq(res, 'Valid micro-goal id is required');
   if (!userId) return badReq(res, 'Valid user id is required');
   if (!equationText && !req.file) {
-    return badReq(res, 'Add an equation, document, or image before uploading');
+    return badReq(res, 'Add written equations or a .txt file before uploading');
   }
 
   try {
@@ -106,7 +107,7 @@ module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, r
       },
       req.file && {
         ...baseEvidence,
-        content_type: req.file.mimetype.startsWith('image/') ? 'image' : 'file',
+        content_type: 'file',
         text_content: req.file.originalname,
         image_url: `/uploads/${req.file.filename}`,
       },
@@ -118,6 +119,39 @@ module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, r
     if (!savedEvidence.length) return notFound(res, 'Micro-goal not found');
 
     return created(res, savedEvidence);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.checkMicroGoalWork = async function checkMicroGoalWork(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const microGoalId = parseId(req.params.microGoalId);
+  const userId = parseId(req.body.user_id);
+  const equationText = getTrimmedString(req.body.equation_text);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!microGoalId) return badReq(res, 'Valid micro-goal id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
+  if (!equationText && !req.file) {
+    return badReq(res, 'Add written equations or a .txt file before checking work');
+  }
+  if (req.file && req.file.mimetype !== 'text/plain') {
+    return badReq(res, 'AI work check currently supports .txt files only');
+  }
+
+  try {
+    const microGoal = await model.selectMicroGoalById(sessionId, microGoalId);
+    if (!microGoal) return notFound(res, 'Micro-goal not found');
+
+    const feedback = await checkWorkWithAi({
+      microGoal,
+      equationText,
+      fileText: req.file?.buffer?.toString('utf8') || '',
+      fileName: req.file?.originalname,
+    });
+
+    return ok(res, feedback);
   } catch (error) {
     return next(error);
   }

@@ -294,7 +294,7 @@ function renderStatusProgress() {
   page.statusProgressBar.setAttribute('aria-disabled', String(isLocked));
   page.statusProgressHint.textContent = isLocked
     ? 'Progress is locked at 100% for this micro-goal.'
-    : 'Drag or click the bar to update progress. 100% requires workings or a file.';
+    : 'Drag or click the bar to update progress. 100% requires workings or a .txt file.';
 }
 
 function renderStatusTimers() {
@@ -394,9 +394,10 @@ function renderMemberGoals(memberData) {
   const goals = memberData.goals || [];
   const activeGoals = goals.filter((item) => item.is_current || item.status === 'active');
   const completedGoals = goals.filter((item) => item.is_completed || item.status === 'completed');
+  const canCheckWork = Number(memberData.user_id) === CURRENT_USER_ID;
 
   return `
-    ${renderGoalSection('Doing now', activeGoals, memberData, 'No active micro-goal yet.', true)}
+    ${renderGoalSection('Doing now', activeGoals, memberData, 'No active micro-goal yet.', canCheckWork)}
     ${renderGoalSection('Completed', completedGoals, memberData, 'No completed micro-goals yet.')}
   `;
 }
@@ -471,18 +472,19 @@ function renderEvidenceItem(item) {
 
 function renderEvidenceForm(memberData, goalData) {
   return `
-    <form class="evidence-upload-form" data-user-id="${memberData.user_id}" data-goal-id="${goalData.id}">
+    <form class="evidence-upload-form work-check-form" data-user-id="${memberData.user_id}" data-goal-id="${goalData.id}">
       <label>
-        <span>Equation or completion note</span>
-        <textarea name="equation_text" rows="2" placeholder="e.g. x = (-b +/- sqrt(b^2 - 4ac)) / 2a"></textarea>
+        <span>Written equations or note</span>
+        <textarea name="equation_text" rows="2" placeholder="Type workings to check before finishing"></textarea>
       </label>
       <div class="evidence-upload-row">
-        <input name="evidence_file" type="file" accept="image/*,.pdf,.doc,.docx,.txt" />
+        <input name="evidence_file" type="file" accept=".txt,text/plain" />
         <button type="submit">
-          <i class="fas fa-upload"></i>
-          <span>Upload</span>
+          <i class="fas fa-search"></i>
+          <span>Check Work</span>
         </button>
       </div>
+      <div class="work-check-feedback d-none" aria-live="polite"></div>
     </form>
   `;
 }
@@ -577,38 +579,91 @@ function resetGoalForm() {
   page.goalForm.classList.add('d-none');
 }
 
-async function uploadEvidence(event) {
-  if (!event.target.classList.contains('evidence-upload-form')) return;
+function isTxtFile(file) {
+  if (!file) return true;
+  return /\.txt$/i.test(file.name) && (!file.type || file.type === 'text/plain');
+}
+
+function setWorkCheckLoading(form, isLoading) {
+  const button = form.querySelector('button[type="submit"]');
+  const label = button?.querySelector('span');
+  if (!button || !label) return;
+
+  button.disabled = isLoading;
+  label.textContent = isLoading ? 'Checking...' : 'Check Work';
+}
+
+function feedbackList(items) {
+  return (items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+}
+
+function setWorkCheckFeedback(form, feedback) {
+  const panel = form.querySelector('.work-check-feedback');
+  if (!panel) return;
+
+  panel.className = `work-check-feedback work-check-feedback-${feedback.type || 'info'}`;
+  panel.innerHTML = `
+    <strong>${escapeHtml(feedback.title || 'AI feedback')}</strong>
+    <p>${escapeHtml(feedback.summary || '')}</p>
+    ${
+      feedback.strengths?.length
+        ? `<span>Strengths</span><ul>${feedbackList(feedback.strengths)}</ul>`
+        : ''
+    }
+    ${
+      feedback.issues?.length
+        ? `<span>Improve</span><ul>${feedbackList(feedback.issues)}</ul>`
+        : ''
+    }
+    ${feedback.next_step ? `<p><b>Next:</b> ${escapeHtml(feedback.next_step)}</p>` : ''}
+  `;
+}
+
+function setWorkCheckError(form, message) {
+  setWorkCheckFeedback(form, {
+    type: 'danger',
+    title: 'Check work',
+    summary: message,
+  });
+}
+
+async function checkWork(event) {
+  const form = event.target;
+  if (!form.classList.contains('work-check-form')) return;
   event.preventDefault();
 
-  const form = event.target;
   const equationText = form.elements.equation_text.value.trim();
   const file = form.elements.evidence_file.files[0];
 
   if (!equationText && !file) {
-    showMessage('Add an equation, document, or image before uploading.', 'danger');
+    setWorkCheckError(form, 'Add written equations or a .txt file before checking work.');
+    return;
+  }
+  if (!isTxtFile(file)) {
+    setWorkCheckError(form, 'AI work check currently supports .txt files only.');
     return;
   }
 
+  setWorkCheckLoading(form, true);
+
   if (isPreviewMode) {
-    addPreviewEvidence(form, equationText, file);
-    if (!page.memberGoalsModal.classList.contains('d-none')) {
-      openMemberGoalsModal(form.dataset.userId);
-    }
+    setWorkCheckError(form, 'AI work check needs a live session.');
+    setWorkCheckLoading(form, false);
     return;
   }
 
   try {
     const formData = new FormData(form);
     formData.set('user_id', form.dataset.userId);
-    await postForm(`${apiBase}/micro-goals/${form.dataset.goalId}/evidence`, formData);
-    form.reset();
-    await loadSession();
-    if (!page.memberGoalsModal.classList.contains('d-none')) {
-      openMemberGoalsModal(form.dataset.userId);
-    }
+    const feedback = await postForm(
+      `${apiBase}/micro-goals/${form.dataset.goalId}/work-check`,
+      formData,
+    );
+    setWorkCheckFeedback(form, { title: 'AI feedback', ...feedback });
   } catch (error) {
-    showMessage(error.message, 'danger');
+    setWorkCheckError(form, error.message);
+  } finally {
+    setWorkCheckLoading(form, false);
   }
 }
 
@@ -760,6 +815,10 @@ async function submitCompletionEvidence(event) {
     showMessage('Add your workings or upload a file to mark this as 100%.', 'danger');
     return;
   }
+  if (!isTxtFile(file)) {
+    showMessage('Only .txt files are supported for completing a micro-goal.', 'danger');
+    return;
+  }
 
   if (isPreviewMode) {
     addPreviewEvidence(form, equationText, file);
@@ -893,7 +952,7 @@ function addPreviewEvidence(form, equationText, file) {
     goalData.evidence.push(
       evidence(
         Date.now() + 1,
-        file.type.startsWith('image/') ? 'image' : 'file',
+        'file',
         file.name,
         URL.createObjectURL(file),
       ),
@@ -928,10 +987,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   page.goalForm.addEventListener('submit', addMicroGoal);
-  page.membersList.addEventListener('submit', uploadEvidence);
   page.membersList.addEventListener('click', handleMemberActivation);
   page.membersList.addEventListener('click', handleMemberGoalsButton);
-  page.memberGoalsModal.addEventListener('submit', uploadEvidence);
+  page.memberGoalsModal.addEventListener('submit', checkWork);
   page.membersToggle.addEventListener('click', () => {
     membersExpanded = !membersExpanded;
     renderMembers();

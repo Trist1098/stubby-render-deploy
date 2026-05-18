@@ -438,3 +438,40 @@
   font-size: 0.82rem;
   font-weight: 800;
 }
+
+.evidence-upload-row button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.work-check-feedback {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 10px;
+  background: #eef2ff;
+  color: #203047;
+  font-size: 0.78rem;
+}
+
+.work-check-feedback-danger {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.work-check-feedback strong,
+.work-check-feedback p,
+.work-check-feedback ul {
+  margin: 0;
+}
+
+.work-check-feedback span {
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.work-check-feedback ul {
+  padding-left: 18px;
+}

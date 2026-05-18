@@ -247,6 +247,18 @@ module.exports.selectMicroGoalsBySessionId = async function selectMicroGoalsBySe
   return rows;
 };
 
+module.exports.selectMicroGoalById = async function selectMicroGoalById(sessionId, microGoalId) {
+  const SQLSTATEMENT = `
+        SELECT id, study_session_id, created_by_user_id, title, description, queue_position,
+               status, activated_at, completed_at
+        FROM micro_goals
+        WHERE study_session_id = $1
+          AND id = $2
+    `;
+  const { rows } = await pool.query(SQLSTATEMENT, [sessionId, microGoalId]);
+  return rows[0] || null;
+};
+
 module.exports.selectQueuedMicroGoals = async function selectQueuedMicroGoals(
   sessionId,
   currentGoalId = null,
