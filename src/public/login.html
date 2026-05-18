@@ -20,11 +20,13 @@
         <form id="loginForm" class="text-start">
             <div class="mb-3">
                 <label class="form-label small fw-bold text-muted">EMAIL OR USERNAME</label>
-                <input type="text" id="identifier" class="form-control form-control-lg" placeholder="yourname@ichat.sp.edu.sg" required>
+                <input type="text" id="identifier" class="form-control form-control-lg" placeholder="yourname@ichat.sp.edu.sg">
+                <div class="error-message" id="errIdentifier" style="display: none;"></div>
             </div>
             <div class="mb-4">
                 <label class="form-label small fw-bold text-muted">PASSWORD</label>
-                <input type="password" id="password" class="form-control form-control-lg" placeholder="••••••••" required>
+                <input type="password" id="password" class="form-control form-control-lg" placeholder="••••••••">
+                <div class="error-message" id="errPassword"></div>
             </div>
             <button type="submit" class="btn btn-primary w-100 py-3 fw-bold fs-5 shadow-sm">Sign In</button>
         </form>
