@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +9,46 @@
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .calendar-card {
+            min-height: 560px;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 0.5rem;
+        }
+        .calendar-cell {
+            min-height: 92px;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 0.85rem;
+            background: #fff;
+        }
+        .calendar-cell--header {
+            background: #f8fafc;
+            font-weight: 700;
+        }
+        .calendar-cell--today {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 1px rgba(13,110,253,.2);
+        }
+        .event-pill {
+            display: block;
+            margin-top: 0.55rem;
+            padding: 0.35rem 0.55rem;
+            border-radius: 999px;
+            background: #0d6efd;
+            color: #fff;
+            font-size: 0.8rem;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
 </head>
+
 <body class="d-flex flex-column min-vh-100">
     <header>
         <div class="container">
@@ -17,8 +57,9 @@
                     <a href="index.html" class="d-flex align-items-center gap-2 text-decoration-none">
                         <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
                     </a>
-                    
-                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+
+                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#navContent">
                         <i class="fas fa-bars"></i>
                     </button>
 
@@ -79,6 +120,108 @@
             </div>
         </div>
 
+        <section class="mb-5">
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div class="card calendar-card shadow-sm p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h2 id="monthTitle" class="h4 mb-1">Loading month...</h2>
+                                <p class="text-muted mb-0" id="calendarSubtitle">Your event schedule at a glance.</p>
+                            </div>
+                            <div class="btn-group">
+                                <button id="prevMonth" type="button" class="btn btn-outline-primary btn-sm">Previous</button>
+                                <button id="nextMonth" type="button" class="btn btn-outline-primary btn-sm">Next</button>
+                            </div>
+                        </div>
+                        <div class="calendar-grid calendar-cell--header">
+                            <div class="calendar-cell calendar-cell--header">Sun</div>
+                            <div class="calendar-cell calendar-cell--header">Mon</div>
+                            <div class="calendar-cell calendar-cell--header">Tue</div>
+                            <div class="calendar-cell calendar-cell--header">Wed</div>
+                            <div class="calendar-cell calendar-cell--header">Thu</div>
+                            <div class="calendar-cell calendar-cell--header">Fri</div>
+                            <div class="calendar-cell calendar-cell--header">Sat</div>
+                        </div>
+                        <div id="calendarGrid" class="calendar-grid"></div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card shadow-sm p-4 h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h5 class="fw-bold mb-0">Events</h5>
+                                <p class="text-muted small mb-0">Manage calendar items in one place.</p>
+                            </div>
+                            <button id="addEventButton" type="button" class="btn btn-sm btn-primary">Add</button>
+                        </div>
+                        <div id="eventFormContainer" class="mb-4 d-none">
+                            <div class="card border-secondary mb-3">
+                                <div class="card-body p-3">
+                                    <h6 id="formTitle" class="fw-bold mb-3">New event</h6>
+                                    <form id="eventForm">
+                                        <div class="mb-3">
+                                            <label class="form-label">Title</label>
+                                            <input id="eventTitle" class="form-control" required />
+                                        </div>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-6">
+                                                <label class="form-label">Date</label>
+                                                <input id="eventDate" type="date" class="form-control" required />
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label">Time</label>
+                                                <div class="d-flex gap-2">
+                                                    <input id="eventStart" type="time" class="form-control" required />
+                                                    <input id="eventEnd" type="time" class="form-control" required />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Priority</label>
+                                            <select id="eventPriority" class="form-select">
+                                                <option value="low">Low</option>
+                                                <option value="medium" selected>Medium</option>
+                                                <option value="high">High</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Color</label>
+                                            <select id="eventColor" class="form-select">
+                                                <option value="primary">Blue</option>
+                                                <option value="success">Green</option>
+                                                <option value="warning">Yellow</option>
+                                                <option value="danger">Red</option>
+                                                <option value="info">Teal</option>
+                                                <option value="secondary">Gray</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Goal</label>
+                                            <input id="eventGoal" class="form-control" placeholder="Track progress or milestone" />
+                                        </div>
+                                        <div class="form-check form-switch mb-3">
+                                            <input id="eventGoalCompleted" class="form-check-input" type="checkbox" />
+                                            <label class="form-check-label" for="eventGoalCompleted">Goal completed</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Description</label>
+                                            <textarea id="eventDescription" rows="3" class="form-control"></textarea>
+                                        </div>
+                                        <div class="d-flex justify-content-between gap-2">
+                                            <button type="submit" class="btn btn-primary btn-sm">Save event</button>
+                                            <button type="button" id="cancelFormButton" class="btn btn-outline-secondary btn-sm">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="eventList" class="list-group"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section>
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="fw-bold h4 mb-0">Partner Suggestions</h2>
@@ -103,5 +246,233 @@
     <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
     <script src="js/home/dashboard.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!auth.isLoggedIn()) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const monthTitle = document.getElementById('monthTitle');
+            const calendarGrid = document.getElementById('calendarGrid');
+            const eventList = document.getElementById('eventList');
+            const addEventButton = document.getElementById('addEventButton');
+            const eventFormContainer = document.getElementById('eventFormContainer');
+            const eventForm = document.getElementById('eventForm');
+            const formTitle = document.getElementById('formTitle');
+            const cancelFormButton = document.getElementById('cancelFormButton');
+            const eventTitleInput = document.getElementById('eventTitle');
+            const eventDateInput = document.getElementById('eventDate');
+            const eventStartInput = document.getElementById('eventStart');
+            const eventEndInput = document.getElementById('eventEnd');
+            const eventPriorityInput = document.getElementById('eventPriority');
+            const eventColorInput = document.getElementById('eventColor');
+            const eventGoalInput = document.getElementById('eventGoal');
+            const eventGoalCompletedInput = document.getElementById('eventGoalCompleted');
+            const eventDescriptionInput = document.getElementById('eventDescription');
+            const prevMonth = document.getElementById('prevMonth');
+            const nextMonth = document.getElementById('nextMonth');
+
+            let currentMonth = new Date();
+            let events = [];
+            let editingEventId = null;
+
+            const formatDate = (value) => value.toString().padStart(2, '0');
+
+            const loadEvents = async () => {
+                const response = await apiRequest('/api/calendar');
+                if (response && response.events) {
+                    events = response.events;
+                    renderAll();
+                    return;
+                }
+                eventList.innerHTML = '<div class="text-danger p-3">Unable to load calendar events.</div>';
+            };
+
+            const renderCalendar = () => {
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth();
+                const firstDayIndex = new Date(year, month, 1).getDay();
+                const totalDays = new Date(year, month + 1, 0).getDate();
+                monthTitle.textContent = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+                calendarGrid.innerHTML = '';
+
+                for (let i = 0; i < firstDayIndex; i++) {
+                    const emptyCell = document.createElement('div');
+                    emptyCell.className = 'calendar-cell';
+                    calendarGrid.appendChild(emptyCell);
+                }
+
+                for (let day = 1; day <= totalDays; day++) {
+                    const dateString = `${year}-${formatDate(month + 1)}-${formatDate(day)}`;
+                    const dayEvents = events.filter((event) => event.date === dateString);
+                    const cell = document.createElement('div');
+                    cell.className = 'calendar-cell';
+                    if (dateString === new Date().toISOString().slice(0, 10)) {
+                        cell.classList.add('calendar-cell--today');
+                    }
+
+                    const dayNumber = document.createElement('div');
+                    dayNumber.className = 'fw-bold mb-2';
+                    dayNumber.textContent = day;
+                    cell.appendChild(dayNumber);
+
+                    dayEvents.slice(0, 2).forEach((event) => {
+                        const eventPill = document.createElement('span');
+                        eventPill.className = `event-pill badge bg-${event.color} text-white`;
+                        eventPill.textContent = `${event.start} ${event.title}`;
+                        cell.appendChild(eventPill);
+                    });
+
+                    cell.addEventListener('click', () => openEventForm(null, dateString));
+                    calendarGrid.appendChild(cell);
+                }
+            };
+
+            const renderEventList = () => {
+                if (!events.length) {
+                    eventList.innerHTML = '<div class="text-muted p-3">No events yet. Use Add event to create one.</div>';
+                    return;
+                }
+
+                eventList.innerHTML = '';
+                events.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)).forEach((event) => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item list-group-item-action mb-2 rounded-3';
+                    item.innerHTML = `
+                        <div class="d-flex justify-content-between gap-3">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <strong>${event.title}</strong>
+                                    <span class="badge bg-${event.color}">${event.priority}</span>
+                                </div>
+                                <div class="text-muted small">${event.date} · ${event.start} — ${event.end}</div>
+                                <div class="small text-muted">${event.description || 'No description'}</div>
+                                <div class="mt-2">
+                                    <span class="badge ${event.goalCompleted ? 'bg-success' : 'bg-secondary'}">${event.goal || 'No goal'}</span>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary mb-2 edit-event" data-id="${event.id}">Edit</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-event" data-id="${event.id}">Delete</button>
+                            </div>
+                        </div>
+                    `;
+
+                    item.querySelector('.edit-event').addEventListener('click', () => openEventForm(event.id));
+                    item.querySelector('.delete-event').addEventListener('click', () => handleDeleteEvent(event.id));
+                    eventList.appendChild(item);
+                });
+            };
+
+            const renderAll = () => {
+                renderCalendar();
+                renderEventList();
+            };
+
+            const showForm = () => eventFormContainer.classList.remove('d-none');
+            const hideForm = () => eventFormContainer.classList.add('d-none');
+
+            const resetForm = () => {
+                editingEventId = null;
+                formTitle.textContent = 'New event';
+                eventTitleInput.value = '';
+                eventDateInput.value = new Date().toISOString().slice(0, 10);
+                eventStartInput.value = '09:00';
+                eventEndInput.value = '10:00';
+                eventPriorityInput.value = 'medium';
+                eventColorInput.value = 'primary';
+                eventGoalInput.value = '';
+                eventGoalCompletedInput.checked = false;
+                eventDescriptionInput.value = '';
+            };
+
+            const openEventForm = (id = null, dateString = null) => {
+                if (id) {
+                    const event = events.find((item) => item.id === id);
+                    if (!event) {
+                        return;
+                    }
+                    editingEventId = id;
+                    formTitle.textContent = 'Edit event';
+                    eventTitleInput.value = event.title;
+                    eventDateInput.value = event.date;
+                    eventStartInput.value = event.start;
+                    eventEndInput.value = event.end;
+                    eventPriorityInput.value = event.priority;
+                    eventColorInput.value = event.color;
+                    eventGoalInput.value = event.goal;
+                    eventGoalCompletedInput.checked = Boolean(event.goalCompleted);
+                    eventDescriptionInput.value = event.description;
+                } else {
+                    editingEventId = null;
+                    formTitle.textContent = 'New event';
+                    resetForm();
+                    if (dateString) {
+                        eventDateInput.value = dateString;
+                    }
+                }
+                showForm();
+                eventTitleInput.focus();
+            };
+
+            const getFormPayload = () => ({
+                title: eventTitleInput.value.trim(),
+                date: eventDateInput.value,
+                start: eventStartInput.value,
+                end: eventEndInput.value,
+                priority: eventPriorityInput.value,
+                color: eventColorInput.value,
+                goal: eventGoalInput.value.trim(),
+                goalCompleted: eventGoalCompletedInput.checked,
+                description: eventDescriptionInput.value.trim(),
+            });
+
+            const handleSaveEvent = async (event) => {
+                event.preventDefault();
+                const payload = getFormPayload();
+                if (!payload.title || !payload.date || !payload.start || !payload.end) {
+                    return;
+                }
+
+                if (editingEventId) {
+                    await apiRequest(`/api/calendar/${editingEventId}`, 'PUT', payload);
+                } else {
+                    await apiRequest('/api/calendar', 'POST', payload);
+                }
+
+                await loadEvents();
+                resetForm();
+                hideForm();
+            };
+
+            const handleDeleteEvent = async (id) => {
+                if (!confirm('Delete this event?')) {
+                    return;
+                }
+                await apiRequest(`/api/calendar/${id}`, 'DELETE');
+                await loadEvents();
+            };
+
+            addEventButton.addEventListener('click', () => openEventForm(null, new Date().toISOString().slice(0, 10)));
+            cancelFormButton.addEventListener('click', () => {
+                resetForm();
+                hideForm();
+            });
+            eventForm.addEventListener('submit', handleSaveEvent);
+            prevMonth.addEventListener('click', () => {
+                currentMonth.setMonth(currentMonth.getMonth() - 1);
+                renderCalendar();
+            });
+            nextMonth.addEventListener('click', () => {
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+                renderCalendar();
+            });
+
+            resetForm();
+            await loadEvents();
+        });
+    </script>
 </body>
+
 </html>
