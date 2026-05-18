@@ -28,6 +28,14 @@ export function deleteMessageRequest(conversationId, messageId) {
   return apiRequest(`/api/chats/${conversationId}/messages/${messageId}`, 'DELETE');
 }
 
+export function addReactionRequest(conversationId, messageId, emoji) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, 'POST');
+}
+
+export function removeReactionRequest(conversationId, messageId, emoji) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, 'DELETE');
+}
+
 export async function uploadVoiceRequest(conversationId, audioBlob, duration) {
   const formData = new FormData();
   formData.append('audio', audioBlob, 'voice-message.webm');

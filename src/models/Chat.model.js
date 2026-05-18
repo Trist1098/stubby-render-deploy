@@ -142,16 +142,67 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
        cm.is_announcement,
        cm.is_deleted,
        cm.created_at,
-       cm.edited_at
+       cm.edited_at,
+       COALESCE(
+         json_agg(
+           json_build_object(
+             'emoji', mr.emoji,
+             'user_id', mr.user_id
+           )
+         ) FILTER (WHERE mr.reaction_id IS NOT NULL),
+         '[]'
+       ) AS reactions
      FROM ChatMessage cm
      JOIN "User" u ON u.user_id = cm.sender_id
+     LEFT JOIN MessageReaction mr ON mr.message_id = cm.message_id
      WHERE cm.conversation_id = $1
+     GROUP BY cm.message_id, u.username
      ORDER BY cm.created_at DESC
      LIMIT $2 OFFSET $3`,
     [conversationId, limit, offset]
   );
 
   return result.rows.reverse();
+};
+
+module.exports.getMessageById = async (conversationId, messageId) => {
+  const result = await pool.query(
+    `SELECT message_id, conversation_id, is_deleted
+     FROM ChatMessage
+     WHERE conversation_id = $1 AND message_id = $2`,
+    [conversationId, messageId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.getMessageReactions = async (messageId) => {
+  const result = await pool.query(
+    `SELECT emoji, user_id
+     FROM MessageReaction
+     WHERE message_id = $1
+     ORDER BY created_at`,
+    [messageId]
+  );
+  return result.rows;
+};
+
+module.exports.addMessageReaction = async (messageId, userId, emoji) => {
+  await pool.query(
+    `INSERT INTO MessageReaction (message_id, user_id, emoji)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (message_id, user_id, emoji) DO NOTHING`,
+    [messageId, userId, emoji]
+  );
+  return module.exports.getMessageReactions(messageId);
+};
+
+module.exports.removeMessageReaction = async (messageId, userId, emoji) => {
+  await pool.query(
+    `DELETE FROM MessageReaction
+     WHERE message_id = $1 AND user_id = $2 AND emoji = $3`,
+    [messageId, userId, emoji]
+  );
+  return module.exports.getMessageReactions(messageId);
 };
 
 module.exports.uploadVoiceMessage = async (conversationId, senderId, fileUrl, fileType, duration) => {

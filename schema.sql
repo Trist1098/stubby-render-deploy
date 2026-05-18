@@ -37,6 +37,7 @@ DROP TABLE IF EXISTS EventComment;
 DROP TABLE IF EXISTS EventParticipant;
 DROP TABLE IF EXISTS CalendarEvent;
 DROP TABLE IF EXISTS Notification;
+DROP TABLE IF EXISTS MessageReaction;
 DROP TABLE IF EXISTS ChatMessage;
 DROP TABLE IF EXISTS ConversationMember;
 DROP TABLE IF EXISTS SessionReflection;
@@ -301,6 +302,17 @@ CREATE TABLE ChatMessage (
     edited_at       TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE MessageReaction (
+    reaction_id SERIAL PRIMARY KEY,
+    message_id  INT NOT NULL,
+    user_id     INT NOT NULL,
+    emoji       VARCHAR(20) NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (message_id) REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(message_id, user_id, emoji)
 );
 
 -- =============================================

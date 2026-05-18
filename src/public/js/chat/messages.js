@@ -1,4 +1,4 @@
-import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest, deleteMessageRequest } from './chatApi.js';
+import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest, deleteMessageRequest, addReactionRequest, removeReactionRequest } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
@@ -14,6 +14,7 @@ let voiceChunks = [];
 let voiceRecordingStart = null;
 let voiceTimerInterval = null;
 let voiceDiscarded = false;
+const reactionChoices = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F389}'];
 
 function cleanupVoiceState() {
   if (voiceRecorder && voiceRecorder.state !== 'inactive') {
@@ -150,17 +151,44 @@ function renderMessages() {
       const deleteBtn = isSent && !message.is_deleted
         ? `<button class="msg-action-btn delete-btn" data-message-id="${message.message_id}" title="Delete"><i class="fas fa-trash"></i></button>`
         : '';
+      const reactionBtn = !message.is_deleted
+        ? `<button class="msg-action-btn reaction-toggle-btn" data-message-id="${message.message_id}" title="React"><i class="far fa-smile"></i></button>`
+        : '';
       return `
       <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}" data-message-id="${message.message_id}">
-        <div class="msg-actions ${isSent ? 'msg-actions-sent' : ''}">${editBtn}${deleteBtn}</div>
+        <div class="msg-actions ${isSent ? 'msg-actions-sent' : ''}">${reactionBtn}${editBtn}${deleteBtn}</div>
         <div class="message-bubble">
           <div class="message-meta mb-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</div>
           ${renderMessageContent(message)}
           ${editedLabel}
+          ${renderReactions(message)}
         </div>
       </div>`;
     })
     .join('');
+}
+
+function renderReactions(message) {
+  if (!message.reactions || message.reactions.length === 0 || message.is_deleted) return '';
+
+  const currentUserId = Number(getCurrentUserId());
+  const grouped = message.reactions.reduce((items, reaction) => {
+    if (!items[reaction.emoji]) {
+      items[reaction.emoji] = { count: 0, reacted: false };
+    }
+    items[reaction.emoji].count += 1;
+    if (Number(reaction.user_id) === currentUserId) items[reaction.emoji].reacted = true;
+    return items;
+  }, {});
+
+  return `<div class="msg-reactions">
+    ${Object.entries(grouped).map(([emoji, item]) => `
+      <button class="msg-reaction ${item.reacted ? 'reacted' : ''}" data-message-id="${message.message_id}" data-emoji="${escapeHtml(emoji)}" type="button">
+        <span>${escapeHtml(emoji)}</span>
+        <span>${item.count}</span>
+      </button>
+    `).join('')}
+  </div>`;
 }
 
 function renderMessageContent(message) {
@@ -216,6 +244,54 @@ function handleMessageAction(e) {
   if (editBtn) startEditMessage(Number(editBtn.dataset.messageId));
   const deleteBtn = e.target.closest('.delete-btn');
   if (deleteBtn) confirmDeleteMessage(Number(deleteBtn.dataset.messageId));
+  const reactionToggleBtn = e.target.closest('.reaction-toggle-btn');
+  if (reactionToggleBtn) showReactionPicker(Number(reactionToggleBtn.dataset.messageId));
+  const pickerBtn = e.target.closest('.reaction-picker-btn');
+  if (pickerBtn) addReaction(Number(pickerBtn.dataset.messageId), pickerBtn.dataset.emoji);
+  const reactionBtn = e.target.closest('.msg-reaction');
+  if (reactionBtn) toggleReaction(Number(reactionBtn.dataset.messageId), reactionBtn.dataset.emoji);
+}
+
+function showReactionPicker(messageId) {
+  document.querySelectorAll('.reaction-picker').forEach((picker) => picker.remove());
+
+  const row = document.querySelector(`.message-row[data-message-id="${messageId}"]`);
+  if (!row) return;
+
+  const picker = document.createElement('div');
+  picker.className = 'reaction-picker';
+  picker.innerHTML = reactionChoices.map((emoji) => `
+    <button class="reaction-picker-btn" data-message-id="${messageId}" data-emoji="${escapeHtml(emoji)}" type="button">${escapeHtml(emoji)}</button>
+  `).join('');
+
+  row.querySelector('.message-bubble').appendChild(picker);
+}
+
+async function addReaction(messageId, emoji) {
+  const result = await addReactionRequest(chatState.activeConversationId, messageId, emoji);
+  updateMessageReactions(messageId, result);
+}
+
+async function toggleReaction(messageId, emoji) {
+  const message = chatState.activeMessages.find((m) => m.message_id === messageId);
+  const currentUserId = Number(getCurrentUserId());
+  const hasReacted = message?.reactions?.some(
+    (reaction) => reaction.emoji === emoji && Number(reaction.user_id) === currentUserId,
+  );
+  const result = hasReacted
+    ? await removeReactionRequest(chatState.activeConversationId, messageId, emoji)
+    : await addReactionRequest(chatState.activeConversationId, messageId, emoji);
+  updateMessageReactions(messageId, result);
+}
+
+function updateMessageReactions(messageId, result) {
+  if (!result || !Array.isArray(result.reactions)) {
+    alert(result?.message || 'Failed to update reaction.');
+    return;
+  }
+  const idx = chatState.activeMessages.findIndex((m) => m.message_id === messageId);
+  if (idx !== -1) chatState.activeMessages[idx].reactions = result.reactions;
+  renderMessageList(false);
 }
 
 async function confirmDeleteMessage(messageId) {

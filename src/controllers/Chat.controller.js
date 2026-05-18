@@ -1,4 +1,4 @@
-const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, deleteMessage: deleteMessageModel, editMessage: editMessageModel, uploadFile: uploadFileModel, uploadVoiceMessage: uploadVoiceMessageModel } = require('../models/Chat.model');
+const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, getMessageById, addMessageReaction, removeMessageReaction, deleteMessage: deleteMessageModel, editMessage: editMessageModel, uploadFile: uploadFileModel, uploadVoiceMessage: uploadVoiceMessageModel } = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
   const userId = res.locals.userId;
@@ -132,6 +132,66 @@ module.exports.getMessages = async (req, res, next) => {
 
     const messages = await getMessagesByConversationId(conversationId, limit, offset);
     res.json(messages);
+  } catch (error) {
+    next(error);
+  }
+};
+
+async function checkReactionTarget(conversationId, messageId, userId) {
+  if (!Number.isInteger(conversationId) || !Number.isInteger(messageId)) {
+    return { status: 400, message: 'Invalid id' };
+  }
+
+  const isMember = await isConversationMember(conversationId, userId);
+  if (!isMember) {
+    return { status: 403, message: 'You are not a member of this conversation' };
+  }
+
+  const message = await getMessageById(conversationId, messageId);
+  if (!message || message.is_deleted) {
+    return { status: 404, message: 'Message not found' };
+  }
+
+  return null;
+}
+
+module.exports.addReaction = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const messageId = Number(req.params.messageId);
+  const emoji = String(req.params.emoji || '').trim();
+
+  if (!emoji || emoji.length > 20) {
+    return res.status(400).json({ message: 'Invalid emoji' });
+  }
+
+  try {
+    const targetError = await checkReactionTarget(conversationId, messageId, userId);
+    if (targetError) return res.status(targetError.status).json({ message: targetError.message });
+
+    const reactions = await addMessageReaction(messageId, userId, emoji);
+    res.status(201).json({ message_id: messageId, reactions });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.removeReaction = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const messageId = Number(req.params.messageId);
+  const emoji = String(req.params.emoji || '').trim();
+
+  if (!emoji || emoji.length > 20) {
+    return res.status(400).json({ message: 'Invalid emoji' });
+  }
+
+  try {
+    const targetError = await checkReactionTarget(conversationId, messageId, userId);
+    if (targetError) return res.status(targetError.status).json({ message: targetError.message });
+
+    const reactions = await removeMessageReaction(messageId, userId, emoji);
+    res.json({ message_id: messageId, reactions });
   } catch (error) {
     next(error);
   }
