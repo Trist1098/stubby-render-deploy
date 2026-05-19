@@ -1,4 +1,4 @@
-import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest, deleteMessageRequest, addReactionRequest, removeReactionRequest } from './chatApi.js';
+import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest, deleteMessageRequest, addReactionRequest, removeReactionRequest, fetchPinnedMessages, pinMessageRequest, unpinMessageRequest } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
@@ -69,6 +69,7 @@ export function renderChatPanel() {
         <option value="grid" ${chatState.activeWallpaper === 'grid' ? 'selected' : ''}>Grid</option>
       </select>
     </div>
+    ${renderPinnedBar()}
     <div class="messages-list chat-wallpaper ${chatState.activeWallpaper === 'default' ? '' : chatState.activeWallpaper} flex-grow-1 overflow-auto" id="messagesList">
       ${renderMessages()}
     </div>
@@ -92,6 +93,9 @@ export function renderChatPanel() {
     renderChatPanel();
     scrollMessagesToBottom('auto');
   });
+
+  const pinnedBar = document.getElementById('pinnedBar');
+  if (pinnedBar) pinnedBar.addEventListener('click', handlePinnedBarClick);
 
   document.getElementById('messageForm').addEventListener('submit', sendActiveMessage);
   document.getElementById('fileInput').addEventListener('change', (e) => {
@@ -145,24 +149,44 @@ function renderMessages() {
       const editedLabel = message.edited_at && !message.is_deleted
         ? `<span class="msg-edited" title="Edited ${formatTime(message.edited_at)}">(edited)</span>`
         : '';
-      const editBtn = isSent && message.text && !message.file_url && !message.is_deleted
-        ? `<button class="msg-action-btn edit-btn" data-message-id="${message.message_id}" title="Edit"><i class="fas fa-pen"></i></button>`
+
+      const isPinned = chatState.pinnedMessages.some((p) => p.message_id === message.message_id);
+
+      const ddItems = [];
+      if (!message.is_deleted) {
+        ddItems.push(`<button class="msg-dd-item pin-btn ${isPinned ? 'pinned' : ''}" data-message-id="${message.message_id}"><i class="fas fa-thumbtack me-2"></i>${isPinned ? 'Unpin' : 'Pin'}</button>`);
+      }
+      if (isSent && message.text && !message.file_url && !message.is_deleted) {
+        ddItems.push(`<button class="msg-dd-item edit-btn" data-message-id="${message.message_id}"><i class="fas fa-pen me-2"></i>Edit</button>`);
+      }
+      if (isSent && !message.is_deleted) {
+        ddItems.push(`<button class="msg-dd-item delete-btn" data-message-id="${message.message_id}"><i class="fas fa-trash me-2"></i>Delete</button>`);
+      }
+
+      const moreBtn = ddItems.length > 0
+        ? `<button class="msg-more-btn" data-message-id="${message.message_id}" title="More"><i class="fas fa-ellipsis-h"></i></button>`
         : '';
-      const deleteBtn = isSent && !message.is_deleted
-        ? `<button class="msg-action-btn delete-btn" data-message-id="${message.message_id}" title="Delete"><i class="fas fa-trash"></i></button>`
+      const dropdown = ddItems.length > 0
+        ? `<div class="msg-dropdown" data-message-id="${message.message_id}">${ddItems.join('')}</div>`
         : '';
-      const reactionBtn = !message.is_deleted
-        ? `<button class="msg-action-btn reaction-toggle-btn" data-message-id="${message.message_id}" title="React"><i class="far fa-smile"></i></button>`
+      const reactionWrap = !message.is_deleted
+        ? `<div class="msg-reaction-wrap"><button class="msg-action-btn reaction-toggle-btn" data-message-id="${message.message_id}" title="React"><i class="far fa-smile"></i></button></div>`
         : '';
+
       return `
       <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}" data-message-id="${message.message_id}">
-        <div class="msg-actions ${isSent ? 'msg-actions-sent' : ''}">${reactionBtn}${editBtn}${deleteBtn}</div>
+        ${isSent ? reactionWrap : ''}
         <div class="message-bubble">
-          <div class="message-meta mb-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</div>
+          <div class="message-meta d-flex align-items-center gap-2 mb-1">
+            <span class="flex-grow-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</span>
+            ${moreBtn}
+          </div>
+          ${dropdown}
           ${renderMessageContent(message)}
           ${editedLabel}
           ${renderReactions(message)}
         </div>
+        ${!isSent ? reactionWrap : ''}
       </div>`;
     })
     .join('');
@@ -239,11 +263,28 @@ function formatFileSize(bytes) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function closeAllDropdowns() {
+  document.querySelectorAll('.msg-dropdown.open').forEach((d) => d.classList.remove('open'));
+}
+
 function handleMessageAction(e) {
+  const moreBtn = e.target.closest('.msg-more-btn');
+  if (moreBtn) {
+    const dropdown = document.querySelector(`.msg-dropdown[data-message-id="${moreBtn.dataset.messageId}"]`);
+    const isOpen = dropdown?.classList.contains('open');
+    closeAllDropdowns();
+    if (!isOpen && dropdown) dropdown.classList.add('open');
+    return;
+  }
+
+  if (!e.target.closest('.msg-dropdown')) closeAllDropdowns();
+
   const editBtn = e.target.closest('.edit-btn');
   if (editBtn) startEditMessage(Number(editBtn.dataset.messageId));
   const deleteBtn = e.target.closest('.delete-btn');
   if (deleteBtn) confirmDeleteMessage(Number(deleteBtn.dataset.messageId));
+  const pinBtn = e.target.closest('.pin-btn');
+  if (pinBtn) togglePin(Number(pinBtn.dataset.messageId), pinBtn.classList.contains('pinned'));
   const reactionToggleBtn = e.target.closest('.reaction-toggle-btn');
   if (reactionToggleBtn) showReactionPicker(Number(reactionToggleBtn.dataset.messageId));
   const pickerBtn = e.target.closest('.reaction-picker-btn');
@@ -352,6 +393,67 @@ async function saveEditMessage(messageId, newText) {
   renderMessageList(false);
 }
 
+function renderPinnedBar() {
+  if (chatState.pinnedMessages.length === 0) return '';
+  const items = chatState.pinnedMessages.map((pin) => {
+    const snippet = pin.is_deleted
+      ? 'This message was deleted'
+      : pin.text || pin.file_name || 'File';
+    return `
+      <div class="pinned-item d-flex align-items-center gap-2 px-3 py-1" data-message-id="${pin.message_id}">
+        <span class="pinned-item-text text-truncate small flex-grow-1">${escapeHtml(snippet)}</span>
+        <button class="pinned-unpin-btn msg-action-btn" data-message-id="${pin.message_id}" title="Unpin"><i class="fas fa-times"></i></button>
+      </div>`;
+  }).join('');
+  return `
+    <div class="pinned-bar border-bottom" id="pinnedBar">
+      <div class="pinned-bar-header d-flex align-items-center gap-2 px-3 py-1" id="pinnedBarToggle">
+        <i class="fas fa-thumbtack pinned-icon"></i>
+        <span class="small fw-semibold">${chatState.pinnedMessages.length} pinned</span>
+        <i class="fas fa-chevron-down pinned-chevron ms-auto" id="pinnedChevron"></i>
+      </div>
+      <div class="pinned-items d-none" id="pinnedItems">${items}</div>
+    </div>`;
+}
+
+function handlePinnedBarClick(e) {
+  const unpinBtn = e.target.closest('.pinned-unpin-btn');
+  if (unpinBtn) {
+    togglePin(Number(unpinBtn.dataset.messageId), true);
+    return;
+  }
+  const toggle = e.target.closest('#pinnedBarToggle');
+  if (toggle) {
+    const list = document.getElementById('pinnedItems');
+    const chevron = document.getElementById('pinnedChevron');
+    if (!list) return;
+    list.classList.toggle('d-none');
+    chevron.classList.toggle('fa-chevron-down');
+    chevron.classList.toggle('fa-chevron-up');
+    return;
+  }
+  const item = e.target.closest('.pinned-item');
+  if (item) {
+    const messageId = item.dataset.messageId;
+    const row = document.querySelector(`#messagesList .message-row[data-message-id="${messageId}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function togglePin(messageId, isPinned) {
+  const convId = chatState.activeConversationId;
+  const result = isPinned
+    ? await unpinMessageRequest(convId, messageId)
+    : await pinMessageRequest(convId, messageId);
+  if (!Array.isArray(result)) {
+    alert(result?.message || 'Failed to update pin.');
+    return;
+  }
+  chatState.pinnedMessages = result;
+  renderChatPanel();
+  scrollMessagesToBottom('auto');
+}
+
 function scrollMessagesToBottom(behavior = 'smooth') {
   const list = document.getElementById('messagesList');
   if (!list) return;
@@ -363,9 +465,14 @@ function scrollMessagesToBottom(behavior = 'smooth') {
 }
 
 export async function loadMessages(conversationId) {
+  chatState.pinnedMessages = [];
   renderChatPanel();
-  const data = await fetchMessages(conversationId);
+  const [data, pinned] = await Promise.all([
+    fetchMessages(conversationId),
+    fetchPinnedMessages(conversationId),
+  ]);
   chatState.activeMessages = Array.isArray(data) ? data : [];
+  chatState.pinnedMessages = Array.isArray(pinned) ? pinned : [];
   renderChatPanel();
   startMessageRefresh();
 }

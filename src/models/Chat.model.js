@@ -165,6 +165,44 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
   return result.rows.reverse();
 };
 
+module.exports.pinMessage = async (messageId, conversationId) => {
+  const result = await pool.query(
+    `INSERT INTO MessagePin (message_id, conversation_id)
+     SELECT $1, $2
+     FROM ChatMessage
+     WHERE message_id = $1 AND conversation_id = $2 AND is_deleted = FALSE
+     ON CONFLICT DO NOTHING
+     RETURNING message_id`,
+    [messageId, conversationId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.unpinMessage = async (messageId, conversationId) => {
+  const result = await pool.query(
+    `DELETE FROM MessagePin
+     WHERE message_id = $1 AND conversation_id = $2
+     RETURNING message_id`,
+    [messageId, conversationId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.getPinnedMessages = async (conversationId) => {
+  const result = await pool.query(
+    `SELECT mp.message_id, mp.conversation_id, mp.pinned_at,
+            cm.text, cm.file_url, cm.file_name, cm.file_type, cm.is_deleted,
+            u.username AS sender_username
+     FROM MessagePin mp
+     JOIN ChatMessage cm ON cm.message_id = mp.message_id
+     JOIN "User" u ON u.user_id = cm.sender_id
+     WHERE mp.conversation_id = $1
+     ORDER BY mp.pinned_at DESC`,
+    [conversationId]
+  );
+  return result.rows;
+};
+
 module.exports.getMessageById = async (conversationId, messageId) => {
   const result = await pool.query(
     `SELECT message_id, conversation_id, is_deleted

@@ -37,6 +37,7 @@ DROP TABLE IF EXISTS EventComment;
 DROP TABLE IF EXISTS EventParticipant;
 DROP TABLE IF EXISTS CalendarEvent;
 DROP TABLE IF EXISTS Notification;
+DROP TABLE IF EXISTS MessagePin;
 DROP TABLE IF EXISTS MessageReaction;
 DROP TABLE IF EXISTS ChatMessage;
 DROP TABLE IF EXISTS ConversationMember;
@@ -302,6 +303,15 @@ CREATE TABLE ChatMessage (
     edited_at       TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE MessagePin (
+    message_id      INT NOT NULL,
+    conversation_id INT NOT NULL,
+    pinned_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id, conversation_id),
+    FOREIGN KEY (message_id)      REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
+    FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE
 );
 
 CREATE TABLE MessageReaction (
