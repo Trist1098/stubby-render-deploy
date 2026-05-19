@@ -151,10 +151,50 @@ const deleteCalendarEvent = (id) => {
   return Promise.resolve(cloneEvent(deleted));
 };
 
+const getProgressSummary = () => {
+  const total = calendarEvents.length;
+  const completed = calendarEvents.filter((event) => event.goalCompleted).length;
+  const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+  return Promise.resolve({
+    total,
+    completed,
+    percentage,
+    remaining: total - completed,
+  });
+};
+
+const getTodayProgress = () => {
+  const today = new Date().toISOString().split('T')[0];
+  const todayEvents = calendarEvents.filter((event) => event.date === today);
+  const completedToday = todayEvents.filter((event) => event.goalCompleted).length;
+  const percentageToday = todayEvents.length === 0 ? 0 : Math.round((completedToday / todayEvents.length) * 100);
+  return Promise.resolve({
+    total: todayEvents.length,
+    completed: completedToday,
+    percentage: percentageToday,
+    remaining: todayEvents.length - completedToday,
+  });
+};
+
+const getGoalProgress = () => {
+  const goalEvents = calendarEvents.filter((event) => event.goal && event.goal.trim() !== '');
+  const completedGoals = goalEvents.filter((event) => event.goalCompleted).length;
+  const percentageGoals = goalEvents.length === 0 ? 0 : Math.round((completedGoals / goalEvents.length) * 100);
+  return Promise.resolve({
+    total: goalEvents.length,
+    completed: completedGoals,
+    percentage: percentageGoals,
+    remaining: goalEvents.length - completedGoals,
+  });
+};
+
 module.exports = {
   getCalendarEvents,
   getCalendarEventById,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  getProgressSummary,
+  getTodayProgress,
+  getGoalProgress,
 };

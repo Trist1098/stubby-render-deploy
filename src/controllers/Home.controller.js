@@ -48,10 +48,31 @@ const getCalendarEventById = (req, res, next) => {
     .catch(next);
 };
 
+const getProgressSummary = (req, res, next) => {
+  model.getProgressSummary()
+    .then((progress) => res.status(200).json({ progress }))
+    .catch(next);
+};
+
+const getTodayProgress = (req, res, next) => {
+  model.getTodayProgress()
+    .then((progress) => res.status(200).json({ progress }))
+    .catch(next);
+};
+
+const getGoalProgress = (req, res, next) => {
+  model.getGoalProgress()
+    .then((progress) => res.status(200).json({ progress }))
+    .catch(next);
+};
+
 module.exports = {
   getCalendarEvents,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
   getCalendarEventById,
+  getProgressSummary,
+  getTodayProgress,
+  getGoalProgress,
 };

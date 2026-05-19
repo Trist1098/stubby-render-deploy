@@ -120,6 +120,72 @@
             </div>
         </div>
 
+        <!-- Progress Tracker Section -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card shadow-sm p-4">
+                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                        <i class="fas fa-chart-pie text-primary"></i> Overall Progress
+                    </h5>
+                    <div class="d-flex align-items-end gap-3 mb-3">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <p class="fw-bold h5 mb-0"><span id="progressOverallCompleted">0</span>/<span id="progressOverallTotal">0</span></p>
+                        </div>
+                        <div>
+                            <p class="text-muted small mb-1">Progress</p>
+                            <p class="fw-bold h5 text-primary mb-0"><span id="progressOverallPercent">0</span>%</p>
+                        </div>
+                    </div>
+                    <div class="progress mb-2" style="height: 0.5rem;">
+                        <div id="progressOverallBar" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm p-4">
+                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                        <i class="fas fa-calendar-day text-success"></i> Today's Tasks
+                    </h5>
+                    <div class="d-flex align-items-end gap-3 mb-3">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <p class="fw-bold h5 mb-0"><span id="progressTodayCompleted">0</span>/<span id="progressTodayTotal">0</span></p>
+                        </div>
+                        <div>
+                            <p class="text-muted small mb-1">Progress</p>
+                            <p class="fw-bold h5 text-success mb-0"><span id="progressTodayPercent">0</span>%</p>
+                        </div>
+                    </div>
+                    <div class="progress mb-2" style="height: 0.5rem;">
+                        <div id="progressTodayBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm p-4">
+                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                        <i class="fas fa-bullseye text-warning"></i> Goals
+                    </h5>
+                    <div class="d-flex align-items-end gap-3 mb-3">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <p class="fw-bold h5 mb-0"><span id="progressGoalsCompleted">0</span>/<span id="progressGoalsTotal">0</span></p>
+                        </div>
+                        <div>
+                            <p class="text-muted small mb-1">Progress</p>
+                            <p class="fw-bold h5 text-warning mb-0"><span id="progressGoalsPercent">0</span>%</p>
+                        </div>
+                    </div>
+                    <div class="progress mb-2" style="height: 0.5rem;">
+                        <div id="progressGoalsBar" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <section class="mb-5">
             <div class="row g-4">
                 <div class="col-lg-8">
@@ -471,6 +537,7 @@
                 }
 
                 await loadEvents();
+                await loadProgress();
                 resetForm();
                 hideForm();
             };
@@ -481,6 +548,7 @@
                 }
                 await apiRequest(`/api/calendar/${id}`, 'DELETE');
                 await loadEvents();
+                await loadProgress();
             };
 
             // Open event details modal
@@ -533,8 +601,49 @@
                 renderCalendar();
             });
 
+            // Progress tracking
+            const updateProgressUI = (progressData, type) => {
+                if (type === 'overall') {
+                    document.getElementById('progressOverallCompleted').textContent = progressData.completed;
+                    document.getElementById('progressOverallTotal').textContent = progressData.total;
+                    document.getElementById('progressOverallPercent').textContent = progressData.percentage;
+                    document.getElementById('progressOverallBar').style.width = `${progressData.percentage}%`;
+                } else if (type === 'today') {
+                    document.getElementById('progressTodayCompleted').textContent = progressData.completed;
+                    document.getElementById('progressTodayTotal').textContent = progressData.total;
+                    document.getElementById('progressTodayPercent').textContent = progressData.percentage;
+                    document.getElementById('progressTodayBar').style.width = `${progressData.percentage}%`;
+                } else if (type === 'goals') {
+                    document.getElementById('progressGoalsCompleted').textContent = progressData.completed;
+                    document.getElementById('progressGoalsTotal').textContent = progressData.total;
+                    document.getElementById('progressGoalsPercent').textContent = progressData.percentage;
+                    document.getElementById('progressGoalsBar').style.width = `${progressData.percentage}%`;
+                }
+            };
+
+            const loadProgress = async () => {
+                try {
+                    const overallResponse = await apiRequest('/api/progress/summary');
+                    const todayResponse = await apiRequest('/api/progress/today');
+                    const goalsResponse = await apiRequest('/api/progress/goals');
+
+                    if (overallResponse && overallResponse.progress) {
+                        updateProgressUI(overallResponse.progress, 'overall');
+                    }
+                    if (todayResponse && todayResponse.progress) {
+                        updateProgressUI(todayResponse.progress, 'today');
+                    }
+                    if (goalsResponse && goalsResponse.progress) {
+                        updateProgressUI(goalsResponse.progress, 'goals');
+                    }
+                } catch (error) {
+                    console.error('Error loading progress:', error);
+                }
+            };
+
             resetForm();
             await loadEvents();
+            await loadProgress();
         });
     </script>
 </body>
