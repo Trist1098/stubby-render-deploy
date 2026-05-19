@@ -17,6 +17,7 @@ export default [
 
   // ── Base: all JS files are CommonJS ────────────────────
   { files: ['**/*.js'], languageOptions: { sourceType: 'commonjs' } },
+  { files: ['src/public/js/chat/*.js'], languageOptions: { sourceType: 'module' } },
   { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
 
   // ── ESLint recommended rules ───────────────────────────

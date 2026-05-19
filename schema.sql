@@ -53,6 +53,7 @@ DROP TABLE IF EXISTS MatchRequest;
 DROP TABLE IF EXISTS MatchPreference;
 DROP TABLE IF EXISTS UserBadge;
 DROP TABLE IF EXISTS Friendship;
+DROP TABLE IF EXISTS FriendRequest;
 DROP TABLE IF EXISTS UserInterest;
 DROP TABLE IF EXISTS UserLanguage;
 DROP TABLE IF EXISTS UserModule;
@@ -198,7 +199,7 @@ CREATE TABLE MatchPreference (
     end_time           VARCHAR(10),
     match_rate         VARCHAR(20),
     style              VARCHAR(50),
-    language_id        INT,
+    selected_languages JSONB,
     duration           INT DEFAULT 60,
     priority           INT DEFAULT 1,
     gender_pref        VARCHAR(20),
@@ -206,8 +207,7 @@ CREATE TABLE MatchPreference (
     match_my_time      BOOLEAN DEFAULT FALSE,
     study_habit        VARCHAR(50),
     additional_details TEXT,
-    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (language_id) REFERENCES Language(language_id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE MatchRequest (
@@ -215,6 +215,7 @@ CREATE TABLE MatchRequest (
     sender_id   INT NOT NULL,
     receiver_id INT NOT NULL,
     module_id   INT,
+    topic       VARCHAR(255),
     time_slot   VARCHAR(100),
     location    VARCHAR(255),
     type        VARCHAR(20) DEFAULT 'one-on-one',
@@ -293,6 +294,7 @@ CREATE TABLE ConversationMember (
     id              SERIAL PRIMARY KEY,
     conversation_id INT NOT NULL,
     user_id         INT NOT NULL,
+    role            VARCHAR(20) DEFAULT 'member',
     joined_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)         REFERENCES "User"(user_id) ON DELETE CASCADE,
@@ -303,9 +305,16 @@ CREATE TABLE ChatMessage (
     message_id      SERIAL PRIMARY KEY,
     conversation_id INT NOT NULL,
     sender_id       INT NOT NULL,
-    text            TEXT NOT NULL,
+    text            TEXT,
+    file_url        VARCHAR(500),
+    file_type       VARCHAR(100),
+    file_name       VARCHAR(255),
+    file_size       INT,
+    duration        INT,
     is_announcement BOOLEAN DEFAULT FALSE,
+    is_deleted      BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    edited_at       TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE
 );

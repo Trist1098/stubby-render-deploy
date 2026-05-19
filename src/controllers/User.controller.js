@@ -1,4 +1,4 @@
-const { selectByUsernameOrEmail } = require('../models/User.model');
+const { selectByUsernameOrEmail, create, updateProfile, enrollModules } = require('../models/User.model');
 
 module.exports.login = async (req, res, next) => {
     const identifier = req.body.username || req.body.identifier;
@@ -16,6 +16,64 @@ module.exports.login = async (req, res, next) => {
         res.locals.user = results[0];
         res.locals.message = "Login successful";
         next();
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.register = async (req, res, next) => {
+    const { username, email, password, name } = req.body;
+    if (!username || !email || !password || !name) {
+        return res.status(400).json({ message: "Error: All fields are required" });
+    }
+
+    try {
+        // Check if username or email already exists
+        const existing = await selectByUsernameOrEmail({ identifier: username });
+        const existingEmail = await selectByUsernameOrEmail({ identifier: email });
+        
+        if (existing.length > 0 || existingEmail.length > 0) {
+            return res.status(409).json({ message: "Username or email already exists" });
+        }
+
+        // Use the hashed password from middleware
+        const newUser = await create({ username, email, password: res.locals.hash, name });
+        
+        res.locals.userId = newUser.user_id;
+        res.locals.username = newUser.username;
+        res.locals.user = newUser;
+        res.locals.message = "Registration successful";
+        next();
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.completeOnboarding = async (req, res, next) => {
+    const userId = res.locals.userId;
+    const { institution_id, diploma_id, year, module_ids } = req.body;
+
+    if (!institution_id || !diploma_id || !year) {
+        return res.status(400).json({ message: "Error: Institution, Diploma, and Year are required" });
+    }
+
+    try {
+        const updatedUser = await updateProfile({ 
+            institution_id, 
+            diploma_id, 
+            year, 
+            user_id: userId 
+        });
+        
+        await enrollModules({ 
+            user_id: userId, 
+            module_ids 
+        });
+
+        res.status(200).json({ 
+            message: "Onboarding complete", 
+            user: updatedUser 
+        });
     } catch (error) {
         next(error);
     }

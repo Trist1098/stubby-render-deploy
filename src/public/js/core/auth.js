@@ -20,14 +20,14 @@ async function apiRequest(endpoint, method = 'GET', data = null) {
   const options = { method, headers };
   if (data) options.body = JSON.stringify(data);
 
-  try {
-    const response = await fetch(`${API_URL}${endpoint}`, options);
-    if (response.status === 401) auth.logout();
-    return await response.json();
-  } catch (err) {
-    console.error('API Error:', err);
-    return { message: 'Network error' };
-  }
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, options);
+        if (response.status === 401) auth.logout();
+        return await response.json();
+    } catch (err) {
+        console.error('API Error:', err);
+        return { message: 'Network error' };
+    }
 }
 
 window.auth = auth;
