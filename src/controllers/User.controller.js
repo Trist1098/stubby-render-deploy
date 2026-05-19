@@ -131,3 +131,46 @@ module.exports.viewProfile = async (req, res, next) => {
         next(error);
     }
 };
+
+module.exports.updateProfile = async (req, res, next) => {
+    const userId = res.locals.userId;
+    const { name, email, institutionId, diplomaId, year, profileText } = req.body;
+
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!name || !email) {
+        return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    try {
+        const updatedUser = await updateProfile({
+            userId,
+            name,
+            email,
+            institutionId,
+            diplomaId,
+            year,
+            profileText
+        });
+
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (updatedUser.password) {
+            delete updatedUser.password;
+        }
+
+        res.status(200).json({
+            message: 'Profile updated successfully',
+            user: updatedUser,
+        });
+    } catch (error) {
+        if (error.code === '23505') { // PostgreSQL unique violation error code
+            return res.status(400).json({ error: 'Email is already taken' });
+        }
+        next(error);
+    }
+};

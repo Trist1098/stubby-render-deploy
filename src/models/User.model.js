@@ -25,11 +25,19 @@ module.exports.create = async function create(data) {
 module.exports.updateProfile = async function updateProfile(data) {
     const SQLSTATEMENT = `
         UPDATE "User"
-        SET institution_id = $1, diploma_id = $2, year = $3
-        WHERE user_id = $4
+        SET name = $1, email = $2, institution_id = $3, diploma_id = $4, year = $5, profile_text = $6
+        WHERE user_id = $7
         RETURNING *
     `;
-    const VALUES = [data.institution_id, data.diploma_id, data.year, data.user_id];
+    const VALUES = [
+        data.name,
+        data.email,
+        data.institutionId ? parseInt(data.institutionId) : null,
+        data.diplomaId ? parseInt(data.diplomaId) : null,
+        data.year ? parseInt(data.year) : 1,
+        data.profileText || null,
+        data.userId
+    ];
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows[0];
 };
