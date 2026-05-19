@@ -214,18 +214,20 @@ CREATE TABLE MatchPreference (
 );
 
 CREATE TABLE MatchRequest (
-    request_id  SERIAL PRIMARY KEY,
-    sender_id   INT NOT NULL,
-    receiver_id INT NOT NULL,
-    module_id   INT,
-    topic       VARCHAR(255),
-    time_slot   VARCHAR(100),
-    location    VARCHAR(255),
-    type        VARCHAR(20) DEFAULT 'one-on-one',
-    status      VARCHAR(20) DEFAULT 'Pending',
-    message     TEXT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    request_id      SERIAL PRIMARY KEY,
+    sender_id       INT NOT NULL,
+    receiver_id     INT NOT NULL,
+    module_id       INT,
+    topic           VARCHAR(255),
+    time_slot       VARCHAR(100),
+    location        VARCHAR(255),
+    is_online       BOOLEAN DEFAULT FALSE,
+    type            VARCHAR(20) DEFAULT 'one-on-one',
+    co_participants INT[] DEFAULT '{}',
+    status          VARCHAR(20) DEFAULT 'Pending',
+    message         TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (sender_id)   REFERENCES "User"(user_id) ON DELETE CASCADE,
     FOREIGN KEY (receiver_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
     FOREIGN KEY (module_id)   REFERENCES Module(module_id) ON DELETE SET NULL
@@ -348,15 +350,23 @@ CREATE TABLE MessageReaction (
 CREATE TABLE CalendarEvent (
     event_id     SERIAL PRIMARY KEY,
     creator_id   INT NOT NULL,
+    request_id   INT,
+    module_id    INT,
     name         VARCHAR(255) NOT NULL,
     topic        VARCHAR(255),
     location     VARCHAR(255),
+    is_online    BOOLEAN DEFAULT FALSE,
+    meeting_url  VARCHAR(255),
     event_date   DATE NOT NULL,
     booking_time VARCHAR(100),
     type         VARCHAR(100) DEFAULT 'Study Session',
+    status       VARCHAR(20) DEFAULT 'Confirmed',
+    notes        TEXT,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (creator_id) REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (creator_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (request_id) REFERENCES MatchRequest(request_id) ON DELETE SET NULL,
+    FOREIGN KEY (module_id)  REFERENCES Module(module_id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER set_updated_at_calendar_event
@@ -364,9 +374,11 @@ CREATE TRIGGER set_updated_at_calendar_event
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 CREATE TABLE EventParticipant (
-    id       SERIAL PRIMARY KEY,
-    event_id INT NOT NULL,
-    user_id  INT NOT NULL,
+    id         SERIAL PRIMARY KEY,
+    event_id   INT NOT NULL,
+    user_id    INT NOT NULL,
+    status     VARCHAR(20) DEFAULT 'Accepted',
+    joined_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES CalendarEvent(event_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)  REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(event_id, user_id)

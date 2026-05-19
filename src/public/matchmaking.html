@@ -217,6 +217,14 @@
                             <div id="errType" class="error-message"></div>
                         </div>
 
+                        <div class="mb-3 d-none" id="coParticipantsGroup">
+                            <label class="form-label small fw-black text-muted uppercase">PARTICIPANTS</label>
+                            <select id="reqCoParticipants" class="form-select bg-light border-0 py-3 rounded-4" multiple>
+                                <!-- Populated dynamically -->
+                            </select>
+                            <div class="form-text mt-1 small text-muted">Hold Ctrl/Cmd to select multiple friends.</div>
+                        </div>
+
                         <div class="row g-3 mb-3">
                             <div class="col-6">
                                 <label class="form-label small fw-black text-muted uppercase">DATE <span class="text-danger">*</span></label>
@@ -231,7 +239,13 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label small fw-black text-muted uppercase">LOCATION <span class="text-danger">*</span></label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-black text-muted uppercase mb-0">LOCATION <span class="text-danger" id="reqLocationStar">*</span></label>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input cursor-pointer" type="checkbox" id="reqIsOnline" onchange="toggleReqOnline()">
+                                    <label class="form-check-label small fw-bold text-primary cursor-pointer" for="reqIsOnline">Online Meeting</label>
+                                </div>
+                            </div>
                             <input type="text" id="reqLocation" class="form-control bg-light border-0 py-3 rounded-4" placeholder="e.g. Library L5">
                             <div id="errLocation" class="error-message"></div>
                         </div>
@@ -734,7 +748,7 @@
         </div>
     </div>
 
-    <footer class="mt-auto py-5 border-top bg-white">
+    <footer class="mt-auto py-4 border-top bg-white">
         <div class="container text-center">
             <p class="text-muted mb-0 fw-bold">&copy; 2026 Stubby. Build for success.</p>
         </div>

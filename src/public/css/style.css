@@ -463,9 +463,33 @@ footer {
     border: 1px solid var(--border) !important;
 }
 
-.dropdown-item:hover {
-    background-color: #f1f5f9 !important;
-    color: var(--primary) !important;
+.dropdown-menu {
+    border-radius: 0.75rem;
+    padding: 0.4rem;
+}
+
+.dropdown-item {
+    border-radius: 0.55rem;
+    font-weight: 600;
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.dropdown-item i {
+    transition: color 0.2s ease;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--primary) !important;
+    color: white !important;
+    transform: translateX(2px);
+}
+
+.dropdown-item:hover i,
+.dropdown-item:focus i,
+.dropdown-item.text-danger:hover,
+.dropdown-item.text-danger:focus {
+    color: white !important;
 }
 
 .dropdown-item.active,
