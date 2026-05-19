@@ -1,3 +1,5 @@
+/* global auth, bootstrap, API_URL */
+
 document.addEventListener('DOMContentLoaded', async () => {
     if (typeof auth === 'undefined') {
         console.error('auth is not defined. Ensure js/core/auth.js is loaded.');
@@ -20,6 +22,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const profileFriendsList = document.getElementById('profile-friends-list');
     const profileBadgesList = document.getElementById('profile-badges-list');
     const profileActions = document.querySelector('.profile-action-buttons');
+    const connectButton = document.getElementById('profile-connect-button');
+    const messageButton = document.getElementById('profile-message-button');
+    const friendSearchInput = document.getElementById('friend-search-input');
     const profilePictureContainer = document.querySelector('.profile-picture');
     const profileUploadButton = document.getElementById('profile-upload-button');
     const profileUploadInput = document.getElementById('profile-upload-input');
@@ -350,6 +355,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         profileActions.style.display = 'none';
     }
 
+    if (connectButton && isOwnProfile) {
+        connectButton.style.display = 'none';
+    }
+
+    if (messageButton && isOwnProfile) {
+        messageButton.style.display = 'none';
+    }
+
     if (profileTitleEl) {
         profileTitleEl.textContent = isOwnProfile ? 'My Profile' : 'Friend Profile';
     }
@@ -409,8 +422,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const friendRequestEmpty = document.getElementById('friend-request-empty');
     const incomingRequestsBtn = document.getElementById('incoming-requests-btn');
     const outgoingRequestsBtn = document.getElementById('outgoing-requests-btn');
+    const removeFriendModalElement = document.getElementById('removeFriendModal');
+    const removeFriendSuccessModalElement = document.getElementById('removeFriendSuccessModal');
+    const removeFriendMessage = document.getElementById('remove-friend-message');
+    const removeFriendSuccessMessage = document.getElementById('remove-friend-success-message');
+    const confirmRemoveFriendBtn = document.getElementById('confirm-remove-friend-btn');
 
     const friendRequestModal = friendRequestModalElement ? new bootstrap.Modal(friendRequestModalElement) : null;
+    const removeFriendModal = removeFriendModalElement ? new bootstrap.Modal(removeFriendModalElement) : null;
+    const removeFriendSuccessModal = removeFriendSuccessModalElement ? new bootstrap.Modal(removeFriendSuccessModalElement) : null;
+    let selectedFriendToRemove = null;
 
     const renderRequests = (type, requests) => {
         if (!friendRequestList || !friendRequestEmpty) return;
@@ -426,13 +447,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         friendRequestEmpty.style.display = 'none';
         friendRequestList.innerHTML = requests.map(request => {
-            const header = type === 'incoming'
-                ? `${request.sender_name || 'Unknown'} (@${request.sender_username || 'unknown'})`
-                : `${request.receiver_name || 'Unknown'} (@${request.receiver_username || 'unknown'})`;
+            const displayName = type === 'incoming'
+                ? request.sender_name || 'Unknown'
+                : request.receiver_name || 'Unknown';
+            const displayUsername = type === 'incoming'
+                ? request.sender_username || 'unknown'
+                : request.receiver_username || 'unknown';
+            const initials = displayName.charAt(0).toUpperCase();
 
             const actionButtons = type === 'incoming'
                 ? `
-                    <button class="btn btn-sm btn-success me-2" data-action="accept" data-request-id="${request.request_id}">Accept</button>
+                    <button class="btn btn-sm btn-success" data-action="accept" data-request-id="${request.request_id}">Accept</button>
                     <button class="btn btn-sm btn-outline-danger" data-action="reject" data-request-id="${request.request_id}">Reject</button>
                 `
                 : `
@@ -440,16 +465,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
 
             return `
-                <div class="list-group-item d-flex flex-column gap-3">
-                    <div class="d-flex justify-content-between align-items-start gap-3">
-                        <div>
-                            <div class="fw-semibold">${header}</div>
-                            <small class="text-secondary">Requested ${new Date(request.created_at).toLocaleString()}</small>
+                <div class="friend-request-item">
+                    <div class="friend-request-main">
+                        <div class="friend-request-avatar">${initials}</div>
+                        <div class="friend-request-info">
+                            <div class="fw-semibold">${displayName}</div>
+                            <small>@${displayUsername}</small>
+                            <div class="friend-request-date">Requested ${new Date(request.created_at).toLocaleString()}</div>
                         </div>
-                        <div>${actionButtons}</div>
                     </div>
-                    <div class="text-secondary">
-                        Request ID: ${request.request_id}
+                    <div class="friend-request-actions">
+                        ${actionButtons}
                     </div>
                 </div>
             `;
@@ -474,6 +500,55 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Friend request API error:', error);
             return { status: 500, data: null };
         }
+    };
+
+    const setConnectButton = (text, disabled = false) => {
+        if (!connectButton) return;
+        connectButton.textContent = text;
+        connectButton.disabled = disabled;
+    };
+
+    const updateConnectButtonState = async () => {
+        if (!connectButton || isOwnProfile || !pageUserId || !userId) return;
+
+        const ownFriends = await fetchJson('/api/friend') || [];
+        const isAlreadyFriend = ownFriends.some(friend => friend.friend_id?.toString() === pageUserId.toString());
+        if (isAlreadyFriend) {
+            setConnectButton('Friends', true);
+            return;
+        }
+
+        const outgoingRequests = await fetchJson(`/api/friendrequest/outgoing/${userId}`) || [];
+        const hasOutgoingRequest = outgoingRequests.some(request => request.receiver_id?.toString() === pageUserId.toString());
+        if (hasOutgoingRequest) {
+            setConnectButton('Request Sent', true);
+            return;
+        }
+
+        const incomingRequests = await fetchJson(`/api/friendrequest/incoming/${userId}`) || [];
+        const hasIncomingRequest = incomingRequests.some(request => request.sender_id?.toString() === pageUserId.toString());
+        if (hasIncomingRequest) {
+            setConnectButton('Respond in Requests', true);
+            return;
+        }
+
+        setConnectButton('Add Friend', false);
+    };
+
+    const sendFriendRequest = async () => {
+        if (!connectButton || isOwnProfile || !pageUserId || !userId) return;
+
+        setConnectButton('Sending...', true);
+        const response = await requestWithBody(`/api/friendrequest/create/${userId}/${pageUserId}`, 'POST');
+
+        if (response.status >= 200 && response.status < 300) {
+            setConnectButton('Request Sent', true);
+            return;
+        }
+
+        const message = response.data?.message || response.data?.error || 'Unable to send friend request.';
+        alert(message);
+        await updateConnectButtonState();
     };
 
     const loadFriendRequests = async (type) => {
@@ -541,19 +616,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    if (connectButton) {
+        connectButton.addEventListener('click', sendFriendRequest);
+        await updateConnectButtonState();
+    }
+
     if (profileFriendsList) {
         const friendsEndpoint = isViewProfilePage && friendId
             ? `/api/friend/${friendId}`
             : '/api/friend';
 
-        // Load the friend list for the current page.
-        // If viewing a friend's profile, request that friend's connections.
-        const friends = await fetchJson(friendsEndpoint);
-        if (!friends || friends.length === 0) {
-            profileFriendsList.innerHTML = '<div class="text-secondary">No friends found.</div>';
-        } else {
-            profileFriendsList.innerHTML = friends.map(friend => {
+        let friends = await fetchJson(friendsEndpoint) || [];
+
+        const renderFriends = () => {
+            const searchTerm = friendSearchInput?.value?.trim().toLowerCase() || '';
+            const shownFriends = friends.filter(friend => {
+                const name = friend.name || '';
+                const username = friend.username || '';
+                return `${name} ${username}`.toLowerCase().includes(searchTerm);
+            });
+
+            if (shownFriends.length === 0) {
+                profileFriendsList.innerHTML = '<div class="text-secondary">No friends found.</div>';
+                return;
+            }
+
+            profileFriendsList.innerHTML = shownFriends.map(friend => {
                 const initials = friend.name ? friend.name.charAt(0).toUpperCase() : 'U';
+                const removeButton = isOwnProfile
+                    ? `<button class="btn btn-sm btn-outline-danger" data-action="remove-friend" data-friend-id="${friend.friend_id}">Remove</button>`
+                    : '';
+                const friendMessageLink = `<a href="chat.html" class="btn btn-sm btn-white">Message</a>`;
+
                 return `
                     <div class="connection-item">
                         <div class="connection-user">
@@ -563,11 +657,83 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <small class="text-secondary">@${friend.username || 'unknown'}</small>
                             </div>
                         </div>
-                        <a href="viewProfile.html?friendId=${friend.friend_id}" class="btn btn-sm btn-white">View</a>
+                        <div class="connection-actions">
+                            <a href="viewProfile.html?friendId=${friend.friend_id}" class="btn btn-sm btn-white">View</a>
+                            ${friendMessageLink}
+                            ${removeButton}
+                        </div>
                     </div>
                 `;
             }).join('');
+        };
+
+        renderFriends();
+
+        if (friendSearchInput) {
+            friendSearchInput.addEventListener('input', renderFriends);
         }
+
+        const removeSelectedFriend = async () => {
+            if (!selectedFriendToRemove) return;
+
+            const selectedFriendId = selectedFriendToRemove.friendId;
+            if (!selectedFriendId) return;
+
+            if (confirmRemoveFriendBtn) {
+                confirmRemoveFriendBtn.disabled = true;
+                confirmRemoveFriendBtn.textContent = 'Removing...';
+            }
+
+            const response = await requestWithBody(`/api/friend/${selectedFriendId}`, 'DELETE');
+
+            if (confirmRemoveFriendBtn) {
+                confirmRemoveFriendBtn.disabled = false;
+                confirmRemoveFriendBtn.textContent = 'Remove Friend';
+            }
+
+            if (response.status >= 200 && response.status < 300) {
+                friends = friends.filter(friend => friend.friend_id?.toString() !== selectedFriendId.toString());
+                renderFriends();
+                removeFriendModal?.hide();
+                if (removeFriendSuccessMessage) {
+                    removeFriendSuccessMessage.textContent = `${selectedFriendToRemove.name} has been removed from your friend list.`;
+                }
+                selectedFriendToRemove = null;
+                removeFriendSuccessModal?.show();
+                return;
+            }
+
+            alert(response.data?.message || response.data?.error || 'Unable to remove friend.');
+        };
+
+        if (confirmRemoveFriendBtn) {
+            confirmRemoveFriendBtn.addEventListener('click', removeSelectedFriend);
+        }
+
+        profileFriendsList.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-action="remove-friend"]');
+            if (!button) return;
+
+            const selectedFriendId = button.dataset.friendId;
+            if (!selectedFriendId) return;
+
+            const selectedFriend = friends.find(friend => friend.friend_id?.toString() === selectedFriendId.toString());
+            selectedFriendToRemove = {
+                friendId: selectedFriendId,
+                name: selectedFriend?.name || 'This friend',
+            };
+
+            if (removeFriendMessage) {
+                removeFriendMessage.textContent = `Are you sure you want to remove ${selectedFriendToRemove.name} from your friend list?`;
+            }
+
+            if (removeFriendModal) {
+                removeFriendModal.show();
+                return;
+            }
+
+            removeSelectedFriend();
+        });
     }
 
     if (profileBadgesList) {

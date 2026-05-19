@@ -117,11 +117,11 @@
 
                         <div class="d-flex gap-3 mt-4 flex-wrap profile-action-buttons">
 
-                            <button class="btn btn-primary">
-                                Connect
+                            <button id="profile-connect-button" class="btn btn-primary">
+                                Add Friend
                             </button>
 
-                            <button class="btn btn-white">
+                            <button id="profile-message-button" class="btn btn-white">
                                 Message
                             </button>
 
@@ -143,16 +143,16 @@
 
                 </div>
 
-                <div class="border-top pt-3 mt-3 d-flex flex-wrap gap-4 text-secondary">
-                    <div class="d-flex align-items-center gap-2">
+                <div class="profile-info-row border-top pt-3 mt-3 d-flex flex-wrap gap-3 text-secondary">
+                    <div class="profile-info-chip d-flex align-items-center gap-2">
                         <i class="fas fa-university text-primary"></i>
                         <span id="profile-about-institution">No institution selected</span>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="profile-info-chip d-flex align-items-center gap-2">
                         <i class="fas fa-graduation-cap text-primary"></i>
                         <span id="profile-about-diploma">No diploma selected</span>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="profile-info-chip d-flex align-items-center gap-2">
                         <i class="fas fa-calendar-alt text-primary"></i>
                         <span id="profile-about-year">Year 1</span>
                     </div>
@@ -226,6 +226,8 @@
                     <h5 class="fw-bold mb-4">
                         Friends
                     </h5>
+
+                    <input id="friend-search-input" class="form-control mb-3" type="search" placeholder="Search friends">
 
                     <div id="profile-friends-list" class="d-flex flex-column text-secondary">
                         Loading friends...
@@ -335,6 +337,45 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="removeFriendModal" tabindex="-1" aria-labelledby="removeFriendModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="removeFriendModalLabel">Remove Friend</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="remove-friend-message" class="mb-0 text-secondary">
+                        Are you sure you want to remove this friend?
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-white" data-bs-dismiss="modal">Cancel</button>
+                    <button id="confirm-remove-friend-btn" type="button" class="btn btn-danger">Remove Friend</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="removeFriendSuccessModal" tabindex="-1" aria-labelledby="removeFriendSuccessModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="removeFriendSuccessModalLabel">Friend Removed</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="remove-friend-success-message" class="mb-0 text-secondary">
+                        Friend removed successfully.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
                 </div>
             </div>
         </div>

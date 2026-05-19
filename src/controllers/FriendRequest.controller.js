@@ -28,6 +28,11 @@ module.exports.createNewFriendRequest = async function (req, res, next) {
       return res.status(409).json({ message: 'Users are already friends' });
     }
 
+    const existingRequest = await friendRequestModel.getFriendRequestBetweenUsers({ senderId, receiverId });
+    if (existingRequest) {
+      return res.status(409).json({ message: 'A friend request is already pending between these users' });
+    }
+
     const request = await friendRequestModel.createFriendRequest({ senderId, receiverId });
     if (!request) {
       return res.status(409).json({ message: 'Friend request already exists' });
