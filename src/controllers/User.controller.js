@@ -1,4 +1,4 @@
-const { selectByUsernameOrEmail, create, updateProfile, enrollModules } = require('../models/User.model');
+const { selectByUsernameOrEmail, create, updateProfile, updateProfilePicture, enrollModules } = require('../models/User.model');
 
 module.exports.login = async (req, res, next) => {
     const identifier = req.body.username || req.body.identifier;
@@ -73,6 +73,39 @@ module.exports.completeOnboarding = async (req, res, next) => {
         res.status(200).json({ 
             message: "Onboarding complete", 
             user: updatedUser 
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.uploadProfilePicture = async (req, res, next) => {
+    const userId = res.locals.userId;
+
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'Profile picture file is required' });
+    }
+
+    try {
+        const profilePicPath = `/uploads/${req.file.filename}`;
+        const updatedUser = await updateProfilePicture({ userId, profilePic: profilePicPath });
+
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (updatedUser.password) {
+            delete updatedUser.password;
+        }
+
+        res.status(200).json({
+            message: 'Profile picture uploaded successfully',
+            profile_pic: profilePicPath,
+            user: updatedUser,
         });
     } catch (error) {
         next(error);

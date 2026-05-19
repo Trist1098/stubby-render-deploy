@@ -92,6 +92,9 @@ header {
     left: 40px;
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
+    overflow: visible;
+    z-index: 1;
 }
 
 .profile-upload-button {
@@ -103,10 +106,15 @@ header {
     align-items: center;
     justify-content: center;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    z-index: 5;
+    z-index: 10;    
     padding: 0;
     bottom: -9px;
     right: 6px;
+    transition: transform 0.2s ease;
+}
+
+.profile-upload-button:hover {
+    transform: translateY(-2px);
 }
 
 .profile-content {

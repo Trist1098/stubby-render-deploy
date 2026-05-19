@@ -48,3 +48,15 @@ module.exports.enrollModules = async function enrollModules(data) {
     const VALUES = [data.user_id, ...data.module_ids];
     await pool.query(SQLSTATEMENT, VALUES);
 };
+
+module.exports.updateProfilePicture = async function updateProfilePicture(data) {
+    const SQLSTATEMENT = `
+        UPDATE "User"
+        SET profile_pic = $1
+        WHERE user_id = $2
+        RETURNING *
+    `;
+    const VALUES = [data.profilePic, data.userId];
+    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+    return rows[0];
+};
