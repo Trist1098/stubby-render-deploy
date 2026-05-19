@@ -16,6 +16,26 @@ module.exports.getAllFriends = async function (req, res, next) {
   }
 };
 
+module.exports.getFriendsForUserById = async function (req, res, next) {
+  const userId = Number(req.params.userId);
+
+  if (!res.locals.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!userId || Number.isNaN(userId)) {
+    return res.status(400).json({ message: 'A valid userId is required' });
+  }
+
+  try {
+    const friends = await friendModel.getFriendsForUser(userId);
+    res.status(200).json(friends);
+  } catch (error) {
+    console.error('Error getFriendsForUserById:', error);
+    next(error);
+  }
+};
+
 module.exports.removeFriend = async function (req, res, next) {
   const userId = res.locals.userId;
   const friendId = Number(req.params.friendId);

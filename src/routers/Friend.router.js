@@ -9,5 +9,6 @@ const friendController = require('../controllers/Friend.controller');
 
 router.get('/', jwtMiddleware.verifyToken, friendController.getAllFriends);
 router.delete('/:friendId', jwtMiddleware.verifyToken, friendController.removeFriend);
+router.get('/:userId', jwtMiddleware.verifyToken, friendController.getFriendsForUserById);
 
 module.exports = router;

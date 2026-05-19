@@ -112,6 +112,7 @@
 }
 
 .message-bubble {
+  position: relative;
   max-width: min(72%, 620px);
   padding: 0.7rem 0.85rem;
   border-radius: 8px;
@@ -244,21 +245,60 @@
   50% { opacity: 0.25; }
 }
 
-/* Message edit */
-.msg-actions {
+/* Pinned messages */
+.pinned-bar {
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.pinned-bar-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.pinned-bar-header:hover {
+  background: #f8f9fa;
+}
+
+.pinned-icon {
+  color: #0d6efd;
+  font-size: 0.75rem;
+}
+
+.pinned-chevron {
+  font-size: 0.65rem;
+  color: #6c757d;
+}
+
+.pinned-items {
+  max-height: 140px;
+  overflow-y: auto;
+  border-top: 1px solid #f0f0f0;
+}
+
+.pinned-item {
+  cursor: pointer;
+  border-bottom: 1px solid #f8f9fa;
+}
+
+.pinned-item:hover {
+  background: #f0f4ff;
+}
+
+.pinned-item-text {
+  color: #495057;
+}
+
+/* Message actions */
+.msg-reaction-wrap {
+  flex-shrink: 0;
   display: flex;
-  align-items: center;
-  gap: 0.2rem;
+  align-items: flex-end;
   opacity: 0;
   transition: opacity 0.12s;
-  order: -1;
 }
 
-.msg-actions-sent {
-  order: 1;
-}
-
-.message-row:hover .msg-actions {
+.message-row:hover .msg-reaction-wrap {
   opacity: 1;
 }
 
@@ -274,12 +314,78 @@
 }
 
 .msg-action-btn:hover {
-  background: rgba(0, 0, 0, 0.07);
+  background: rgba(0, 0, 0, 0.08);
   color: #0d6efd;
 }
 
-.delete-btn:hover {
+.msg-more-btn {
+  background: none;
+  border: none;
+  padding: 0 0.2rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.message-row:hover .msg-more-btn {
+  opacity: 0.75;
+}
+
+.msg-more-btn:hover {
+  opacity: 1 !important;
+}
+
+.msg-dropdown {
+  display: none;
+  position: absolute;
+  top: 2rem;
+  right: 0;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+  min-width: 120px;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.msg-dropdown.open {
+  display: block;
+}
+
+.message-row:has(.msg-dropdown.open) {
+  z-index: 100;
+}
+
+.msg-dd-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  color: #212529;
+  white-space: nowrap;
+}
+
+.msg-dd-item:hover {
+  background: #f0f4ff;
+}
+
+.msg-dd-item.delete-btn:hover {
   color: #dc3545;
+  background: #fff5f5;
+}
+
+.msg-dd-item.pin-btn.pinned {
+  color: #0d6efd;
 }
 
 .msg-deleted {
@@ -319,6 +425,58 @@
 
 .message-row.received .msg-edit-input:focus {
   border-color: #86b7fe;
+}
+
+/* Message reactions */
+.msg-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+}
+
+.msg-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid rgba(108, 117, 125, 0.25);
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.msg-reaction.reacted {
+  border-color: #0d6efd;
+  background: #e8f0ff;
+  color: #0d6efd;
+}
+
+.reaction-picker {
+  display: flex;
+  gap: 0.2rem;
+  margin-top: 0.45rem;
+  padding: 0.25rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.15);
+  width: fit-content;
+}
+
+.reaction-picker-btn {
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.15rem 0.3rem;
+  font-size: 1rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.reaction-picker-btn:hover {
+  background: rgba(13, 110, 253, 0.12);
 }
 
 /* Responsive */

@@ -120,6 +120,72 @@
             </div>
         </div>
 
+        <!-- Progress Tracker Section -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card shadow-sm p-4">
+                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                        <i class="fas fa-chart-pie text-primary"></i> Overall Progress
+                    </h5>
+                    <div class="d-flex align-items-end gap-3 mb-3">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <p class="fw-bold h5 mb-0"><span id="progressOverallCompleted">0</span>/<span id="progressOverallTotal">0</span></p>
+                        </div>
+                        <div>
+                            <p class="text-muted small mb-1">Progress</p>
+                            <p class="fw-bold h5 text-primary mb-0"><span id="progressOverallPercent">0</span>%</p>
+                        </div>
+                    </div>
+                    <div class="progress mb-2" style="height: 0.5rem;">
+                        <div id="progressOverallBar" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm p-4">
+                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                        <i class="fas fa-calendar-day text-success"></i> Today's Tasks
+                    </h5>
+                    <div class="d-flex align-items-end gap-3 mb-3">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <p class="fw-bold h5 mb-0"><span id="progressTodayCompleted">0</span>/<span id="progressTodayTotal">0</span></p>
+                        </div>
+                        <div>
+                            <p class="text-muted small mb-1">Progress</p>
+                            <p class="fw-bold h5 text-success mb-0"><span id="progressTodayPercent">0</span>%</p>
+                        </div>
+                    </div>
+                    <div class="progress mb-2" style="height: 0.5rem;">
+                        <div id="progressTodayBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm p-4">
+                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                        <i class="fas fa-bullseye text-warning"></i> Goals
+                    </h5>
+                    <div class="d-flex align-items-end gap-3 mb-3">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <p class="fw-bold h5 mb-0"><span id="progressGoalsCompleted">0</span>/<span id="progressGoalsTotal">0</span></p>
+                        </div>
+                        <div>
+                            <p class="text-muted small mb-1">Progress</p>
+                            <p class="fw-bold h5 text-warning mb-0"><span id="progressGoalsPercent">0</span>%</p>
+                        </div>
+                    </div>
+                    <div class="progress mb-2" style="height: 0.5rem;">
+                        <div id="progressGoalsBar" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <section class="mb-5">
             <div class="row g-4">
                 <div class="col-lg-8">
@@ -236,6 +302,30 @@
         </section>
     </main>
 
+    <!-- Event details modal -->
+    <div class="modal fade" id="eventModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Event</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2"><span id="modalColorBadge" class="badge bg-primary text-white">&nbsp;</span></div>
+                    <p id="modalDateTime" class="text-muted small"></p>
+                    <p id="modalDescription" class="mb-2"></p>
+                    <p><strong>Priority:</strong> <span id="modalPriority"></span></p>
+                    <p><strong>Goal:</strong> <span id="modalGoal"></span></p>
+                </div>
+                <div class="modal-footer">
+                    <button id="modalEditButton" type="button" class="btn btn-sm btn-primary">Edit</button>
+                    <button id="modalDeleteButton" type="button" class="btn btn-sm btn-danger">Delete</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer class="mt-auto py-4 border-top">
         <div class="container text-center">
             <p class="text-muted mb-0">&copy; 2026 Stubby. All rights reserved.</p>
@@ -321,6 +411,11 @@
                         const eventPill = document.createElement('span');
                         eventPill.className = `event-pill badge bg-${event.color} text-white`;
                         eventPill.textContent = `${event.start} ${event.title}`;
+                        // show detail modal when clicking an event
+                        eventPill.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openEventModal(event.id);
+                        });
                         cell.appendChild(eventPill);
                     });
 
@@ -442,6 +537,7 @@
                 }
 
                 await loadEvents();
+                await loadProgress();
                 resetForm();
                 hideForm();
             };
@@ -452,6 +548,42 @@
                 }
                 await apiRequest(`/api/calendar/${id}`, 'DELETE');
                 await loadEvents();
+                await loadProgress();
+            };
+
+            // Open event details modal
+            const openEventModal = (id) => {
+                const event = events.find((ev) => ev.id === id);
+                if (!event) return;
+
+                const modalEl = document.getElementById('eventModal');
+                if (!modalEl) return;
+
+                modalEl.querySelector('.modal-title').textContent = event.title;
+                modalEl.querySelector('#modalDateTime').textContent = `${event.date} · ${event.start} — ${event.end}`;
+                modalEl.querySelector('#modalDescription').textContent = event.description || 'No description';
+                modalEl.querySelector('#modalPriority').textContent = event.priority;
+                modalEl.querySelector('#modalGoal').textContent = event.goal || 'No goal';
+                const colorBadge = modalEl.querySelector('#modalColorBadge');
+                colorBadge.className = `badge bg-${event.color} text-white`;
+
+                const editBtn = modalEl.querySelector('#modalEditButton');
+                const deleteBtn = modalEl.querySelector('#modalDeleteButton');
+
+                editBtn.onclick = () => {
+                    openEventForm(event.id);
+                    const bs = bootstrap.Modal.getInstance(modalEl);
+                    if (bs) bs.hide();
+                };
+                deleteBtn.onclick = async () => {
+                    if (!confirm('Delete this event?')) return;
+                    await handleDeleteEvent(event.id);
+                    const bs = bootstrap.Modal.getInstance(modalEl);
+                    if (bs) bs.hide();
+                };
+
+                const bsModal = new bootstrap.Modal(modalEl);
+                bsModal.show();
             };
 
             addEventButton.addEventListener('click', () => openEventForm(null, new Date().toISOString().slice(0, 10)));
@@ -469,8 +601,49 @@
                 renderCalendar();
             });
 
+            // Progress tracking
+            const updateProgressUI = (progressData, type) => {
+                if (type === 'overall') {
+                    document.getElementById('progressOverallCompleted').textContent = progressData.completed;
+                    document.getElementById('progressOverallTotal').textContent = progressData.total;
+                    document.getElementById('progressOverallPercent').textContent = progressData.percentage;
+                    document.getElementById('progressOverallBar').style.width = `${progressData.percentage}%`;
+                } else if (type === 'today') {
+                    document.getElementById('progressTodayCompleted').textContent = progressData.completed;
+                    document.getElementById('progressTodayTotal').textContent = progressData.total;
+                    document.getElementById('progressTodayPercent').textContent = progressData.percentage;
+                    document.getElementById('progressTodayBar').style.width = `${progressData.percentage}%`;
+                } else if (type === 'goals') {
+                    document.getElementById('progressGoalsCompleted').textContent = progressData.completed;
+                    document.getElementById('progressGoalsTotal').textContent = progressData.total;
+                    document.getElementById('progressGoalsPercent').textContent = progressData.percentage;
+                    document.getElementById('progressGoalsBar').style.width = `${progressData.percentage}%`;
+                }
+            };
+
+            const loadProgress = async () => {
+                try {
+                    const overallResponse = await apiRequest('/api/progress/summary');
+                    const todayResponse = await apiRequest('/api/progress/today');
+                    const goalsResponse = await apiRequest('/api/progress/goals');
+
+                    if (overallResponse && overallResponse.progress) {
+                        updateProgressUI(overallResponse.progress, 'overall');
+                    }
+                    if (todayResponse && todayResponse.progress) {
+                        updateProgressUI(todayResponse.progress, 'today');
+                    }
+                    if (goalsResponse && goalsResponse.progress) {
+                        updateProgressUI(goalsResponse.progress, 'goals');
+                    }
+                } catch (error) {
+                    console.error('Error loading progress:', error);
+                }
+            };
+
             resetForm();
             await loadEvents();
+            await loadProgress();
         });
     </script>
 </body>

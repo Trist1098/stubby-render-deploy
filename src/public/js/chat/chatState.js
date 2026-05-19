@@ -3,6 +3,7 @@ export const chatState = {
   conversations: [],
   activeConversationId: null,
   activeMessages: [],
+  pinnedMessages: [],
   activeWallpaper: localStorage.getItem('chatWallpaper') || 'default',
   messageRefreshTimer: null,
   messageRefreshInFlight: false,

@@ -28,6 +28,26 @@ export function deleteMessageRequest(conversationId, messageId) {
   return apiRequest(`/api/chats/${conversationId}/messages/${messageId}`, 'DELETE');
 }
 
+export function fetchPinnedMessages(conversationId) {
+  return apiRequest(`/api/chats/${conversationId}/pinned`);
+}
+
+export function pinMessageRequest(conversationId, messageId) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/pin`, 'POST');
+}
+
+export function unpinMessageRequest(conversationId, messageId) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/pin`, 'DELETE');
+}
+
+export function addReactionRequest(conversationId, messageId, emoji) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, 'POST');
+}
+
+export function removeReactionRequest(conversationId, messageId, emoji) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, 'DELETE');
+}
+
 export async function uploadVoiceRequest(conversationId, audioBlob, duration) {
   const formData = new FormData();
   formData.append('audio', audioBlob, 'voice-message.webm');

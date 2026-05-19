@@ -36,9 +36,43 @@ const deleteCalendarEvent = (req, res, next) => {
     .catch(next);
 };
 
+const getCalendarEventById = (req, res, next) => {
+  const id = Number(req.params.id);
+  model.getCalendarEventById(id)
+    .then((event) => {
+      if (!event) {
+        return res.status(404).json({ error: 'Event not found' });
+      }
+      res.status(200).json({ event });
+    })
+    .catch(next);
+};
+
+const getProgressSummary = (req, res, next) => {
+  model.getProgressSummary()
+    .then((progress) => res.status(200).json({ progress }))
+    .catch(next);
+};
+
+const getTodayProgress = (req, res, next) => {
+  model.getTodayProgress()
+    .then((progress) => res.status(200).json({ progress }))
+    .catch(next);
+};
+
+const getGoalProgress = (req, res, next) => {
+  model.getGoalProgress()
+    .then((progress) => res.status(200).json({ progress }))
+    .catch(next);
+};
+
 module.exports = {
   getCalendarEvents,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  getCalendarEventById,
+  getProgressSummary,
+  getTodayProgress,
+  getGoalProgress,
 };
