@@ -6,6 +6,10 @@ const {
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  getCalendarEventById,
+  getProgressSummary,
+  getTodayProgress,
+  getGoalProgress,
 } = require('../controllers/Home.controller');
 
 // ##############################################################
@@ -13,8 +17,14 @@ const {
 // ##############################################################
 
 router.get('/calendar', jwtMiddleware.verifyToken, getCalendarEvents);
+router.get('/calendar/:id', jwtMiddleware.verifyToken, getCalendarEventById);
 router.post('/calendar', jwtMiddleware.verifyToken, createCalendarEvent);
 router.put('/calendar/:id', jwtMiddleware.verifyToken, updateCalendarEvent);
 router.delete('/calendar/:id', jwtMiddleware.verifyToken, deleteCalendarEvent);
+
+// Progress tracking endpoints
+router.get('/progress/summary', jwtMiddleware.verifyToken, getProgressSummary);
+router.get('/progress/today', jwtMiddleware.verifyToken, getTodayProgress);
+router.get('/progress/goals', jwtMiddleware.verifyToken, getGoalProgress);
 
 module.exports = router;
