@@ -33,12 +33,14 @@ CREATE UNIQUE INDEX "Person_email_key" ON "Person"("email");
 -- =============================================
 -- DROP EXISTING TABLES
 -- =============================================
-DROP TABLE IF EXISTS EventComment;
-DROP TABLE IF EXISTS EventParticipant;
-DROP TABLE IF EXISTS CalendarEvent;
-DROP TABLE IF EXISTS Notification;
-DROP TABLE IF EXISTS ChatMessage;
-DROP TABLE IF EXISTS ConversationMember;
+DROP TABLE IF EXISTS EventComment CASCADE;
+DROP TABLE IF EXISTS EventParticipant CASCADE;
+DROP TABLE IF EXISTS CalendarEvent CASCADE;
+DROP TABLE IF EXISTS Notification CASCADE;
+DROP TABLE IF EXISTS MessagePin CASCADE;
+DROP TABLE IF EXISTS MessageReaction CASCADE;
+DROP TABLE IF EXISTS ChatMessage CASCADE;
+DROP TABLE IF EXISTS ConversationMember CASCADE;
 DROP TABLE IF EXISTS micro_goal_ai_checks CASCADE;
 DROP TABLE IF EXISTS micro_goal_workings CASCADE;
 DROP TABLE IF EXISTS micro_goal_progress CASCADE;
@@ -47,26 +49,27 @@ DROP TABLE IF EXISTS status_events CASCADE;
 DROP TABLE IF EXISTS consultation_reflections CASCADE;
 DROP TABLE IF EXISTS consultation_notes CASCADE;
 DROP TABLE IF EXISTS consultation_sessions CASCADE;
-DROP TABLE IF EXISTS SessionReflection;
-DROP TABLE IF EXISTS SessionMember;
-DROP TABLE IF EXISTS MatchRequest;
-DROP TABLE IF EXISTS MatchPreference;
-DROP TABLE IF EXISTS UserBadge;
-DROP TABLE IF EXISTS Friendship;
-DROP TABLE IF EXISTS FriendRequest;
-DROP TABLE IF EXISTS UserInterest;
-DROP TABLE IF EXISTS UserLanguage;
-DROP TABLE IF EXISTS UserModule;
-DROP TABLE IF EXISTS ChatConversation;
-DROP TABLE IF EXISTS StudySession;
-DROP TABLE IF EXISTS Badge;
-DROP TABLE IF EXISTS Module;
-DROP TABLE IF EXISTS "User";
-DROP TABLE IF EXISTS Interest;
-DROP TABLE IF EXISTS Language;
-DROP TABLE IF EXISTS Diploma;
-DROP TABLE IF EXISTS Institution;
-DROP TABLE IF EXISTS Country;
+DROP TABLE IF EXISTS consultation_messages CASCADE;
+DROP TABLE IF EXISTS SessionReflection CASCADE;
+DROP TABLE IF EXISTS SessionMember CASCADE;
+DROP TABLE IF EXISTS MatchRequest CASCADE;
+DROP TABLE IF EXISTS MatchPreference CASCADE;
+DROP TABLE IF EXISTS UserBadge CASCADE;
+DROP TABLE IF EXISTS Friendship CASCADE;
+DROP TABLE IF EXISTS FriendRequest CASCADE;
+DROP TABLE IF EXISTS UserInterest CASCADE;
+DROP TABLE IF EXISTS UserLanguage CASCADE;
+DROP TABLE IF EXISTS UserModule CASCADE;
+DROP TABLE IF EXISTS ChatConversation CASCADE;
+DROP TABLE IF EXISTS StudySession CASCADE;
+DROP TABLE IF EXISTS Badge CASCADE;
+DROP TABLE IF EXISTS Module CASCADE;
+DROP TABLE IF EXISTS "User" CASCADE;
+DROP TABLE IF EXISTS Interest CASCADE;
+DROP TABLE IF EXISTS Language CASCADE;
+DROP TABLE IF EXISTS Diploma CASCADE;
+DROP TABLE IF EXISTS Institution CASCADE;
+DROP TABLE IF EXISTS Country CASCADE;
 
 -- PostgreSQL trigger function for auto-updating updated_at
 CREATE OR REPLACE FUNCTION trigger_set_updated_at()
@@ -407,6 +410,17 @@ CREATE TABLE Friendship (
     FOREIGN KEY (user_id)   REFERENCES "User"(user_id) ON DELETE CASCADE,
     FOREIGN KEY (friend_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(user_id, friend_id)
+);
+
+CREATE TABLE FriendRequest (
+    request_id  SERIAL PRIMARY KEY,
+    sender_id   INT NOT NULL,
+    receiver_id INT NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id)   REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(sender_id, receiver_id),
+    CHECK (sender_id <> receiver_id)
 );
 
 -- =============================================
