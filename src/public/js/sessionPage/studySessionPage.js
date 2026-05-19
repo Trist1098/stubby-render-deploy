@@ -7,107 +7,45 @@ const apiBase = `/api/sessions/${sessionId}`;
 const MEMBER_PREVIEW_LIMIT = 3;
 const CHECKLIST_STORAGE_PREFIX = 'workCheckChecklist:';
 
-let sessionData = createDemoSession();
+let sessionData = {
+  id: sessionId,
+  title: 'Study Session',
+  planned_duration_seconds: 0,
+  remaining_seconds: 0,
+  status: 'loading',
+  micro_goal: null,
+  queued_micro_goals: [],
+  members: [],
+};
 let timerStartedAt = Date.now();
 let timerInterval = null;
 let statusTimerInterval = null;
 let activeProgressDrag = null;
-let isPreviewMode = false;
 let membersExpanded = false;
+let pendingConsultationMemberId = null;
+let activeConsultation = null;
 const page = {};
-
-function createDemoSession() {
-  const activeGoalTitle = 'Review Chapter 5-7';
-  const activeGoalDescription = 'Complete the active FOP2 revision target.';
-
-  return {
-    id: sessionId,
-    title: 'FOP2 Exam Prep',
-    planned_duration_seconds: 2400,
-    remaining_seconds: 2270,
-    status: 'active',
-    micro_goal: {
-      ...goal(1, activeGoalTitle, 'active', 60, true, false),
-      description: activeGoalDescription,
-    },
-    queued_micro_goals: [
-      {
-        id: 4,
-        title: 'Plan timed practice set',
-        description: 'Queue the next mock-test practice block.',
-        queue_position: 4,
-        status: 'pending',
-      },
-    ],
-    members: [
-      member(2, 'You', 'Focusing', 'focus', 1080, 60, [
-        goal(1, activeGoalTitle, 'active', 60, true, false, [
-          evidence(1, 'equation', 'T(n) = T(n - 1) + 2n, so T(n) = n(n + 1) + c.'),
-        ]),
-      ]),
-      member(3, 'Alex', 'Need Help', 'need-help', 230, 75, [
-        goal(1, activeGoalTitle, 'active', 75, true, false),
-        goal(2, 'Finish Tutorial Q1-Q3', 'completed', 100, false, true, [
-          evidence(2, 'file', 'Tutorial Q1-Q3 completed document', '/uploads/tutorial-q1-q3.txt'),
-        ]),
-      ]),
-      member(4, 'Sam', 'On Break', 'on-break', 360, 45, [
-        goal(1, activeGoalTitle, 'active', 45, true, false),
-        goal(3, 'Check recurrence equations', 'completed', 100, false, true, [
-          evidence(3, 'equation', 'a_n = 2a_{n-1} + 3, therefore a_n = 2^n a_0 + 3(2^n - 1).'),
-        ]),
-      ]),
-      member(5, 'Emily', 'Reviewing', 'reviewing', 720, 90, [
-        goal(1, activeGoalTitle, 'active', 90, true, false),
-      ]),
-      member(7, 'Alicia', 'Uploading Evidence', 'uploading', 120, 100, [
-        goal(1, activeGoalTitle, 'active', 100, true, true, [
-          evidence(4, 'image', 'Whiteboard proof sketch', '/uploads/seed-proof-sketch.svg'),
-        ]),
-      ]),
-    ],
-  };
-}
-
-function member(userId, name, status, statusClass, seconds, progress, goals) {
-  return {
-    id: userId,
-    user_id: userId,
-    name,
-    current_status: status,
-    status_class: statusClass,
-    status_timer: seconds,
-    progress_percent: progress,
-    goals,
-  };
-}
-
-function goal(id, title, status, progress, isCurrent, isCompleted, evidenceList = []) {
-  return {
-    id,
-    title,
-    status,
-    progress_percent: progress,
-    is_current: isCurrent,
-    is_completed: isCompleted,
-    evidence: evidenceList,
-  };
-}
-
-function evidence(id, type, text, url = null) {
-  return { id, content_type: type, text_content: text, url };
-}
 
 function bindPage() {
   page.exitModal = byId('exitModal');
   page.completionAiFeedback = byId('completionAiFeedback');
   page.completionForm = byId('completionEvidenceForm');
   page.completionModal = byId('completionModal');
+  page.consultationContext = byId('consultationContext');
+  page.consultationDirectionModal = byId('consultationDirectionModal');
+  page.consultationDirectionText = byId('consultationDirectionText');
   page.consultationModal = byId('consultationModal');
   page.consultationMemberName = byId('consultationMemberName');
+  page.consultationReviewForm = byId('consultationReviewForm');
+  page.consultationReviewModal = byId('consultationReviewModal');
+  page.consultationReviewPrompt = byId('consultationReviewPrompt');
+  page.consultationWorkspaceModal = byId('consultationWorkspaceModal');
+  page.consultationWorkspaceStatus = byId('consultationWorkspaceStatus');
+  page.consultationWorkspaceTitle = byId('consultationWorkspaceTitle');
   page.goalDescription = byId('currentGoalDescription');
   page.goalForm = byId('microGoalForm');
   page.goalInput = byId('microGoalTitleInput');
+  page.goalQuestionInput = byId('microGoalQuestionInput');
   page.goalTitle = byId('currentGoalTitle');
   page.memberGoalsModal = byId('memberGoalsModal');
   page.memberGoalsModalContent = byId('memberGoalsModalContent');
@@ -119,8 +57,10 @@ function bindPage() {
   page.queueModal = byId('queueModal');
   page.queuedGoalCount = byId('queuedGoalCount');
   page.queuedGoalsList = byId('queuedGoalsList');
+  page.rejoinConsultationButton = byId('rejoinConsultationButton');
   page.timer = byId('countdownTimer');
   page.title = byId('sessionTitle');
+  page.toastContainer = byId('sessionToastContainer');
   page.statusControls = Array.from(document.querySelectorAll('.status-control'));
   page.statusProgressBar = byId('statusProgressBar');
   page.statusProgressFill = byId('statusProgressFill');
@@ -193,6 +133,51 @@ function showModal(modal, shouldShow) {
   modal.classList.toggle('d-none', !shouldShow);
 }
 
+function showToast({ title, message, type = 'info', actionLabel = '', action = null }) {
+  if (!page.toastContainer) return null;
+
+  const toast = document.createElement(action ? 'button' : 'div');
+  toast.className = `session-toast session-toast-${type}`;
+  if (action) toast.type = 'button';
+  toast.innerHTML = `
+    <strong>${escapeHtml(title)}</strong>
+    ${message ? `<p>${escapeHtml(message)}</p>` : ''}
+    ${actionLabel ? `<span>${escapeHtml(actionLabel)}</span>` : ''}
+  `;
+
+  const removeToast = () => toast.remove();
+  if (action) {
+    toast.addEventListener('click', () => {
+      removeToast();
+      action();
+    });
+  }
+
+  page.toastContainer.appendChild(toast);
+  window.setTimeout(removeToast, 10000);
+  return toast;
+}
+
+function isCurrentUserInConsultation() {
+  const currentMember = getCurrentMember();
+  return (
+    normalizeStatusForApi(currentMember?.status_class || currentMember?.current_status) ===
+    'in_consultation'
+  );
+}
+
+function updateRejoinButton() {
+  if (!page.rejoinConsultationButton) return;
+
+  const shouldShow =
+    activeConsultation &&
+    !activeConsultation.ended_at &&
+    isCurrentUserInConsultation() &&
+    page.consultationWorkspaceModal?.classList.contains('d-none');
+
+  page.rejoinConsultationButton.classList.toggle('d-none', !shouldShow);
+}
+
 function emptyText(text, className = 'member-evidence-empty') {
   return `<p class="${className}">${escapeHtml(text)}</p>`;
 }
@@ -222,12 +207,25 @@ function workCheckHistoryUrl(goalId, userId) {
   return `${apiBase}/micro-goals/${goalId}/work-checks?user_id=${userId}`;
 }
 
+function consultationUrl(consultationId = '') {
+  return `${apiBase}/consultations${consultationId ? `/${consultationId}` : ''}`;
+}
+
+function consultationFinishUrl(consultationId) {
+  return `${consultationUrl(consultationId)}/finish`;
+}
+
+function consultationReviewUrl(consultationId) {
+  return `${consultationUrl(consultationId)}/review`;
+}
+
 function renderPage() {
   page.title.textContent = sessionData.title || 'Software Engineering Practice';
   renderCurrentGoal();
   renderMembers();
   renderStatusControls();
   renderStatusProgress();
+  updateRejoinButton();
   startTimer();
   startStatusTimer();
 }
@@ -278,6 +276,7 @@ function renderMembers() {
   page.membersToggle.classList.toggle('d-none', members.length <= MEMBER_PREVIEW_LIMIT);
   page.membersToggle.textContent = membersExpanded ? 'Show less' : `Show all ${members.length}`;
   page.membersToggle.setAttribute('aria-expanded', String(membersExpanded));
+  updateRejoinButton();
 }
 
 function renderStatusControls() {
@@ -351,9 +350,10 @@ function renderMemberCard(memberData) {
   const displayName = isCurrentUser ? 'You' : memberData.name || 'Member';
   const avatarText = isCurrentUser ? 'You' : initials(memberData.name);
   const statusSeconds = Math.max(0, Number(memberData.status_timer) || 0);
-  const statusDisplay = isNeedHelp
-    ? `<button class="member-status status-${escapeHtml(statusClass)} consultation-status-button" type="button" data-consultation-name="${escapeHtml(memberData.name || 'This user')}">${escapeHtml(memberData.current_status || 'Focusing')}</button>`
-    : `<span class="member-status status-${escapeHtml(statusClass)}">${escapeHtml(memberData.current_status || 'Focusing')}</span>`;
+  const statusDisplay =
+    isNeedHelp && !isCurrentUser
+      ? `<button class="member-status status-${escapeHtml(statusClass)} consultation-status-button" type="button" data-consultation-name="${escapeHtml(memberData.name || 'This user')}" data-consultation-user-id="${memberData.user_id}">${escapeHtml(memberData.current_status || 'Focusing')}</button>`
+      : `<span class="member-status status-${escapeHtml(statusClass)}">${escapeHtml(memberData.current_status || 'Focusing')}</span>`;
 
   return `
     <article class="session-member-card status-${escapeHtml(statusClass)}${isCurrentUser ? ' current-user-card' : ''}" data-member-user-id="${memberData.user_id}">
@@ -427,6 +427,9 @@ function renderGoalSection(title, goals, memberData, emptyMessage, allowUpload =
 
 function renderGoalCard(goalData, memberData, allowUpload) {
   const progress = asPercent(goalData.progress_percent);
+  const taskText = goalData.description
+    ? `<p class="member-goal-task"><span>Question/task</span>${escapeHtml(goalData.description)}</p>`
+    : '';
 
   return `
     <article class="member-goal-card">
@@ -437,6 +440,7 @@ function renderGoalCard(goalData, memberData, allowUpload) {
         </div>
         <span>${progress}%</span>
       </div>
+      ${taskText}
       <div class="member-progress-bar member-goal-progress" aria-label="Goal progress ${progress}%">
         <span style="width: ${progress}%"></span>
       </div>
@@ -485,14 +489,20 @@ function renderEvidenceForm(memberData, goalData) {
     <form class="evidence-upload-form work-check-form" data-user-id="${memberData.user_id}" data-goal-id="${goalData.id}">
       <label>
         <span>Written equations or note</span>
-        <textarea name="equation_text" rows="2" placeholder="Type workings to check before finishing"></textarea>
+        <textarea name="equation_text" rows="2" placeholder="Type workings or a completion note"></textarea>
       </label>
       <div class="evidence-upload-row">
         <input name="evidence_file" type="file" accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
-        <button type="submit">
-          <i class="fas fa-search"></i>
-          <span>Check Work</span>
-        </button>
+        <div class="evidence-action-group">
+          <button class="submit-evidence-button" type="submit" data-action="submit">
+            <i class="fas fa-upload"></i>
+            <span>Submit</span>
+          </button>
+          <button class="ai-review-button" type="submit" data-action="review">
+            <i class="fas fa-search"></i>
+            <span>AI Review</span>
+          </button>
+        </div>
       </div>
       <div class="work-check-feedback d-none" aria-live="polite"></div>
       <section class="work-check-history" data-user-id="${memberData.user_id}" data-goal-id="${goalData.id}">
@@ -538,11 +548,8 @@ async function loadSession() {
 
   try {
     sessionData = await getJson(apiBase);
-    isPreviewMode = false;
-  } catch {
-    sessionData = createDemoSession();
-    isPreviewMode = true;
-    showMessage('Showing static preview data until a session is available.', 'info');
+  } catch (error) {
+    showMessage(error.message || 'Could not load the live study session.', 'danger');
   }
 
   timerStartedAt = Date.now();
@@ -554,41 +561,26 @@ async function addMicroGoal(event) {
   event.preventDefault();
 
   const title = page.goalInput.value.trim();
-  if (!title) return;
+  const description = page.goalQuestionInput.value.trim();
+  if (!title || !description) {
+    showMessage('Add both a micro-goal label and the question or task.', 'danger');
+    return;
+  }
 
   try {
     await getJson(`${apiBase}/micro-goals`, {
       method: 'POST',
       body: JSON.stringify({
         title,
-        description: 'Current task for this study session.',
-        created_by_user_id: 1,
+        description,
+        created_by_user_id: CURRENT_USER_ID,
       }),
     });
     resetGoalForm();
     await loadSession();
-  } catch {
-    addPreviewGoal(title);
+  } catch (error) {
+    showMessage(error.message, 'danger');
   }
-}
-
-function addPreviewGoal(title) {
-  const queue = sessionData.queued_micro_goals || [];
-
-  sessionData.queued_micro_goals = [
-    ...queue,
-    {
-      id: Date.now(),
-      title,
-      description: 'Current task for this study session.',
-      queue_position: queue.length + 2,
-      status: 'pending',
-    },
-  ];
-
-  resetGoalForm();
-  showMessage('Micro-goal added to the static preview queue.', 'info');
-  renderCurrentGoal();
 }
 
 function resetGoalForm() {
@@ -618,12 +610,25 @@ function isSupportedWorkCheckFile(file) {
 }
 
 function setWorkCheckLoading(form, isLoading) {
-  const button = form.querySelector('button[type="submit"]');
+  const button = form.querySelector('.ai-review-button');
   const label = button?.querySelector('span');
   if (!button || !label) return;
 
-  button.disabled = isLoading;
-  label.textContent = isLoading ? 'Checking...' : 'Check Work';
+  form.querySelectorAll('.evidence-action-group button').forEach((item) => {
+    item.disabled = isLoading;
+  });
+  label.textContent = isLoading ? 'Reviewing...' : 'AI Review';
+}
+
+function setEvidenceSubmitLoading(form, isLoading) {
+  const button = form.querySelector('.submit-evidence-button');
+  const label = button?.querySelector('span');
+  if (!button || !label) return;
+
+  form.querySelectorAll('.evidence-action-group button').forEach((item) => {
+    item.disabled = isLoading;
+  });
+  label.textContent = isLoading ? 'Submitting...' : 'Submit';
 }
 
 function feedbackList(items) {
@@ -745,13 +750,10 @@ async function loadWorkCheckHistory(form) {
   const list = form.querySelector('.work-check-history-list');
   if (!list) return;
 
-  if (isPreviewMode) {
-    list.innerHTML = emptyText('AI feedback history appears in a live session.', 'work-check-empty');
-    return;
-  }
-
   try {
-    const feedbackListData = await getJson(workCheckHistoryUrl(form.dataset.goalId, form.dataset.userId));
+    const feedbackListData = await getJson(
+      workCheckHistoryUrl(form.dataset.goalId, form.dataset.userId),
+    );
     renderWorkCheckHistory(form, feedbackListData);
   } catch (error) {
     list.innerHTML = emptyText(error.message, 'work-check-empty work-check-empty-danger');
@@ -764,9 +766,9 @@ function handleWorkCheckChecklistChange(event) {
 
   const checklist = checkbox.closest('.work-check-checklist');
   const checkId = checklist.dataset.checkId;
-  const checkedItems = Array.from(
-    checklist.querySelectorAll('input[type="checkbox"]:checked'),
-  ).map((item) => item.dataset.checkText);
+  const checkedItems = Array.from(checklist.querySelectorAll('input[type="checkbox"]:checked')).map(
+    (item) => item.dataset.checkText,
+  );
   const allChecked =
     checkedItems.length === checklist.querySelectorAll('input[type="checkbox"]').length;
 
@@ -791,9 +793,7 @@ function setWorkCheckFeedback(form, feedback) {
         : ''
     }
     ${
-      feedback.issues?.length
-        ? `<span>Improve</span><ul>${feedbackList(feedback.issues)}</ul>`
-        : ''
+      feedback.issues?.length ? `<span>Improve</span><ul>${feedbackList(feedback.issues)}</ul>` : ''
     }
     ${feedback.next_step ? `<p><b>Next:</b> ${escapeHtml(feedback.next_step)}</p>` : ''}
     ${renderWorkCheckChecklist(feedback)}
@@ -808,16 +808,28 @@ function setWorkCheckError(form, message) {
   });
 }
 
-async function checkWork(event) {
+async function handleEvidenceFormSubmit(event) {
   const form = event.target;
   if (!form.classList.contains('work-check-form')) return;
   event.preventDefault();
 
+  if (event.submitter?.dataset.action === 'submit') {
+    await submitMemberGoalEvidence(form);
+    return;
+  }
+
+  await checkWork(form);
+}
+
+async function checkWork(form) {
   const equationText = form.elements.equation_text.value.trim();
   const file = form.elements.evidence_file.files[0];
 
   if (!equationText && !file) {
-    setWorkCheckError(form, 'Add written equations, a .txt file, or a Word .docx file before checking work.');
+    setWorkCheckError(
+      form,
+      'Add written equations, a .txt file, or a Word .docx file before checking work.',
+    );
     return;
   }
   if (!isSupportedWorkCheckFile(file)) {
@@ -826,12 +838,6 @@ async function checkWork(event) {
   }
 
   setWorkCheckLoading(form, true);
-
-  if (isPreviewMode) {
-    setWorkCheckError(form, 'AI work check needs a live session.');
-    setWorkCheckLoading(form, false);
-    return;
-  }
 
   try {
     const formData = new FormData(form);
@@ -843,6 +849,36 @@ async function checkWork(event) {
     setWorkCheckError(form, error.message);
   } finally {
     setWorkCheckLoading(form, false);
+  }
+}
+
+async function submitMemberGoalEvidence(form) {
+  const equationText = form.elements.equation_text.value.trim();
+  const file = form.elements.evidence_file.files[0];
+
+  if (!equationText && !file) {
+    setWorkCheckError(form, 'Add your workings or upload a file before submitting.');
+    return;
+  }
+  if (!isTxtFile(file)) {
+    setWorkCheckError(form, 'Only .txt or Word .docx files are supported for submitting evidence.');
+    return;
+  }
+
+  setEvidenceSubmitLoading(form, true);
+
+  try {
+    const formData = new FormData(form);
+    formData.set('user_id', form.dataset.userId);
+    await postForm(`${apiBase}/micro-goals/${form.dataset.goalId}/evidence`, formData);
+    form.reset();
+    showMessage('Evidence submitted and micro-goal completed.', 'info');
+    await loadSession();
+    openMemberGoalsModal(form.dataset.userId);
+  } catch (error) {
+    setWorkCheckError(form, error.message);
+  } finally {
+    setEvidenceSubmitLoading(form, false);
   }
 }
 
@@ -942,11 +978,7 @@ function setCompletionAiFeedback(feedback) {
   page.completionAiFeedback.innerHTML = `
     <strong>${escapeHtml(statusCopy[status] || 'Latest AI feedback')}</strong>
     <p>${escapeHtml(feedback.summary || '')}</p>
-    ${
-      feedback.issues?.length
-        ? `<ul>${feedbackList(feedback.issues)}</ul>`
-        : ''
-    }
+    ${feedback.issues?.length ? `<ul>${feedbackList(feedback.issues)}</ul>` : ''}
     ${feedback.next_step ? `<p><b>Next:</b> ${escapeHtml(feedback.next_step)}</p>` : ''}
   `;
 }
@@ -956,11 +988,6 @@ async function loadCompletionAiFeedback(goalId) {
 
   page.completionAiFeedback.className = 'completion-ai-feedback completion-ai-feedback-info';
   page.completionAiFeedback.innerHTML = '<strong>Loading latest AI feedback...</strong>';
-
-  if (isPreviewMode) {
-    setCompletionAiFeedback(null);
-    return;
-  }
 
   try {
     const feedbackListData = await getJson(workCheckHistoryUrl(goalId, CURRENT_USER_ID));
@@ -1003,20 +1030,18 @@ async function updateCurrentProgress(progress) {
 
   syncRenderedStatusTimers();
 
-  if (isPreviewMode) {
-    updatePreviewProgress(progress);
-    return;
-  }
-
   try {
-    const updatedProgress = await getJson(`${apiBase}/micro-goals/${sessionData.micro_goal.id}/progress`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        user_id: CURRENT_USER_ID,
-        progress_percent: progress,
-      }),
-    });
-    updatePreviewProgress(asPercent(updatedProgress.progress_percent));
+    const updatedProgress = await getJson(
+      `${apiBase}/micro-goals/${sessionData.micro_goal.id}/progress`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          user_id: CURRENT_USER_ID,
+          progress_percent: progress,
+        }),
+      },
+    );
+    applyCurrentProgress(asPercent(updatedProgress.progress_percent));
     clearMessage();
   } catch (error) {
     renderStatusProgress();
@@ -1024,14 +1049,13 @@ async function updateCurrentProgress(progress) {
   }
 }
 
-function updatePreviewProgress(progress) {
+function applyCurrentProgress(progress) {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
   if (!currentMember || !currentGoal) return;
 
   currentMember.progress_percent = progress;
   currentGoal.progress_percent = progress;
-  showMessage('Progress updated in the static preview.', 'info');
   renderStatusProgress();
 }
 
@@ -1047,14 +1071,10 @@ async function submitCompletionEvidence(event) {
     return;
   }
   if (!isTxtFile(file)) {
-    showMessage('Only .txt or Word .docx files are supported for completing a micro-goal.', 'danger');
-    return;
-  }
-
-  if (isPreviewMode) {
-    addPreviewEvidence(form, equationText, file);
-    showModal(page.completionModal, false);
-    renderStatusProgress();
+    showMessage(
+      'Only .txt or Word .docx files are supported for completing a micro-goal.',
+      'danger',
+    );
     return;
   }
 
@@ -1086,11 +1106,6 @@ async function updateCurrentStatus(event) {
 
   syncRenderedStatusTimers();
 
-  if (isPreviewMode) {
-    updatePreviewStatus(status);
-    return;
-  }
-
   try {
     const updatedMember = await getJson(`${apiBase}/members/status`, {
       method: 'PATCH',
@@ -1112,27 +1127,8 @@ async function updateCurrentStatus(event) {
   }
 }
 
-function updatePreviewStatus(status) {
-  const currentMember = (sessionData.members || []).find(
-    (memberData) => Number(memberData.user_id) === CURRENT_USER_ID,
-  );
-  if (!currentMember) return;
-
-  const labels = {
-    focus: 'Focusing',
-    break: 'On Break',
-    need_help: 'Need Help',
-  };
-
-  currentMember.current_status = labels[status] || 'Focusing';
-  currentMember.status_class = status.replace(/_/g, '-');
-  currentMember.status_timer = 0;
-  showMessage('Status updated in the static preview.', 'info');
-  renderMemberCardInPlace(currentMember);
-  renderStatusControls();
-}
-
-function openConsultationModal(memberName) {
+function openConsultationModal(memberName, memberUserId) {
+  pendingConsultationMemberId = Number(memberUserId) || null;
   page.consultationMemberName.textContent = memberName || 'This user';
   showModal(page.consultationModal, true);
 }
@@ -1141,7 +1137,222 @@ function handleMemberActivation(event) {
   const button = event.target.closest('.consultation-status-button');
   if (!button) return;
 
-  openConsultationModal(button.dataset.consultationName);
+  openConsultationModal(button.dataset.consultationName, button.dataset.consultationUserId);
+}
+
+function setConsultationStatus(text, isVisible = true) {
+  page.consultationWorkspaceStatus.textContent = text;
+  page.consultationWorkspaceStatus.classList.toggle('is-visible', Boolean(isVisible && text));
+}
+
+function renderConsultationContext() {
+  if (!activeConsultation) return;
+
+  page.consultationWorkspaceTitle.textContent = activeConsultation.topic || 'Study consultation';
+  page.consultationContext.innerHTML = `
+    <div class="consultation-context-card">
+      <span>Student</span>
+      <strong>${escapeHtml(activeConsultation.student_name || 'Student')}</strong>
+    </div>
+    <div class="consultation-context-card consultation-context-card-wide">
+      <span>Question</span>
+      <p>${escapeHtml(activeConsultation.question_text || 'No question captured.')}</p>
+    </div>
+  `;
+}
+
+function renderConsultationWorkspace() {
+  if (!activeConsultation) return;
+
+  const isCompleted =
+    activeConsultation.status === 'completed' || Boolean(activeConsultation.ended_at);
+
+  renderConsultationContext();
+  setConsultationStatus('', false);
+  const finishButton = byId('finishConsultationButton');
+  finishButton.disabled = isCompleted;
+  finishButton.textContent = isCompleted ? 'Ended' : 'End Consultation';
+}
+
+function openConsultationWorkspace(consultation) {
+  activeConsultation = consultation;
+  renderConsultationWorkspace();
+  showModal(page.consultationWorkspaceModal, true);
+  updateRejoinButton();
+}
+
+function closeConsultationWorkspace() {
+  showModal(page.consultationWorkspaceModal, false);
+  updateRejoinButton();
+}
+
+function openConsultationReviewModal(consultation = activeConsultation) {
+  if (!consultation) return;
+
+  activeConsultation = consultation;
+  const studentName = consultation.student_name || 'the student';
+  page.consultationReviewPrompt.textContent = `Send ${studentName} a concise direction or next step.`;
+  page.consultationReviewForm.elements.teacher_direction.value =
+    consultation.teacher_direction || '';
+  const selectedChecklist = new Set(consultation.reflection?.summary_checklist || []);
+  page.consultationReviewForm
+    .querySelectorAll('input[name="summary_checklist"]')
+    .forEach((item) => {
+      item.checked = selectedChecklist.has(item.value);
+    });
+  showModal(page.consultationReviewModal, true);
+  page.consultationReviewForm.elements.teacher_direction.focus();
+}
+
+function openConsultationDirectionModal(consultation = activeConsultation) {
+  if (!consultation?.teacher_direction) return;
+
+  activeConsultation = consultation;
+  page.consultationDirectionText.textContent = consultation.teacher_direction;
+  showModal(page.consultationDirectionModal, true);
+}
+
+function showConsultationEndedToast(consultation) {
+  const isTeacher = Number(consultation.teacher_user_id) === CURRENT_USER_ID;
+
+  if (isTeacher) {
+    showToast({
+      title: 'Consultation ended',
+      message: `Add a direction or next step for ${consultation.student_name || 'the student'}.`,
+      type: 'info',
+      actionLabel: 'Review',
+      action: () => openConsultationReviewModal(consultation),
+    });
+    return;
+  }
+
+  showToast({
+    title: 'Consultation ended',
+    message: 'Both members are focusing again.',
+    type: 'success',
+  });
+}
+
+function showStudentDirectionToast(consultation) {
+  if (!consultation?.teacher_direction) return;
+
+  const title =
+    Number(consultation.student_user_id) === CURRENT_USER_ID
+      ? 'Direction / next step'
+      : `${consultation.student_name || 'Student'} receives direction`;
+
+  showToast({
+    title,
+    message: consultation.teacher_direction,
+    type: 'success',
+    actionLabel: 'Read only',
+    action: () => openConsultationDirectionModal(consultation),
+  });
+}
+
+async function startConsultation() {
+  const memberData = (sessionData.members || []).find(
+    (item) => Number(item.user_id) === pendingConsultationMemberId,
+  );
+  if (!memberData) {
+    showMessage('Choose a member who needs help before starting consultation.', 'danger');
+    return;
+  }
+
+  const button = byId('confirmConsultationButton');
+  button.disabled = true;
+  button.textContent = 'Starting...';
+
+  try {
+    const consultation = await getJson(consultationUrl(), {
+      method: 'POST',
+      body: JSON.stringify({
+        student_user_id: memberData.user_id,
+        teacher_user_id: CURRENT_USER_ID,
+      }),
+    });
+
+    showModal(page.consultationModal, false);
+    openConsultationWorkspace(consultation);
+    await loadSession();
+  } catch (error) {
+    showMessage(error.message, 'danger');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Start Consultation';
+  }
+}
+
+async function finishConsultation(event) {
+  event?.preventDefault();
+  if (!activeConsultation || activeConsultation.ended_at) return;
+
+  const payload = {
+    submitted_by_user_id: CURRENT_USER_ID,
+  };
+
+  const button = byId('finishConsultationButton');
+  button.disabled = true;
+
+  try {
+    activeConsultation = await getJson(consultationFinishUrl(activeConsultation.id), {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+
+    closeConsultationWorkspace();
+    await loadSession();
+    showConsultationEndedToast(activeConsultation);
+  } catch (error) {
+    setConsultationStatus(error.message);
+  } finally {
+    if (!activeConsultation?.ended_at) button.disabled = false;
+  }
+}
+
+async function submitConsultationReview(event) {
+  event.preventDefault();
+  if (!activeConsultation) return;
+
+  const form = event.target;
+  const teacherDirection = form.elements.teacher_direction.value.trim();
+  if (!teacherDirection) {
+    showToast({
+      title: 'Direction needed',
+      message: 'Add a direction or next step before sending.',
+      type: 'danger',
+    });
+    return;
+  }
+
+  const button = byId('submitConsultationReviewButton');
+  button.disabled = true;
+  const summaryChecklist = Array.from(
+    form.querySelectorAll('input[name="summary_checklist"]:checked'),
+  ).map((item) => item.value);
+
+  try {
+    activeConsultation = await getJson(consultationReviewUrl(activeConsultation.id), {
+      method: 'PATCH',
+      body: JSON.stringify({
+        submitted_by_user_id: CURRENT_USER_ID,
+        teacher_direction: teacherDirection,
+        summary_checklist: summaryChecklist,
+      }),
+    });
+
+    showModal(page.consultationReviewModal, false);
+    form.reset();
+    showStudentDirectionToast(activeConsultation);
+  } catch (error) {
+    showToast({
+      title: 'Review not sent',
+      message: error.message,
+      type: 'danger',
+    });
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function openMemberGoalsModal(userId) {
@@ -1167,46 +1378,11 @@ function handleMemberGoalsButton(event) {
   openMemberGoalsModal(button.dataset.memberUserId);
 }
 
-function addPreviewEvidence(form, equationText, file) {
-  const memberData = (sessionData.members || []).find(
-    (item) => Number(item.user_id) === Number(form.dataset.userId),
-  );
-  const goalData = memberData?.goals?.find(
-    (item) => Number(item.id) === Number(form.dataset.goalId),
-  );
-
-  if (!goalData) {
-    showMessage('Choose an active micro-goal before uploading evidence.', 'danger');
-    return;
-  }
-
-  goalData.evidence = goalData.evidence || [];
-  if (equationText) goalData.evidence.push(evidence(Date.now(), 'equation', equationText));
-  if (file) {
-    goalData.evidence.push(
-      evidence(
-        Date.now() + 1,
-        'file',
-        file.name,
-        URL.createObjectURL(file),
-      ),
-    );
-  }
-
-  goalData.progress_percent = 100;
-  goalData.is_completed = true;
-  memberData.progress_percent = 100;
-  form.reset();
-  showMessage('Evidence added to the static preview.', 'info');
-  renderMembers();
-  renderStatusProgress();
-}
-
 async function exitSession() {
   try {
     await getJson(`${apiBase}/exit`, { method: 'PATCH' });
   } catch (error) {
-    console.info('Static exit fallback:', error.message);
+    console.info('Could not mark session as exited:', error.message);
   }
 
   window.location.href = 'personal-summary.html';
@@ -1223,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
   page.goalForm.addEventListener('submit', addMicroGoal);
   page.membersList.addEventListener('click', handleMemberActivation);
   page.membersList.addEventListener('click', handleMemberGoalsButton);
-  page.memberGoalsModal.addEventListener('submit', checkWork);
+  page.memberGoalsModal.addEventListener('submit', handleEvidenceFormSubmit);
   page.memberGoalsModal.addEventListener('change', handleWorkCheckChecklistChange);
   page.membersToggle.addEventListener('click', () => {
     membersExpanded = !membersExpanded;
@@ -1247,10 +1423,22 @@ document.addEventListener('DOMContentLoaded', () => {
   byId('cancelConsultationButton').addEventListener('click', () =>
     showModal(page.consultationModal, false),
   );
-  byId('confirmConsultationButton').addEventListener('click', () => {
-    showModal(page.consultationModal, false);
-    showMessage('Consultation confirmed. Opening the consultation workspace next.', 'info');
-  });
+  byId('confirmConsultationButton').addEventListener('click', startConsultation);
+  byId('closeConsultationWorkspaceButton').addEventListener('click', closeConsultationWorkspace);
+  byId('finishConsultationButton').addEventListener('click', finishConsultation);
+  page.rejoinConsultationButton.addEventListener('click', () =>
+    openConsultationWorkspace(activeConsultation),
+  );
+  page.consultationReviewForm.addEventListener('submit', submitConsultationReview);
+  byId('cancelConsultationReviewButton').addEventListener('click', () =>
+    showModal(page.consultationReviewModal, false),
+  );
+  byId('closeConsultationReviewButton').addEventListener('click', () =>
+    showModal(page.consultationReviewModal, false),
+  );
+  byId('closeConsultationDirectionButton').addEventListener('click', () =>
+    showModal(page.consultationDirectionModal, false),
+  );
 
   byId('viewQueueButton').addEventListener('click', () => showModal(page.queueModal, true));
   byId('closeQueueButton').addEventListener('click', () => showModal(page.queueModal, false));
@@ -1266,6 +1454,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   page.consultationModal.addEventListener('click', (event) => {
     if (event.target === page.consultationModal) showModal(page.consultationModal, false);
+  });
+  page.consultationWorkspaceModal.addEventListener('click', (event) => {
+    if (event.target === page.consultationWorkspaceModal) {
+      closeConsultationWorkspace();
+    }
+  });
+  page.consultationReviewModal.addEventListener('click', (event) => {
+    if (event.target === page.consultationReviewModal) {
+      showModal(page.consultationReviewModal, false);
+    }
+  });
+  page.consultationDirectionModal.addEventListener('click', (event) => {
+    if (event.target === page.consultationDirectionModal) {
+      showModal(page.consultationDirectionModal, false);
+    }
   });
   page.memberGoalsModal.addEventListener('click', (event) => {
     if (event.target === page.memberGoalsModal) showModal(page.memberGoalsModal, false);

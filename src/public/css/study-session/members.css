@@ -7,6 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
 }
 
@@ -17,7 +18,16 @@
   font-weight: 700;
 }
 
-.members-toggle-btn {
+.members-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.members-toggle-btn,
+.rejoin-consultation-btn {
   border: 0;
   border-radius: 999px;
   background: #eef4ff;
@@ -25,6 +35,18 @@
   font-size: 0.78rem;
   font-weight: 800;
   padding: 6px 12px;
+}
+
+.rejoin-consultation-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #203047;
+  color: #ffffff;
+}
+
+.rejoin-consultation-btn i {
+  font-size: 0.72rem;
 }
 
 .members-list {
@@ -54,6 +76,11 @@
 .session-member-card.status-need-help {
   border-color: #f6d56e;
   background: #fffaf0;
+}
+
+.session-member-card.status-in-consultation {
+  border-color: #a5b4fc;
+  background: #eef2ff;
 }
 
 .member-card-summary {
@@ -126,6 +153,11 @@
 .member-status.status-need-help {
   background: #fef3c7;
   color: #92400e;
+}
+
+.member-status.status-in-consultation {
+  background: #e0e7ff;
+  color: #3730a3;
 }
 
 .member-status.status-focus,
@@ -241,7 +273,7 @@
 }
 
 .status-progress-bar::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 50%;
   left: clamp(9px, var(--status-progress, 0%), calc(100% - 9px));
@@ -355,6 +387,21 @@
   text-transform: uppercase;
 }
 
+.member-goal-task {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.member-goal-task span {
+  color: #64748b;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
 .member-goal-progress {
   margin-top: 0;
 }
@@ -425,6 +472,17 @@
   gap: 8px;
 }
 
+.evidence-upload-form input[type='file'] {
+  min-width: 0;
+}
+
+.evidence-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .evidence-upload-row button {
   display: inline-flex;
   align-items: center;
@@ -439,9 +497,26 @@
   font-weight: 800;
 }
 
+.evidence-upload-row .ai-review-button {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #203047;
+}
+
 .evidence-upload-row button:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+@media (max-width: 640px) {
+  .evidence-upload-row {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-action-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .work-check-feedback {

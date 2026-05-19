@@ -4,8 +4,15 @@ const studySessionController = require('../controllers/StudySession.controller')
 const upload = require('../middlewares/upload');
 
 router.get('/:sessionId', studySessionController.getSession);
-router.get('/:sessionId/members', studySessionController.getMembers);
-router.get('/:sessionId/micro-goals', studySessionController.getMicroGoals);
+router.post('/:sessionId/consultations', studySessionController.startConsultation);
+router.patch(
+  '/:sessionId/consultations/:consultationId/finish',
+  studySessionController.finishConsultation,
+);
+router.patch(
+  '/:sessionId/consultations/:consultationId/review',
+  studySessionController.saveConsultationReview,
+);
 router.post('/:sessionId/micro-goals', studySessionController.addMicroGoal);
 router.post(
   '/:sessionId/micro-goals/:microGoalId/evidence',

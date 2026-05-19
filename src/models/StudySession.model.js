@@ -53,13 +53,23 @@ const statusLabels = {
   break: 'On Break',
   on_break: 'On Break',
   need_help: 'Need Help',
+  in_consultation: 'In Consultation',
   reviewing: 'Reviewing',
   uploading: 'Uploading Evidence',
   done: 'Completed',
   completed: 'Completed',
 };
 
-const allowedMemberStatuses = new Set(['focus', 'break', 'need_help']);
+const allowedMemberStatuses = new Set(['focus', 'break', 'need_help', 'in_consultation']);
+
+const normalizeMemberStatus = (status) => {
+  const normalized = String(status || 'focus')
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (normalized === 'focusing') return 'focus';
+  if (normalized === 'on_break') return 'break';
+  return normalized;
+};
 
 const prettyStatus = (status) =>
   statusLabels[status] ||
@@ -69,6 +79,63 @@ const prettyStatus = (status) =>
     .join(' ');
 
 const cssStatus = (status) => (status === 'break' ? 'on-break' : status.replace(/_/g, '-'));
+
+const updateMemberStatusesInTransaction = async (client, sessionId, userIds, status) => {
+  const normalizedUserIds = [...new Set(userIds.map(Number).filter((id) => Number.isInteger(id)))];
+  if (!normalizedUserIds.length) return [];
+
+  const memberResult = await client.query(
+    `
+      UPDATE SessionMember
+      SET status = $3,
+          status_timer = 0
+      WHERE session_id = $1
+        AND user_id = ANY($2::int[])
+        AND left_at IS NULL
+      RETURNING member_id, session_id, user_id, status, status_timer, progress
+    `,
+    [sessionId, normalizedUserIds, status],
+  );
+
+  const memberIds = memberResult.rows.map((member) => member.member_id);
+  if (!memberIds.length) return [];
+
+  await client.query(
+    `
+      UPDATE status_events
+      SET ended_at = CURRENT_TIMESTAMP
+      WHERE study_session_participant_id = ANY($1::int[])
+        AND ended_at IS NULL
+    `,
+    [memberIds],
+  );
+
+  await client.query(
+    `
+      INSERT INTO status_events (study_session_participant_id, status)
+      SELECT unnest($1::int[]), $2
+    `,
+    [memberIds, status],
+  );
+
+  return memberResult.rows.map((member) => ({
+    ...member,
+    current_status: prettyStatus(status),
+    status_class: cssStatus(status),
+  }));
+};
+
+const insertNotification = async (client, data) => {
+  const { rows } = await client.query(
+    `
+      INSERT INTO Notification (user_id, title, message, type, is_read, nav_target)
+      VALUES ($1, $2, $3, $4, FALSE, $5)
+      RETURNING notification_id, user_id, title, message, type, is_read, nav_target, created_at
+    `,
+    [data.user_id, data.title, data.message || null, data.type || 'info', data.nav_target || null],
+  );
+  return rows[0] || null;
+};
 
 const groupBy = (rows, key) =>
   rows.reduce((groups, row) => {
@@ -94,6 +161,87 @@ const mapAiCheck = (row) => ({
   confidence: row.confidence,
   created_at: row.created_at,
 });
+
+const mapConsultationReflection = (row) =>
+  row
+    ? {
+        id: row.id,
+        consultation_session_id: row.consultation_session_id,
+        submitted_by_user_id: row.submitted_by_user_id,
+        submitted_by_name: row.submitted_by_name,
+        student_understood: row.student_understood,
+        summary_checklist: row.summary_checklist_json || [],
+        additional_notes: row.additional_notes,
+        created_at: row.created_at,
+      }
+    : null;
+
+const mapConsultationSession = (row, reflection = null) => ({
+  id: row.id,
+  study_session_id: row.study_session_id,
+  session_title: row.session_title,
+  student_user_id: row.student_user_id,
+  student_name: row.student_name,
+  teacher_user_id: row.teacher_user_id,
+  teacher_name: row.teacher_name,
+  topic: row.topic,
+  question_text: row.question_text,
+  student_attempt_text: row.student_attempt_text,
+  teacher_direction: row.teacher_direction,
+  status: row.status,
+  started_at: row.started_at,
+  ended_at: row.ended_at,
+  reflection,
+});
+
+const selectConsultationDetails = async (executor, sessionId, consultationId) => {
+  const sessionSql = `
+    SELECT
+      cs.id,
+      cs.study_session_id,
+      ss.title AS session_title,
+      cs.student_user_id,
+      student.name AS student_name,
+      cs.teacher_user_id,
+      teacher.name AS teacher_name,
+      cs.topic,
+      cs.question_text,
+      cs.student_attempt_text,
+      cs.teacher_direction,
+      cs.status,
+      cs.started_at,
+      cs.ended_at
+    FROM consultation_sessions cs
+    INNER JOIN StudySession ss ON ss.session_id = cs.study_session_id
+    INNER JOIN "User" student ON student.user_id = cs.student_user_id
+    LEFT JOIN "User" teacher ON teacher.user_id = cs.teacher_user_id
+    WHERE cs.study_session_id = $1
+      AND cs.id = $2
+  `;
+  const sessionResult = await executor.query(sessionSql, [sessionId, consultationId]);
+  const session = sessionResult.rows[0];
+  if (!session) return null;
+
+  const reflectionSql = `
+    SELECT
+      cr.id,
+      cr.consultation_session_id,
+      cr.submitted_by_user_id,
+      submitter.name AS submitted_by_name,
+      cr.student_understood,
+      cr.summary_checklist_json,
+      cr.additional_notes,
+      cr.created_at
+    FROM consultation_reflections cr
+    INNER JOIN "User" submitter ON submitter.user_id = cr.submitted_by_user_id
+    WHERE cr.consultation_session_id = $1
+    ORDER BY cr.created_at DESC, cr.id DESC
+    LIMIT 1
+  `;
+  const reflectionResult = await executor.query(reflectionSql, [consultationId]);
+
+  return mapConsultationSession(session, mapConsultationReflection(reflectionResult.rows[0]));
+};
 
 module.exports.selectSessionById = async function selectSessionById(sessionId) {
   const SQLSTATEMENT = `
@@ -249,21 +397,6 @@ module.exports.selectSessionMembers = async function selectSessionMembers(
   }));
 };
 
-module.exports.selectMicroGoalsBySessionId = async function selectMicroGoalsBySessionId(sessionId) {
-  const SQLSTATEMENT = `
-        SELECT id, study_session_id, created_by_user_id, title, description, queue_position,
-               status, activated_at, completed_at
-        FROM micro_goals
-        WHERE study_session_id = $1
-        ORDER BY
-            CASE status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
-            queue_position ASC,
-            id ASC
-    `;
-  const { rows } = await pool.query(SQLSTATEMENT, [sessionId]);
-  return rows;
-};
-
 module.exports.selectMicroGoalById = async function selectMicroGoalById(sessionId, microGoalId) {
   const SQLSTATEMENT = `
         SELECT id, study_session_id, created_by_user_id, title, description, queue_position,
@@ -335,6 +468,283 @@ module.exports.selectMicroGoalAiChecks = async function selectMicroGoalAiChecks(
     data.user_id,
   ]);
   return rows.map(mapAiCheck);
+};
+
+module.exports.startConsultation = async function startConsultation(data) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const existingSql = `
+      SELECT id
+      FROM consultation_sessions
+      WHERE study_session_id = $1
+        AND student_user_id = $2
+        AND teacher_user_id = $3
+        AND ended_at IS NULL
+      ORDER BY started_at DESC, id DESC
+      LIMIT 1
+    `;
+    const existingResult = await client.query(existingSql, [
+      data.study_session_id,
+      data.student_user_id,
+      data.teacher_user_id,
+    ]);
+
+    let consultationId = existingResult.rows[0]?.id;
+
+    if (!consultationId) {
+      const contextSql = `
+        SELECT
+          ss.session_id,
+          COALESCE(mg.title, ss.micro_goal, ss.title, 'Study consultation') AS topic,
+          COALESCE(mg.description, ss.micro_goal, ss.title, 'Clarify the current study task.') AS question_text,
+          COALESCE(NULLIF(work.evidence_text, ''), 'No uploaded workings yet.') AS student_attempt_text
+        FROM StudySession ss
+        INNER JOIN SessionMember sm
+          ON sm.session_id = ss.session_id
+          AND sm.user_id = $2
+          AND sm.left_at IS NULL
+        INNER JOIN SessionMember teacher_member
+          ON teacher_member.session_id = ss.session_id
+          AND teacher_member.user_id = $3
+          AND teacher_member.left_at IS NULL
+        INNER JOIN "User" teacher ON teacher.user_id = $3
+        LEFT JOIN LATERAL (
+          SELECT id, title, description
+          FROM micro_goals
+          WHERE study_session_id = ss.session_id
+          ORDER BY
+            CASE status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+            queue_position ASC,
+            id ASC
+          LIMIT 1
+        ) mg ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT string_agg(
+            CASE
+              WHEN w.content_type = 'equation' THEN w.text_content
+              ELSE COALESCE(w.text_content, 'Uploaded evidence')
+            END,
+            E'\n'
+            ORDER BY w.created_at ASC, w.id ASC
+          ) AS evidence_text
+          FROM micro_goal_progress mgp
+          INNER JOIN micro_goal_workings w ON w.micro_goal_progress_id = mgp.id
+          WHERE mgp.micro_goal_id = mg.id
+            AND mgp.user_id = $2
+        ) work ON TRUE
+        WHERE ss.session_id = $1
+      `;
+      const contextResult = await client.query(contextSql, [
+        data.study_session_id,
+        data.student_user_id,
+        data.teacher_user_id,
+      ]);
+      const context = contextResult.rows[0];
+
+      if (!context) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      const insertSql = `
+        INSERT INTO consultation_sessions (
+          study_session_id,
+          student_user_id,
+          teacher_user_id,
+          topic,
+          question_text,
+          student_attempt_text,
+          status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 'active')
+        RETURNING id
+      `;
+      const insertResult = await client.query(insertSql, [
+        data.study_session_id,
+        data.student_user_id,
+        data.teacher_user_id,
+        context.topic,
+        context.question_text,
+        context.student_attempt_text,
+      ]);
+      consultationId = insertResult.rows[0].id;
+    }
+
+    const updatedMembers = await updateMemberStatusesInTransaction(
+      client,
+      data.study_session_id,
+      [data.student_user_id, data.teacher_user_id],
+      'in_consultation',
+    );
+    if (updatedMembers.length < 2) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const consultation = await selectConsultationDetails(
+      client,
+      data.study_session_id,
+      consultationId,
+    );
+    await client.query('COMMIT');
+    return consultation;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports.finishConsultation = async function finishConsultation(data) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const finishSql = `
+      UPDATE consultation_sessions
+      SET status = 'completed',
+          teacher_direction = COALESCE(NULLIF($3, ''), teacher_direction),
+          ended_at = COALESCE(ended_at, CURRENT_TIMESTAMP)
+      WHERE study_session_id = $1
+        AND id = $2
+        AND ended_at IS NULL
+      RETURNING id, student_user_id, teacher_user_id
+    `;
+    const finishResult = await client.query(finishSql, [
+      data.study_session_id,
+      data.consultation_session_id,
+      data.teacher_direction,
+    ]);
+
+    if (!finishResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const finishedConsultation = finishResult.rows[0];
+    await updateMemberStatusesInTransaction(
+      client,
+      data.study_session_id,
+      [finishedConsultation.student_user_id, finishedConsultation.teacher_user_id],
+      'focus',
+    );
+
+    const hasReflection =
+      data.teacher_direction ||
+      data.student_understood !== null ||
+      (data.summary_checklist || []).length ||
+      data.additional_notes;
+    if (hasReflection) {
+      await client.query(
+        `
+          INSERT INTO consultation_reflections (
+            consultation_session_id,
+            submitted_by_user_id,
+            student_understood,
+            summary_checklist_json,
+            additional_notes
+          )
+          VALUES ($1, $2, $3, $4::jsonb, $5)
+        `,
+        [
+          data.consultation_session_id,
+          data.submitted_by_user_id,
+          data.student_understood,
+          JSON.stringify(data.summary_checklist || []),
+          data.additional_notes || null,
+        ],
+      );
+    }
+
+    const consultation = await selectConsultationDetails(
+      client,
+      data.study_session_id,
+      data.consultation_session_id,
+    );
+    const reviewNotification = await insertNotification(client, {
+      user_id: consultation.teacher_user_id,
+      title: 'Consultation ended',
+      message: `Add a direction or next step for ${consultation.student_name || 'the student'}.`,
+      type: 'info',
+      nav_target: 'study-session',
+    });
+
+    await client.query('COMMIT');
+    return { ...consultation, review_notification: reviewNotification };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports.saveConsultationReview = async function saveConsultationReview(data) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const updateResult = await client.query(
+      `
+        UPDATE consultation_sessions
+        SET teacher_direction = $3
+        WHERE study_session_id = $1
+          AND id = $2
+        RETURNING id
+      `,
+      [data.study_session_id, data.consultation_session_id, data.teacher_direction],
+    );
+
+    if (!updateResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query(
+      `
+        INSERT INTO consultation_reflections (
+          consultation_session_id,
+          submitted_by_user_id,
+          student_understood,
+          summary_checklist_json,
+          additional_notes
+        )
+        VALUES ($1, $2, NULL, $3::jsonb, NULL)
+      `,
+      [
+        data.consultation_session_id,
+        data.submitted_by_user_id,
+        JSON.stringify(data.summary_checklist || []),
+      ],
+    );
+
+    const consultation = await selectConsultationDetails(
+      client,
+      data.study_session_id,
+      data.consultation_session_id,
+    );
+    const studentNotification = await insertNotification(client, {
+      user_id: consultation.student_user_id,
+      title: 'Direction / next step',
+      message: data.teacher_direction,
+      type: 'success',
+      nav_target: 'study-session',
+    });
+
+    await client.query('COMMIT');
+    return { ...consultation, student_notification: studentNotification };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 module.exports.selectQueuedMicroGoals = async function selectQueuedMicroGoals(
@@ -518,7 +928,7 @@ module.exports.updateMicroGoalProgress = async function updateMicroGoalProgress(
 };
 
 module.exports.updateMemberStatus = async function updateMemberStatus(data) {
-  const normalizedStatus = data.status === 'focusing' ? 'focus' : data.status;
+  const normalizedStatus = normalizeMemberStatus(data.status);
   if (!allowedMemberStatuses.has(normalizedStatus)) return null;
 
   const client = await pool.connect();

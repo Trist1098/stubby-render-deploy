@@ -39,13 +39,13 @@ DROP TABLE IF EXISTS CalendarEvent;
 DROP TABLE IF EXISTS Notification;
 DROP TABLE IF EXISTS ChatMessage;
 DROP TABLE IF EXISTS ConversationMember;
+DROP TABLE IF EXISTS micro_goal_ai_checks CASCADE;
 DROP TABLE IF EXISTS micro_goal_workings CASCADE;
 DROP TABLE IF EXISTS micro_goal_progress CASCADE;
 DROP TABLE IF EXISTS micro_goals CASCADE;
 DROP TABLE IF EXISTS status_events CASCADE;
 DROP TABLE IF EXISTS consultation_reflections CASCADE;
 DROP TABLE IF EXISTS consultation_notes CASCADE;
-DROP TABLE IF EXISTS consultation_messages CASCADE;
 DROP TABLE IF EXISTS consultation_sessions CASCADE;
 DROP TABLE IF EXISTS SessionReflection;
 DROP TABLE IF EXISTS SessionMember;
@@ -421,16 +421,6 @@ CREATE TABLE consultation_sessions (
     FOREIGN KEY (teacher_user_id)  REFERENCES "User"(user_id) ON DELETE SET NULL
 );
 
-CREATE TABLE consultation_messages (
-    id                      SERIAL PRIMARY KEY,
-    consultation_session_id INT NOT NULL,
-    sender_user_id          INT NOT NULL,
-    message_text            TEXT NOT NULL,
-    sent_at                 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (consultation_session_id) REFERENCES consultation_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
-);
-
 CREATE TABLE consultation_notes (
     id                      SERIAL PRIMARY KEY,
     consultation_session_id INT NOT NULL,
@@ -499,4 +489,24 @@ CREATE TABLE micro_goal_workings (
     image_url              VARCHAR(500),
     created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (micro_goal_progress_id) REFERENCES micro_goal_progress(id) ON DELETE CASCADE
+);
+
+CREATE TABLE micro_goal_ai_checks (
+    id                SERIAL PRIMARY KEY,
+    study_session_id  INT NOT NULL,
+    micro_goal_id     INT NOT NULL,
+    user_id           INT NOT NULL,
+    equation_text     TEXT,
+    file_name         VARCHAR(255),
+    file_type         VARCHAR(50),
+    feedback_status   VARCHAR(50) NOT NULL,
+    summary           TEXT NOT NULL,
+    strengths         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    issues            JSONB NOT NULL DEFAULT '[]'::jsonb,
+    next_step         TEXT,
+    confidence        VARCHAR(20),
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (micro_goal_id)    REFERENCES micro_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
 );

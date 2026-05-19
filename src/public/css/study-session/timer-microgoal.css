@@ -83,12 +83,20 @@
 
 .micro-goal-form {
   display: grid;
-  grid-template-columns: 1fr auto;
   gap: 8px;
   margin-top: 10px;
 }
 
-.micro-goal-form input {
+.micro-goal-form label {
+  display: grid;
+  gap: 5px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.micro-goal-form input,
+.micro-goal-form textarea {
   min-width: 0;
   border: 1px solid #d8dee8;
   border-radius: 10px;
@@ -96,7 +104,12 @@
   font-size: 0.84rem;
 }
 
+.micro-goal-form textarea {
+  resize: vertical;
+}
+
 .micro-goal-form button {
+  justify-self: end;
   border: 0;
   border-radius: 10px;
   padding: 8px 12px;

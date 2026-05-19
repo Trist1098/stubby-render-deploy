@@ -9,16 +9,19 @@ const parseId = (value) => {
 };
 
 const getTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '');
-const docxMimeType =
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const docxMimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 const isTxtFile = (file) =>
   /\.txt$/i.test(file.originalname) &&
-  (!file.mimetype || file.mimetype === 'text/plain' || file.mimetype === 'application/octet-stream');
+  (!file.mimetype ||
+    file.mimetype === 'text/plain' ||
+    file.mimetype === 'application/octet-stream');
 
 const isDocxFile = (file) =>
   /\.docx$/i.test(file.originalname) &&
-  (!file.mimetype || file.mimetype === docxMimeType || file.mimetype === 'application/octet-stream');
+  (!file.mimetype ||
+    file.mimetype === docxMimeType ||
+    file.mimetype === 'application/octet-stream');
 
 const getWorkCheckFile = async (file) => {
   if (!file) return {};
@@ -39,6 +42,9 @@ const getWorkCheckFile = async (file) => {
   }
   return {};
 };
+
+const getStringList = (value) =>
+  Array.isArray(value) ? value.map(getTrimmedString).filter(Boolean) : [];
 
 module.exports.getSession = async function getSession(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
@@ -63,45 +69,22 @@ module.exports.getSession = async function getSession(req, res, next) {
   }
 };
 
-module.exports.getMembers = async function getMembers(req, res, next) {
-  const sessionId = parseId(req.params.sessionId);
-  if (!sessionId) return badReq(res, 'Valid session id is required');
-
-  try {
-    const microGoal = await model.selectCurrentMicroGoal(sessionId);
-    const members = await model.selectSessionMembers(sessionId, microGoal?.id);
-    return ok(res, members);
-  } catch (error) {
-    return next(error);
-  }
-};
-
-module.exports.getMicroGoals = async function getMicroGoals(req, res, next) {
-  const sessionId = parseId(req.params.sessionId);
-  if (!sessionId) return badReq(res, 'Valid session id is required');
-
-  try {
-    const goals = await model.selectMicroGoalsBySessionId(sessionId);
-    return ok(res, goals);
-  } catch (error) {
-    return next(error);
-  }
-};
-
 module.exports.addMicroGoal = async function addMicroGoal(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
   const title = getTrimmedString(req.body.title);
+  const description = getTrimmedString(req.body.description);
   const createdByUserId = parseId(req.body.created_by_user_id);
 
   if (!sessionId) return badReq(res, 'Valid session id is required');
   if (!title) return badReq(res, 'Micro-goal title is required');
+  if (!description) return badReq(res, 'Question or task is required');
 
   try {
     const goal = await model.insertMicroGoal({
       study_session_id: sessionId,
       created_by_user_id: createdByUserId,
       title,
-      description: req.body.description,
+      description,
     });
 
     if (!goal) return notFound(res, 'Study session not found');
@@ -165,7 +148,10 @@ module.exports.checkMicroGoalWork = async function checkMicroGoalWork(req, res, 
   if (!microGoalId) return badReq(res, 'Valid micro-goal id is required');
   if (!userId) return badReq(res, 'Valid user id is required');
   if (!equationText && !req.file) {
-    return badReq(res, 'Add written equations, a .txt file, or a Word .docx file before checking work');
+    return badReq(
+      res,
+      'Add written equations, a .txt file, or a Word .docx file before checking work',
+    );
   }
 
   try {
@@ -221,6 +207,92 @@ module.exports.getMicroGoalWorkChecks = async function getMicroGoalWorkChecks(re
     });
 
     return ok(res, feedback);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.startConsultation = async function startConsultation(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const studentUserId = parseId(req.body.student_user_id);
+  const teacherUserId = parseId(req.body.teacher_user_id);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!studentUserId) return badReq(res, 'Valid student user id is required');
+  if (!teacherUserId) return badReq(res, 'Valid teacher user id is required');
+  if (studentUserId === teacherUserId) {
+    return badReq(res, 'Consultation requires two different users');
+  }
+
+  try {
+    const consultation = await model.startConsultation({
+      study_session_id: sessionId,
+      student_user_id: studentUserId,
+      teacher_user_id: teacherUserId,
+    });
+
+    if (!consultation) return notFound(res, 'Study session member or teacher not found');
+    return created(res, consultation);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.finishConsultation = async function finishConsultation(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const consultationId = parseId(req.params.consultationId);
+  const submittedByUserId = parseId(req.body.submitted_by_user_id);
+  const teacherDirection = getTrimmedString(req.body.teacher_direction);
+  const additionalNotes = getTrimmedString(req.body.additional_notes);
+  const summaryChecklist = getStringList(req.body.summary_checklist);
+  const studentUnderstood =
+    typeof req.body.student_understood === 'boolean' ? req.body.student_understood : null;
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!consultationId) return badReq(res, 'Valid consultation id is required');
+  if (!submittedByUserId) return badReq(res, 'Valid submitter user id is required');
+
+  try {
+    const consultation = await model.finishConsultation({
+      study_session_id: sessionId,
+      consultation_session_id: consultationId,
+      submitted_by_user_id: submittedByUserId,
+      teacher_direction: teacherDirection,
+      student_understood: studentUnderstood,
+      summary_checklist: summaryChecklist,
+      additional_notes: additionalNotes,
+    });
+
+    if (!consultation) return notFound(res, 'Open consultation not found');
+    return ok(res, consultation);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.saveConsultationReview = async function saveConsultationReview(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const consultationId = parseId(req.params.consultationId);
+  const submittedByUserId = parseId(req.body.submitted_by_user_id);
+  const teacherDirection = getTrimmedString(req.body.teacher_direction);
+  const summaryChecklist = getStringList(req.body.summary_checklist);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!consultationId) return badReq(res, 'Valid consultation id is required');
+  if (!submittedByUserId) return badReq(res, 'Valid submitter user id is required');
+  if (!teacherDirection) return badReq(res, 'Direction or next step is required');
+
+  try {
+    const consultation = await model.saveConsultationReview({
+      study_session_id: sessionId,
+      consultation_session_id: consultationId,
+      submitted_by_user_id: submittedByUserId,
+      teacher_direction: teacherDirection,
+      summary_checklist: summaryChecklist,
+    });
+
+    if (!consultation) return notFound(res, 'Consultation not found');
+    return ok(res, consultation);
   } catch (error) {
     return next(error);
   }

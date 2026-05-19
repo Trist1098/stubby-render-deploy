@@ -300,7 +300,7 @@ const messages = [
 
 const sessions = [
   {h: 2, title:'BED Project Sprint', goal:'Finish Tutorial Q1-Q3', dur:3600, focus:2700, brk:900, status:'completed'},
-  {h: 2, title:'FOP2 Exam Prep', goal:'Review Chapter 5-7', dur:5400, focus:4500, brk:900, status:'active'}
+  {h: 2, title:'FOP2 Exam Prep', goal:'Complete the Mathematics Textbook Q1', dur:5400, focus:4500, brk:900, status:'active'}
 ];
 
 const sessMembers = [
@@ -310,7 +310,7 @@ const sessMembers = [
 ];
 
 const microGoals = [
-  { sid: 2, u: 2, title: 'Finish Tutorial Q1-Q3', desc: 'Complete the active FOP2 revision target.', pos: 1, st: 'active' }
+  { sid: 2, u: 2, title: 'Complete the Mathematics Textbook Q1', desc: '12 x 96 / 12', pos: 1, st: 'active' }
 ];
 
 const microGoalProgress = [
