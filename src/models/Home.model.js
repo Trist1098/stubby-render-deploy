@@ -54,7 +54,11 @@ const allowedColors = ['primary', 'success', 'warning', 'danger', 'info', 'secon
 
 const cloneEvent = (event) => ({ ...event });
 
-const getCalendarEvents = () => Promise.resolve(calendarEvents.map(cloneEvent));
+// Return only events that are not marked as goalCompleted so completed goals
+// are removed from the main calendar view.
+const getCalendarEvents = () => Promise.resolve(
+  calendarEvents.filter((event) => !event.goalCompleted).map(cloneEvent)
+);
 
 const getCalendarEventById = (id) => {
   const event = calendarEvents.find((item) => item.id === id);
