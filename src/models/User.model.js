@@ -60,3 +60,14 @@ module.exports.updateProfilePicture = async function updateProfilePicture(data) 
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows[0];
 };
+
+module.exports.selectByUserId = async function selectByUserId(data) {
+    const SQLSTATEMENT = `
+        SELECT *
+        FROM "User"
+        WHERE user_id = $1
+    `;
+    const VALUES = [data.userId];
+    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+    return rows[0];
+};

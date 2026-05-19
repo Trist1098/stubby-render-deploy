@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const profileDiplomaEl = document.getElementById('profile-diploma');
     const profileInstitutionEl = document.getElementById('profile-institution');
     const profileAboutEl = document.getElementById('profile-about-text');
+    const profileTitleEl = document.getElementById('profile-title');
     const profileFriendsList = document.getElementById('profile-friends-list');
     const profileBadgesList = document.getElementById('profile-badges-list');
     const profileActions = document.querySelector('.profile-action-buttons');
@@ -119,6 +120,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isOwnProfile = !friendId || (currentUserId && currentUserId.toString() === friendId);
     if (profileActions && isOwnProfile) {
         profileActions.style.display = 'none';
+    }
+
+    if (profileTitleEl) {
+        profileTitleEl.textContent = isOwnProfile ? 'My Profile' : 'Friend Profile';
     }
 
     const profilePicUrl = pageUserData?.profile_pic;
@@ -303,6 +308,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? `/api/friend/${friendId}`
             : '/api/friend';
 
+        // Load the friend list for the current page.
+        // If viewing a friend's profile, request that friend's connections.
         const friends = await fetchJson(friendsEndpoint);
         if (!friends || friends.length === 0) {
             profileFriendsList.innerHTML = '<div class="text-secondary">No friends found.</div>';

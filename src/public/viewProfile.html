@@ -74,7 +74,7 @@
     <!-- MAIN -->
     <main class="container py-4">
 
-        <h2 class="fw-bold mb-4">Friend Profile</h2>
+         <h2 id="profile-title" class="fw-bold mb-4">Friend Profile</h2>
         <div class="row g-4">
 
             <!-- LEFT -->
@@ -195,11 +195,15 @@
                 <!-- FRIENDS -->
                 <div class="sidebar-card">
 
-                    <h5 class="fw-bold mb-4">
+                    <h5 class="fw-bold mb-2">
                         Friends
                     </h5>
 
-                    <div id="profile-friends-list" class="d-flex flex-column gap-3 text-secondary">
+                    <p class="text-secondary small mb-4">
+                        Viewing this user's connections.
+                    </p>
+
+                    <div id="profile-friends-list" class="d-flex flex-column text-secondary">
                         Loading friends...
                     </div>
                 </div>

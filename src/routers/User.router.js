@@ -13,5 +13,6 @@ router.post("/login", userController.login, bcryptMiddleware.comparePassword, jw
 router.post("/register", bcryptMiddleware.hashPassword, userController.register, jwtMiddleware.generateToken, jwtMiddleware.sendToken);
 router.put("/onboarding", jwtMiddleware.verifyToken, userController.completeOnboarding);
 router.post('/profile-picture', jwtMiddleware.verifyToken, upload.single('profilePic'), userController.uploadProfilePicture);
+router.get('/viewProfile/:friendId', jwtMiddleware.verifyToken, userController.viewProfile);
 
 module.exports = router;

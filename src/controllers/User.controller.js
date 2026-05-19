@@ -1,4 +1,4 @@
-const { selectByUsernameOrEmail, create, updateProfile, updateProfilePicture, enrollModules } = require('../models/User.model');
+const { selectByUsernameOrEmail, create, updateProfile, updateProfilePicture, enrollModules, selectByUserId } = require('../models/User.model');
 
 module.exports.login = async (req, res, next) => {
     const identifier = req.body.username || req.body.identifier;
@@ -107,6 +107,26 @@ module.exports.uploadProfilePicture = async (req, res, next) => {
             profile_pic: profilePicPath,
             user: updatedUser,
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.viewProfile = async (req, res, next) => {
+    const friendId = req.params.friendId;
+    if (!friendId) {
+        return res.status(400).json({ error: 'Friend ID is required' });
+    }
+
+    try {
+        const friendData = await selectByUserId({ userId: friendId });
+        if (!friendData) {
+            return res.status(404).json({ error: 'Friend profile not found' });
+        }
+        if (friendData.password) {
+            delete friendData.password;
+        }
+        res.status(200).json(friendData);
     } catch (error) {
         next(error);
     }
