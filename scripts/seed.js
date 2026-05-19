@@ -186,7 +186,8 @@ const users = [
   { username: 'ethan', email: 'ethan@nyp.edu.sg', name: 'Ethan Koh', inst: 2, dip: 1, year: 2, bio: 'NYP student passionate about web dev.', is_online: false, has_completed_quiz: false },
   { username: 'ava', email: 'ava@np.edu.sg', name: 'Ava Low', inst: 3, dip: 1, year: 3, bio: 'NP final year student.', is_online: false, has_completed_quiz: false },
   { username: 'lucas', email: 'lucas@rp.edu.sg', name: 'Lucas Teo', inst: 4, dip: 1, year: 1, bio: 'RP student learning back-end.', is_online: false, has_completed_quiz: false },
-  { username: 'mia', email: 'mia@tp.edu.sg', name: 'Mia Lim', inst: 5, dip: 1, year: 2, bio: 'TP student interested in UI/UX.', is_online: false, has_completed_quiz: false }
+  { username: 'mia', email: 'mia@tp.edu.sg', name: 'Mia Lim', inst: 5, dip: 1, year: 2, bio: 'TP student interested in UI/UX.', is_online: false, has_completed_quiz: false },
+  { username: 'sam', email: 'sam@ichat.sp.edu.sg', name: 'Sam', inst: 1, dip: 1, year: 2, bio: 'Study session member taking a short break.', is_online: true, has_completed_quiz: true }
 ];
 
 const matchRequests = [
@@ -309,15 +310,23 @@ const messages = [
 
 const sessions = [
   {h: 2, title:'BED Project Sprint', goal:'Finish Tutorial Q1-Q3', dur:3600, focus:2700, brk:900, status:'completed'},
-  {h: 2, title:'FOP2 Exam Prep', goal:'Review Chapter 5-7', dur:5400, focus:4500, brk:900, status:'active'}
+  {h: 2, title:'FOP2 Exam Prep', goal:'Complete the Mathematics Textbook Q1', dur:5400, focus:4500, brk:900, status:'active'}
 ];
 
 const sessMembers = [
-  {sid: 1, u: 3, st: 'focus', timer: 2700, prog: 80},
-  {sid: 1, u: 2, st: 'focus', timer: 2400, prog: 60},
-  {sid: 1, u: 5, st: 'break', timer: 900, prog: 45},
-  {sid: 2, u: 3, st: 'focus', timer: 4500, prog: 0},
-  {sid: 2, u: 4, st: 'focus', timer: 4500, prog: 0}
+  { sid: 2, u: 2, st: 'focus', timer: 1080, prog: 60 },
+  { sid: 2, u: 12, st: 'need_help', timer: 230, prog: 75 },
+  { sid: 2, u: 22, st: 'break', timer: 360, prog: 45 }
+];
+
+const microGoals = [
+  { sid: 2, u: 2, title: 'Complete the Mathematics Textbook Q1', desc: '12 x 96 / 12', pos: 1, st: 'active' }
+];
+
+const microGoalProgress = [
+  { goal: 1, u: 2, progress: 60, completed: false },
+  { goal: 1, u: 12, progress: 75, completed: false },
+  { goal: 1, u: 22, progress: 45, completed: false }
 ];
 
 const events = [
@@ -494,7 +503,21 @@ async function seed() {
     await pool.query(`INSERT INTO SessionMember ("session_id","user_id","status","status_timer","progress") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 20. CalendarEvent
+  // 20a. Micro-goals
+  if (microGoals.length > 0) {
+    const placeholders = microGoals.map((_, i) => `($${i*6+1},$${i*6+2},$${i*6+3},$${i*6+4},$${i*6+5},$${i*6+6}, CASE WHEN $${i*6+6}::VARCHAR = 'active' THEN CURRENT_TIMESTAMP ELSE NULL END)`).join(', ');
+    const values = microGoals.flatMap(mg => [mg.sid, mg.u, mg.title, mg.desc, mg.pos, mg.st]);
+    await pool.query(`INSERT INTO micro_goals ("study_session_id","created_by_user_id","title","description","queue_position","status","activated_at") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+  }
+
+  // 20b. Micro-goal progress
+  if (microGoalProgress.length > 0) {
+    const placeholders = microGoalProgress.map((_, i) => `($${i*4+1},$${i*4+2},$${i*4+3},$${i*4+4})`).join(', ');
+    const values = microGoalProgress.flatMap(mgp => [mgp.goal, mgp.u, mgp.progress, mgp.completed]);
+    await pool.query(`INSERT INTO micro_goal_progress ("micro_goal_id","user_id","progress_percent","is_completed") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+  }
+
+  // 21. CalendarEvent
   if (events.length > 0) {
     const placeholders = events.map((_, i) => `($${i*12+1},$${i*12+2},$${i*12+3},$${i*12+4},$${i*12+5},$${i*12+6},$${i*12+7},$${i*12+8},$${i*12+9},$${i*12+10},$${i*12+11},$${i*12+12})`).join(', ');
     const values = events.flatMap(e => [e.cr, e.req || null, e.mod || null, e.name, e.topic, e.loc, e.is_online || false, e.meeting_url || null, e.date, e.time, e.type, e.notes || '']);
