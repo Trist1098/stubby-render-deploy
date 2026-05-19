@@ -78,20 +78,13 @@ module.exports.selectActiveMatches = async function selectActiveMatches(data) {
 
 module.exports.insertRequest = async function insertRequest(data) {
     const SQLSTATEMENT = `
-        INSERT INTO MatchRequest (sender_id, receiver_id, module_id, topic, time_slot, location, type, message) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO MatchRequest (sender_id, receiver_id, module_id, topic, time_slot, location, is_online, type, co_participants, message) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING request_id
     `;
-    const VALUES = [data.sender_id, data.receiver_id, data.module_id, data.topic, data.time_slot, data.location, data.type, data.message];
+    const VALUES = [data.sender_id, data.receiver_id, data.module_id, data.topic, data.time_slot, data.location, data.is_online || false, data.type, data.co_participants || [], data.message];
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows[0];
-};
-
-module.exports.selectById = async function selectById(data) {
-    const SQLSTATEMENT = 'SELECT * FROM MatchRequest WHERE request_id = $1';
-    const VALUES = [data.id];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows;
 };
 
 module.exports.updateStatus = async function updateStatus(data) {
@@ -103,7 +96,7 @@ module.exports.updateStatus = async function updateStatus(data) {
 
 module.exports.autoMatch = async function autoMatch(data) {
     const SQLSTATEMENT = `
-        SELECT u.user_id, u.name, u.username, u.profile_pic, u.year,
+        SELECT u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online,
         d.name as diploma_name, d.code as diploma_code,
         (
             SELECT STRING_AGG(m.code, ', ') 
@@ -124,7 +117,7 @@ module.exports.autoMatch = async function autoMatch(data) {
         JOIN UserModule um2 ON u.user_id = um2.user_id
         JOIN UserModule um1 ON um1.module_id = um2.module_id
         WHERE um1.user_id = $1 AND u.user_id != $2
-        GROUP BY u.user_id, u.name, u.username, u.profile_pic, u.year, d.name, d.code
+        GROUP BY u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online, d.name, d.code
         ORDER BY shared_modules_count DESC
         LIMIT 5
     `;
@@ -151,7 +144,14 @@ module.exports.selectById = async function selectById(data) {
         SELECT mr.*, 
             u1.name as sender_name, u1.username as sender_username, u1.profile_pic as sender_pic,
             u2.name as receiver_name, u2.username as receiver_username, u2.profile_pic as receiver_pic,
-            m.code as module_code, m.name as module_name
+            m.code as module_code, m.name as module_name,
+            COALESCE(
+                (
+                    SELECT json_agg(u3.name) 
+                    FROM "User" u3 
+                    WHERE u3.user_id = ANY(mr.co_participants)
+                ), '[]'::json
+            ) as co_participant_names
         FROM MatchRequest mr
         JOIN "User" u1 ON mr.sender_id = u1.user_id
         JOIN "User" u2 ON mr.receiver_id = u2.user_id

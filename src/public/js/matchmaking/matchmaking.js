@@ -198,8 +198,8 @@ document.addEventListener("DOMContentLoaded", function () {
             const m = masterModules.find(um => um.module_id == mid);
             const code = m ? m.code : mid;
             container.innerHTML += `
-                <div class="form-check ps-2">
-                    <input class="form-check-input d-none" type="checkbox" value="${mid}" id="filterMod${mid}" onchange="filterStudents()">
+                <div class="d-inline-block ps-1 mb-1">
+                    <input class="btn-check" type="checkbox" value="${mid}" id="filterMod${mid}" onchange="filterStudents()">
                     <label class="btn btn-outline-primary btn-sm rounded-pill px-2 py-1 smaller fw-bold" for="filterMod${mid}">
                         ${code}
                     </label>
@@ -210,7 +210,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function loadModules() {
         try {
-            const res = await fetch('/api/modules', {
+            const res = await fetch('/api/usermodules', {
                 headers: { 'Authorization': `Bearer ${auth.getToken()}` }
             });
             if (res.status === 401) return auth.logout();
@@ -422,7 +422,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const selectedModuleIds = Array.from(document.querySelectorAll('#filterModules input:checked')).map(el => el.value);
 
         let filtered = allStudents.filter(s => {
-            const matchesSearch = s.name.toLowerCase().includes(search);
+            const matchesSearch = s.name.toLowerCase().includes(search) || (s.modules && s.modules.toLowerCase().includes(search));
             const matchesOnline = !onlineOnly || s.is_online;
             const studentModules = (s.modules || '').split(',').map(m => m.trim());
             const matchesModules = selectedModuleIds.length === 0 || selectedModuleIds.some(mid => {
@@ -610,6 +610,20 @@ document.addEventListener("DOMContentLoaded", function () {
             matchForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 sendMatchRequest();
+            });
+        }
+
+        const reqTypeEl = document.getElementById('reqType');
+        const coPartGroupEl = document.getElementById('coParticipantsGroup');
+        if (reqTypeEl && coPartGroupEl) {
+            reqTypeEl.addEventListener('change', (e) => {
+                if (e.target.value === 'group') {
+                    coPartGroupEl.classList.remove('d-none');
+                } else {
+                    coPartGroupEl.classList.add('d-none');
+                    const select = document.getElementById('reqCoParticipants');
+                    if (select) Array.from(select.options).forEach(opt => opt.selected = false);
+                }
             });
         }
 
@@ -860,7 +874,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 <div class="mb-4 text-center position-relative">
                     <span class="badge ${req.status === 'Accepted' ? 'bg-success' : req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled' ? 'bg-danger' : 'bg-warning text-dark'} rounded-pill position-absolute top-0 end-0">${req.status}</span>
                     <div class="avatar-wrap mx-auto mb-3" style="width: 80px; height: 80px;">
-                        ${isReceived ? (req.sender_pic ? `<img src="${req.sender_pic}" class="rounded-circle w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`) : (req.receiver_pic ? `<img src="${req.receiver_pic}" class="rounded-circle w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`)}
+                        ${isReceived ? (req.sender_pic ? `<img src="${req.sender_pic}" class="w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`) : (req.receiver_pic ? `<img src="${req.receiver_pic}" class="w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`)}
                     </div>
                     <h4 class="fw-black mb-1">${otherName}</h4>
                     <p class="text-muted mb-0 small">"${req.topic || 'Study Request'}"</p>
@@ -916,6 +930,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         <label class="smaller text-muted fw-bold uppercase d-block">LOCATION</label>
                         <span class="fw-bold"><i class="fas fa-map-marker-alt me-2 text-primary"></i>${req.location}</span>
                     </div>
+                    ${req.type === 'group' ? `
+                    <div class="col-12">
+                        <label class="smaller text-muted fw-bold uppercase d-block">CO-PARTICIPANTS</label>
+                        <span class="fw-bold"><i class="fas fa-user-friends me-2 text-primary"></i>${req.co_participant_names && req.co_participant_names.length > 0 ? req.co_participant_names.join(', ') : 'No participants invited'}</span>
+                    </div>
+                    ` : ''}
                     <div class="col-12">
                         <label class="smaller text-muted fw-bold uppercase d-block">PERSONAL NOTE</label>
                         <div class="p-3 bg-light rounded-4 small italic">
@@ -972,13 +992,19 @@ document.addEventListener("DOMContentLoaded", function () {
         const moduleSelect = document.getElementById('reqModuleId');
         moduleSelect.innerHTML = '<option value="">Loading shared modules...</option>';
         
+        const coPartGroup = document.getElementById('coParticipantsGroup');
+        const coPartSelect = document.getElementById('reqCoParticipants');
+        if (coPartGroup) coPartGroup.classList.add('d-none');
+        if (coPartSelect) coPartSelect.innerHTML = '<option value="">Loading friends...</option>';
+        
         const modal = new bootstrap.Modal(document.getElementById('matchModal'));
         modal.show();
 
         try {
-            const res = await fetch(`/api/matches/shared/${id}`, {
-                headers: { 'Authorization': `Bearer ${auth.getToken()}` }
-            });
+            const [res, friendsRes] = await Promise.all([
+                fetch(`/api/matches/shared/${id}`, { headers: { 'Authorization': `Bearer ${auth.getToken()}` } }),
+                fetch(`/api/friends`, { headers: { 'Authorization': `Bearer ${auth.getToken()}` } })
+            ]);
             if (res.ok) {
                 const shared = await res.json();
                 moduleSelect.innerHTML = '<option value="">Select a module...</option>';
@@ -990,8 +1016,20 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                 }
             }
+            if (friendsRes.ok && coPartSelect) {
+                const friends = await friendsRes.json();
+                coPartSelect.innerHTML = '';
+                if (friends.length === 0) {
+                    coPartSelect.innerHTML = '<option value="" disabled>No friends available to invite</option>';
+                } else {
+                    friends.forEach(f => {
+                        coPartSelect.innerHTML += `<option value="${f.friend_id || f.user_id}">${f.username || f.name}</option>`;
+                    });
+                }
+            }
         } catch (err) {
             moduleSelect.innerHTML = '<option value="">Error loading modules</option>';
+            if (coPartSelect) coPartSelect.innerHTML = '<option value="">Error loading friends</option>';
         }
     };
 
@@ -1046,6 +1084,22 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    window.toggleReqOnline = function() {
+        const isOnline = document.getElementById('reqIsOnline')?.checked || false;
+        const locInput = document.getElementById('reqLocation');
+        const locStar = document.getElementById('reqLocationStar');
+        if (!locInput) return;
+        if (isOnline) {
+            locInput.value = 'Online';
+            locInput.disabled = true;
+            if (locStar) locStar.style.display = 'none';
+        } else {
+            locInput.value = '';
+            locInput.disabled = false;
+            if (locStar) locStar.style.display = 'inline';
+        }
+    };
+
     async function sendMatchRequest() {
         clearMatchErrors();
 
@@ -1055,8 +1109,11 @@ document.addEventListener("DOMContentLoaded", function () {
         const type = document.getElementById('reqType').value;
         const date = document.getElementById('reqDate').value;
         const time = document.getElementById('reqTime').value;
-        const location = document.getElementById('reqLocation').value;
+        const isOnline = document.getElementById('reqIsOnline')?.checked || false;
+        const location = isOnline ? 'Online' : document.getElementById('reqLocation').value;
         const note = document.getElementById('reqNote').value;
+        const coPartSelect = document.getElementById('reqCoParticipants');
+        const coParticipants = coPartSelect && type === 'group' ? Array.from(coPartSelect.selectedOptions).map(opt => parseInt(opt.value)) : [];
 
         let hasError = false;
 
@@ -1085,7 +1142,7 @@ document.addEventListener("DOMContentLoaded", function () {
             hasError = true;
         }
 
-        if (!location) {
+        if (!isOnline && !location) {
             showMatchError('errLocation', "Location is required.");
             hasError = true;
         }
@@ -1105,7 +1162,9 @@ document.addEventListener("DOMContentLoaded", function () {
             topic: topic,
             time_slot: `${date} ${time}`,
             location: location,
+            is_online: isOnline || location.toLowerCase().includes('online') || location.toLowerCase().includes('zoom') || location.toLowerCase().includes('teams') || location.toLowerCase().includes('meet'),
             type: type,
+            co_participants: coParticipants,
             message: note
         };
 
