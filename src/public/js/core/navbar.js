@@ -34,15 +34,22 @@ document.addEventListener("DOMContentLoaded", function () {
                     </button>
                     <div class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
                         <a href="profile.html" class="dropdown-item py-2"><i class="fas fa-user-circle me-2"></i> Profile</a>
+                        <button id="settingsButton" class="dropdown-item py-2"><i class="fas fa-cog me-2"></i> Settings</button>
                         <hr class="dropdown-divider">
                         <button id="logoutButton" class="dropdown-item py-2 text-danger"><i class="fas fa-sign-out-alt me-2"></i> Logout</button>
                     </div>
                 </div>
             `;
 
-            document.getElementById("logoutButton")?.addEventListener("click", () => {
-                localStorage.clear();
-                window.location.href = "login.html";
+            document.getElementById("settingsButton")?.addEventListener("click", () => {
+                if (window.location.pathname.endsWith('profile.html')) {
+                    const settingsModalEl = document.getElementById('profileSettingsModal');
+                    if (settingsModalEl && typeof bootstrap !== 'undefined') {
+                        bootstrap.Modal.getOrCreateInstance(settingsModalEl).show();
+                        return;
+                    }
+                }
+                window.location.href = 'profile.html?settings=true';
             });
         } else {
             authLink.innerHTML = `<a href="login.html" class="btn btn-primary px-4">Login</a>`;
@@ -51,4 +58,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Run the render function
     renderNavbar();
+
+    // Listen for custom user update event to re-render navbar without full page reload
+    window.addEventListener("userUpdated", () => {
+        try {
+            const userJson = localStorage.getItem("user");
+            user = userJson ? JSON.parse(userJson) : null;
+        } catch (err) {
+            console.error("Corrupted user data in localStorage");
+        }
+        renderNavbar();
+    });
 });

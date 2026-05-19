@@ -253,3 +253,183 @@ header {
 #profile-title {
     letter-spacing: 0.01em;
 }
+
+.modal-backdrop.show {
+    background-color: rgba(0,0,0,0.95) !important;
+}
+
+.theme-dark {
+    background: #020617;
+    color: #e2e8f0;
+}
+
+.theme-dark header {
+    background: #020617;
+    border-color: #334155;
+}
+
+.theme-dark .premium-card,
+.theme-dark .sidebar-card,
+.theme-dark .modal-content {
+    background: #0f172a;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+.theme-dark .nav-link,
+.theme-dark .btn-white,
+.theme-dark .profile-subtitle,
+.theme-dark p,
+.theme-dark small,
+.theme-dark .text-secondary {
+    color: #cbd5e1 !important;
+}
+
+.theme-dark .btn-primary {
+    background-color: #818cf8;
+}
+
+.theme-dark .btn-white {
+    background: #111827;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+.profile-settings-section + .profile-settings-section {
+    margin-top: 1.5rem;
+}
+
+.user-avatar-sm {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.user-avatar-lg {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    min-height: 60px;
+    flex-shrink: 0;
+}
+
+/* Premium Light Theme Settings Modal */
+#profileSettingsModal .modal-content {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text-dark) !important;
+}
+
+#profileSettingsModal .modal-header {
+    background: #ffffff !important;
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 1.5rem;
+}
+
+#profileSettingsModal .modal-header .modal-title {
+    color: var(--navy) !important;
+    font-weight: 700;
+}
+
+#profileSettingsModal .modal-header .btn-close {
+    filter: none;
+    opacity: 0.8;
+}
+
+#profileSettingsModal .modal-body {
+    background-color: #ffffff !important;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem; /* Small gap between types of settings */
+}
+
+#profileSettingsModal .profile-settings-section {
+    background-color: #f8fafc !important; /* Soft slate grey card background */
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 0 !important;
+    margin-bottom: 1rem; /* Small gap between types of settings */
+}
+
+#profileSettingsModal .profile-settings-section h5 {
+    color: var(--navy) !important;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 1.25rem !important;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.75rem;
+}
+
+#profileSettingsModal .form-label {
+    color: #64748b !important;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+#profileSettingsModal .form-control,
+#profileSettingsModal .form-select {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-dark) !important;
+    border-radius: 6px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.95rem;
+}
+
+#profileSettingsModal .form-control:focus,
+#profileSettingsModal .form-select:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+    outline: none;
+}
+
+#profileSettingsModal .form-control::placeholder {
+    color: #94a3b8 !important;
+}
+
+#profileSettingsModal .modal-footer {
+    background-color: #ffffff !important;
+    border-top: 1px solid var(--border);
+    padding: 1.25rem 1.5rem;
+}
+
+#profileSettingsModal .modal-footer .btn-white {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    color: #64748b !important;
+    border-radius: 999px; /* Pill-shaped */
+    padding: 0.5rem 1.5rem;
+    font-weight: 600;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+#profileSettingsModal .modal-footer .btn-white:hover {
+    background-color: #f1f5f9 !important;
+    color: var(--text-dark) !important;
+}
+
+#profileSettingsModal .modal-footer .btn-primary {
+    background-color: var(--primary) !important;
+    border: none !important;
+    color: #ffffff !important;
+    border-radius: 999px; /* Pill-shaped */
+    padding: 0.5rem 1.5rem;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+#profileSettingsModal .modal-footer .btn-primary:hover {
+    background-color: var(--primary-hover) !important;
+}
+
+#profileSettingsModal .form-check-label {
+    color: var(--text-dark) !important;
+    font-weight: 600;
+}
