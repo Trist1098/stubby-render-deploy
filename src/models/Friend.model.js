@@ -19,7 +19,9 @@ module.exports.getFriendsForUser = async function getFriendsForUser(userId) {
 
 module.exports.deleteFriendship = async function deleteFriendship(data) {
   const SQLSTATEMENT = `
-        DELETE FROM Friendship WHERE user_id = $1 AND friend_id = $2
+        DELETE FROM Friendship
+        WHERE (user_id = $1 AND friend_id = $2)
+           OR (user_id = $2 AND friend_id = $1)
     `;
   const VALUES = [data.userId, data.friendId];
   const result = await pool.query(SQLSTATEMENT, VALUES);

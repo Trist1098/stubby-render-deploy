@@ -113,12 +113,12 @@
 
                         <div class="d-flex gap-3 mt-4 flex-wrap profile-action-buttons">
 
-                            <button class="btn btn-primary">
-                                Connect
+                            <button id="profile-connect-button" class="btn btn-primary">
+                                Add Friend
                             </button>
 
 
-                            <button class="btn btn-white">
+                            <button id="profile-message-button" class="btn btn-white">
                                 Message
                             </button>
 
@@ -141,6 +141,21 @@
                         and collaborative study environments.
                     </p>
 
+                </div>
+
+                <div class="profile-info-row border-top pt-3 mt-3 d-flex flex-wrap gap-3 text-secondary">
+                    <div class="profile-info-chip d-flex align-items-center gap-2">
+                        <i class="fas fa-university text-primary"></i>
+                        <span id="profile-about-institution">No institution selected</span>
+                    </div>
+                    <div class="profile-info-chip d-flex align-items-center gap-2">
+                        <i class="fas fa-graduation-cap text-primary"></i>
+                        <span id="profile-about-diploma">No diploma selected</span>
+                    </div>
+                    <div class="profile-info-chip d-flex align-items-center gap-2">
+                        <i class="fas fa-calendar-alt text-primary"></i>
+                        <span id="profile-about-year">Year 1</span>
+                    </div>
                 </div>
 
 
@@ -202,6 +217,8 @@
                     <p class="text-secondary small mb-4">
                         Viewing this user's connections.
                     </p>
+
+                    <input id="friend-search-input" class="form-control mb-3" type="search" placeholder="Search friends">
 
                     <div id="profile-friends-list" class="d-flex flex-column text-secondary">
                         Loading friends...
