@@ -1,4 +1,4 @@
-const { selectByUsernameOrEmail, create, updateProfile, enrollModules } = require('../models/User.model');
+const { selectByUsernameOrEmail, create, updateProfile, updateProfilePicture, enrollModules, selectByUserId } = require('../models/User.model');
 
 module.exports.login = async (req, res, next) => {
     const identifier = req.body.username || req.body.identifier;
@@ -75,6 +75,102 @@ module.exports.completeOnboarding = async (req, res, next) => {
             user: updatedUser 
         });
     } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.uploadProfilePicture = async (req, res, next) => {
+    const userId = res.locals.userId;
+
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'Profile picture file is required' });
+    }
+
+    try {
+        const profilePicPath = `/uploads/${req.file.filename}`;
+        const updatedUser = await updateProfilePicture({ userId, profilePic: profilePicPath });
+
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (updatedUser.password) {
+            delete updatedUser.password;
+        }
+
+        res.status(200).json({
+            message: 'Profile picture uploaded successfully',
+            profile_pic: profilePicPath,
+            user: updatedUser,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.viewProfile = async (req, res, next) => {
+    const friendId = req.params.friendId;
+    if (!friendId) {
+        return res.status(400).json({ error: 'Friend ID is required' });
+    }
+
+    try {
+        const friendData = await selectByUserId({ userId: friendId });
+        if (!friendData) {
+            return res.status(404).json({ error: 'Friend profile not found' });
+        }
+        if (friendData.password) {
+            delete friendData.password;
+        }
+        res.status(200).json(friendData);
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports.updateProfile = async (req, res, next) => {
+    const userId = res.locals.userId;
+    const { name, email, institutionId, diplomaId, year, profileText } = req.body;
+
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!name || !email) {
+        return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    try {
+        const updatedUser = await updateProfile({
+            userId,
+            name,
+            email,
+            institutionId,
+            diplomaId,
+            year,
+            profileText
+        });
+
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (updatedUser.password) {
+            delete updatedUser.password;
+        }
+
+        res.status(200).json({
+            message: 'Profile updated successfully',
+            user: updatedUser,
+        });
+    } catch (error) {
+        if (error.code === '23505') { // PostgreSQL unique violation error code
+            return res.status(400).json({ error: 'Email is already taken' });
+        }
         next(error);
     }
 };
