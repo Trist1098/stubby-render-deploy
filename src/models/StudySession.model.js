@@ -1,5 +1,11 @@
 const pool = require('./db');
 
+const makeError = (status, message) => {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+};
+
 const selectSessionOwnerForUpdate = async (client, sessionId) => {
   const SQLSTATEMENT = `
         SELECT host_id AS created_by_user_id
@@ -32,7 +38,7 @@ const insertMicroGoalRow = async (client, data) => {
             status,
             activated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6 = 'active' THEN CURRENT_TIMESTAMP ELSE NULL END)
+        VALUES ($1, $2, $3, $4, $5, $6::varchar, CASE WHEN $6::text = 'active' THEN CURRENT_TIMESTAMP ELSE NULL END)
         RETURNING id, study_session_id, created_by_user_id, title, description, queue_position,
                   status, activated_at, completed_at
     `;
@@ -194,6 +200,33 @@ const mapConsultationSession = (row, reflection = null) => ({
   reflection,
 });
 
+const mapConsultationWorkspace = (row) => {
+  if (!row) {
+    return {
+      whiteboard_strokes: [],
+      scratchpad_text: '',
+      updated_at: null,
+      updated_by_user_id: null,
+    };
+  }
+
+  let workspace;
+  try {
+    workspace = JSON.parse(row.note_text || '{}');
+  } catch {
+    workspace = { scratchpad_text: row.note_text || '' };
+  }
+
+  return {
+    whiteboard_strokes: Array.isArray(workspace.whiteboard_strokes)
+      ? workspace.whiteboard_strokes
+      : [],
+    scratchpad_text: typeof workspace.scratchpad_text === 'string' ? workspace.scratchpad_text : '',
+    updated_at: row.updated_at,
+    updated_by_user_id: row.user_id,
+  };
+};
+
 const selectConsultationDetails = async (executor, sessionId, consultationId) => {
   const sessionSql = `
     SELECT
@@ -241,6 +274,32 @@ const selectConsultationDetails = async (executor, sessionId, consultationId) =>
   const reflectionResult = await executor.query(reflectionSql, [consultationId]);
 
   return mapConsultationSession(session, mapConsultationReflection(reflectionResult.rows[0]));
+};
+
+module.exports.selectConsultationWorkspace = async function selectConsultationWorkspace(data) {
+  const consultationResult = await pool.query(
+    `
+      SELECT id
+      FROM consultation_sessions
+      WHERE study_session_id = $1
+        AND id = $2
+    `,
+    [data.study_session_id, data.consultation_session_id],
+  );
+  if (!consultationResult.rows[0]) return null;
+
+  const noteResult = await pool.query(
+    `
+      SELECT user_id, note_text, updated_at
+      FROM consultation_notes
+      WHERE consultation_session_id = $1
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1
+    `,
+    [data.consultation_session_id],
+  );
+
+  return mapConsultationWorkspace(noteResult.rows[0]);
 };
 
 module.exports.selectSessionById = async function selectSessionById(sessionId) {
@@ -306,7 +365,7 @@ module.exports.selectSessionMembers = async function selectSessionMembers(
       LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')) AS status,
       u.name,
       u.profile_pic AS avatar_url,
-      LEAST(GREATEST(COALESCE(mgp.progress_percent, sm.progress, 0), 0), 100) AS progress_percent
+      LEAST(GREATEST(COALESCE(mgp.progress_percent, 0), 0), 100) AS progress_percent
     FROM SessionMember sm
     INNER JOIN StudySession ss ON ss.session_id = sm.session_id
     INNER JOIN "User" u ON u.user_id = sm.user_id
@@ -329,20 +388,25 @@ module.exports.selectSessionMembers = async function selectSessionMembers(
   const goalSql = `
     SELECT
       mgp.id AS progress_id,
-      mgp.user_id,
+      sm.user_id,
       mg.id,
       mg.title,
       mg.description,
       mg.status,
       mg.queue_position,
-      mgp.progress_percent,
-      mgp.is_completed,
-      mgp.completed_at
-    FROM micro_goal_progress mgp
-    INNER JOIN micro_goals mg ON mg.id = mgp.micro_goal_id
-    WHERE mg.study_session_id = $1
+      COALESCE(mgp.progress_percent, 0) AS progress_percent,
+      (COALESCE(mgp.is_completed, FALSE) OR mg.status = 'completed') AS is_completed,
+      COALESCE(mgp.completed_at, mg.completed_at) AS completed_at
+    FROM SessionMember sm
+    INNER JOIN micro_goals mg ON mg.study_session_id = sm.session_id
+    LEFT JOIN micro_goal_progress mgp
+      ON mgp.micro_goal_id = mg.id
+      AND mgp.user_id = sm.user_id
+    WHERE sm.session_id = $1
+      AND sm.left_at IS NULL
+      AND (mg.id = $2 OR mgp.id IS NOT NULL)
     ORDER BY
-      CASE WHEN mg.id = $2 THEN 0 WHEN mgp.is_completed THEN 1 ELSE 2 END,
+      CASE WHEN mg.id = $2 THEN 0 WHEN COALESCE(mgp.is_completed, FALSE) THEN 1 ELSE 2 END,
       mg.queue_position ASC,
       mg.id ASC
   `;
@@ -684,6 +748,75 @@ module.exports.finishConsultation = async function finishConsultation(data) {
   }
 };
 
+module.exports.saveConsultationWorkspace = async function saveConsultationWorkspace(data) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const consultationResult = await client.query(
+      `
+        SELECT id
+        FROM consultation_sessions
+        WHERE study_session_id = $1
+          AND id = $2
+          AND $3 IN (student_user_id, teacher_user_id)
+      `,
+      [data.study_session_id, data.consultation_session_id, data.user_id],
+    );
+
+    if (!consultationResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const payload = JSON.stringify({
+      whiteboard_strokes: Array.isArray(data.whiteboard_strokes) ? data.whiteboard_strokes : [],
+      scratchpad_text: data.scratchpad_text || '',
+    });
+    const existingResult = await client.query(
+      `
+        SELECT id
+        FROM consultation_notes
+        WHERE consultation_session_id = $1
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [data.consultation_session_id],
+    );
+
+    const noteResult = existingResult.rows[0]
+      ? await client.query(
+          `
+            UPDATE consultation_notes
+            SET user_id = $2,
+                note_text = $3,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING user_id, note_text, updated_at
+          `,
+          [existingResult.rows[0].id, data.user_id, payload],
+        )
+      : await client.query(
+          `
+            INSERT INTO consultation_notes (consultation_session_id, user_id, note_text)
+            VALUES ($1, $2, $3)
+            RETURNING user_id, note_text, updated_at
+          `,
+          [data.consultation_session_id, data.user_id, payload],
+        );
+
+    await client.query('COMMIT');
+    return mapConsultationWorkspace(noteResult.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports.saveConsultationReview = async function saveConsultationReview(data) {
   const client = await pool.connect();
 
@@ -797,10 +930,32 @@ module.exports.insertMicroGoal = async function insertMicroGoal(data) {
 };
 
 module.exports.insertMicroGoalEvidence = async function insertMicroGoalEvidence(data) {
+  const evidenceItems = Array.isArray(data.evidence_items) ? data.evidence_items : [data];
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
+
+    const goalResult = await client.query(
+      `
+        SELECT id, status
+        FROM micro_goals
+        WHERE id = $1
+          AND study_session_id = $2
+        FOR UPDATE
+      `,
+      [data.micro_goal_id, data.study_session_id],
+    );
+    const goal = goalResult.rows[0];
+
+    if (!goal) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    if (goal.status !== 'active') {
+      throw makeError(409, 'This micro-goal is already completed or not active');
+    }
 
     const progressSql = `
       INSERT INTO micro_goal_progress (
@@ -810,10 +965,7 @@ module.exports.insertMicroGoalEvidence = async function insertMicroGoalEvidence(
         is_completed,
         completed_at
       )
-      SELECT id, $2, 100, TRUE, CURRENT_TIMESTAMP
-      FROM micro_goals
-      WHERE id = $1
-        AND study_session_id = $3
+      VALUES ($1, $2, 100, TRUE, CURRENT_TIMESTAMP)
       ON CONFLICT (micro_goal_id, user_id) DO UPDATE
       SET progress_percent = GREATEST(micro_goal_progress.progress_percent, 100),
           is_completed = TRUE,
@@ -824,7 +976,6 @@ module.exports.insertMicroGoalEvidence = async function insertMicroGoalEvidence(
     const progressResult = await client.query(progressSql, [
       data.micro_goal_id,
       data.user_id,
-      data.study_session_id,
     ]);
     const progress = progressResult.rows[0];
 
@@ -843,25 +994,71 @@ module.exports.insertMicroGoalEvidence = async function insertMicroGoalEvidence(
       VALUES ($1, $2, $3, $4)
       RETURNING id, content_type, text_content, image_url AS url, created_at
     `;
-    const evidenceResult = await client.query(evidenceSql, [
-      progress.id,
-      data.content_type,
-      data.text_content || null,
-      data.image_url || null,
-    ]);
+    const savedEvidence = [];
+
+    for (const evidenceItem of evidenceItems) {
+      const evidenceResult = await client.query(evidenceSql, [
+        progress.id,
+        evidenceItem.content_type,
+        evidenceItem.text_content || null,
+        evidenceItem.image_url || null,
+      ]);
+      savedEvidence.push(evidenceResult.rows[0]);
+    }
 
     await client.query(
       `
-        UPDATE SessionMember
-        SET progress = GREATEST(progress, 100)
-        WHERE session_id = $1
-          AND user_id = $2
+        UPDATE micro_goals
+        SET status = 'completed',
+            completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
+        WHERE id = $1
       `,
-      [data.study_session_id, data.user_id],
+      [data.micro_goal_id],
     );
 
+    const nextGoalResult = await client.query(
+      `
+        UPDATE micro_goals
+        SET status = 'active',
+            activated_at = COALESCE(activated_at, CURRENT_TIMESTAMP)
+        WHERE id = (
+          SELECT id
+          FROM micro_goals
+          WHERE study_session_id = $1
+            AND status = 'pending'
+          ORDER BY queue_position ASC, id ASC
+          LIMIT 1
+        )
+        RETURNING id
+      `,
+      [data.study_session_id],
+    );
+
+    if (nextGoalResult.rows.length) {
+      await client.query(
+        `
+          UPDATE SessionMember
+          SET progress = 0
+          WHERE session_id = $1
+            AND left_at IS NULL
+        `,
+        [data.study_session_id],
+      );
+    } else {
+      await client.query(
+        `
+          UPDATE SessionMember
+          SET progress = GREATEST(progress, 100)
+          WHERE session_id = $1
+            AND user_id = $2
+            AND left_at IS NULL
+        `,
+        [data.study_session_id, data.user_id],
+      );
+    }
+
     await client.query('COMMIT');
-    return evidenceResult.rows[0];
+    return savedEvidence;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -887,6 +1084,7 @@ module.exports.updateMicroGoalProgress = async function updateMicroGoalProgress(
       FROM micro_goals
       WHERE id = $1
         AND study_session_id = $3
+        AND status = 'active'
       ON CONFLICT (micro_goal_id, user_id) DO UPDATE
       SET progress_percent = EXCLUDED.progress_percent,
           updated_at = CURRENT_TIMESTAMP

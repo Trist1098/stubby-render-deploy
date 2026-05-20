@@ -92,10 +92,28 @@ const evaluateArithmeticExpression = (value) => {
 
 const formatNumber = (value) => Number(value.toFixed(8)).toString();
 
-const submittedTextIncludesResult = (submittedText, result) => {
+const extractNumbers = (value) => String(value).match(/-?\d+(?:\.\d+)?/g) || [];
+
+const submittedTextHasFinalResult = (submittedText, result) => {
+  const text = String(submittedText);
   const expected = formatNumber(result);
-  const matches = String(submittedText).match(/-?\d+(?:\.\d+)?/g) || [];
-  return matches.some((item) => formatNumber(Number(item)) === expected);
+  const explicitAnswerMatches = [
+    ...text.matchAll(/(?:final\s+answer|answer|result)\s*(?:is|=|:)?\s*(-?\d+(?:\.\d+)?)/gi),
+  ];
+
+  if (explicitAnswerMatches.length) {
+    const finalAnswer = explicitAnswerMatches.at(-1)[1];
+    return formatNumber(Number(finalAnswer)) === expected;
+  }
+
+  if (text.includes('=')) {
+    const tailNumbers = extractNumbers(text.split('=').at(-1));
+    const finalNumber = tailNumbers.at(-1);
+    return finalNumber ? formatNumber(Number(finalNumber)) === expected : false;
+  }
+
+  const finalNumber = extractNumbers(text).at(-1);
+  return finalNumber ? formatNumber(Number(finalNumber)) === expected : false;
 };
 
 const arithmeticFeedback = ({ microGoal, equationText, fileText }) => {
@@ -106,7 +124,7 @@ const arithmeticFeedback = ({ microGoal, equationText, fileText }) => {
   const submittedText = [equationText, fileText].map(trimText).filter(Boolean).join('\n');
   const expectedText = formatNumber(expectedResult);
 
-  if (submittedTextIncludesResult(submittedText, expectedResult)) {
+  if (submittedTextHasFinalResult(submittedText, expectedResult)) {
     return {
       status: 'looks_good',
       summary: `The submitted work reaches the correct result: ${expectedText}.`,

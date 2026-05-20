@@ -9,7 +9,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="css/study-session.css?v=consultation-rounded" />
+    <link rel="stylesheet" href="css/study-session.css?v=shared-workspace" />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap"
       rel="stylesheet"
@@ -303,6 +303,68 @@
           <div id="consultationWorkspaceStatus" class="consultation-workspace-status"></div>
           <div id="consultationContext" class="consultation-context"></div>
 
+          <section class="consultation-shared-workspace" aria-label="Shared consultation workspace">
+            <div class="workspace-tabs" role="tablist" aria-label="Consultation workspace tools">
+              <button
+                id="whiteboardTabButton"
+                class="workspace-tab active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="whiteboardPanel"
+                data-workspace-tab="whiteboard"
+              >
+                Whiteboard
+              </button>
+              <button
+                id="scratchpadTabButton"
+                class="workspace-tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="scratchpadPanel"
+                data-workspace-tab="scratchpad"
+              >
+                Scratchpad
+              </button>
+            </div>
+            <div class="workspace-panel-shell">
+              <section
+                id="whiteboardPanel"
+                class="workspace-panel"
+                role="tabpanel"
+                aria-labelledby="whiteboardTabButton"
+                data-workspace-panel="whiteboard"
+              >
+                <div class="whiteboard-toolbar">
+                  <button id="clearWhiteboardButton" class="workspace-tool-button" type="button">
+                    <i class="fas fa-eraser"></i>
+                    <span>Clear</span>
+                  </button>
+                </div>
+                <canvas
+                  id="consultationWhiteboard"
+                  class="consultation-whiteboard"
+                  aria-label="Shared whiteboard"
+                ></canvas>
+              </section>
+              <section
+                id="scratchpadPanel"
+                class="workspace-panel d-none"
+                role="tabpanel"
+                aria-labelledby="scratchpadTabButton"
+                data-workspace-panel="scratchpad"
+              >
+                <textarea
+                  id="consultationScratchpad"
+                  class="consultation-scratchpad"
+                  rows="10"
+                  placeholder="Write working steps, equations, or explanation"
+                ></textarea>
+              </section>
+            </div>
+          </section>
+
           <div class="consultation-session-actions">
             <button id="finishConsultationButton" class="btn btn-primary" type="button">
               End Consultation
@@ -471,6 +533,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
-    <script src="js/sessionPage/studySessionPage.js?v=consultation-workspace"></script>
+    <script src="js/sessionPage/studySessionPage.js?v=shared-workspace"></script>
   </body>
 </html>

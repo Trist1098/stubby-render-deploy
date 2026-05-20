@@ -24,6 +24,17 @@ let activeProgressDrag = null;
 let membersExpanded = false;
 let pendingConsultationMemberId = null;
 let activeConsultation = null;
+let activeWorkspaceTab = 'whiteboard';
+let whiteboardContext = null;
+let whiteboardDrawing = false;
+let whiteboardStrokes = [];
+let whiteboardCurrentStroke = null;
+let workspaceSaveTimer = null;
+let workspacePollTimer = null;
+let workspaceSaveInFlight = false;
+let workspaceRevision = 0;
+let savedWorkspaceRevision = 0;
+let lastWorkspaceUpdatedAt = null;
 const page = {};
 
 function bindPage() {
@@ -42,6 +53,9 @@ function bindPage() {
   page.consultationWorkspaceModal = byId('consultationWorkspaceModal');
   page.consultationWorkspaceStatus = byId('consultationWorkspaceStatus');
   page.consultationWorkspaceTitle = byId('consultationWorkspaceTitle');
+  page.consultationWhiteboard = byId('consultationWhiteboard');
+  page.consultationScratchpad = byId('consultationScratchpad');
+  page.clearWhiteboardButton = byId('clearWhiteboardButton');
   page.goalDescription = byId('currentGoalDescription');
   page.goalForm = byId('microGoalForm');
   page.goalInput = byId('microGoalTitleInput');
@@ -66,6 +80,8 @@ function bindPage() {
   page.statusProgressFill = byId('statusProgressFill');
   page.statusProgressHint = byId('statusProgressHint');
   page.statusProgressText = byId('statusProgressText');
+  page.workspacePanels = Array.from(document.querySelectorAll('[data-workspace-panel]'));
+  page.workspaceTabButtons = Array.from(document.querySelectorAll('[data-workspace-tab]'));
 }
 
 function byId(id) {
@@ -217,6 +233,10 @@ function consultationFinishUrl(consultationId) {
 
 function consultationReviewUrl(consultationId) {
   return `${consultationUrl(consultationId)}/review`;
+}
+
+function consultationWorkspaceUrl(consultationId) {
+  return `${consultationUrl(consultationId)}/workspace`;
 }
 
 function renderPage() {
@@ -402,7 +422,12 @@ function getCurrentMemberGoal() {
 
 function renderMemberGoals(memberData) {
   const goals = memberData.goals || [];
-  const activeGoals = goals.filter((item) => item.is_current || item.status === 'active');
+  const activeGoals = goals.filter(
+    (item) =>
+      (item.is_current || item.status === 'active') &&
+      !item.is_completed &&
+      item.status !== 'completed',
+  );
   const completedGoals = goals.filter((item) => item.is_completed || item.status === 'completed');
   const canCheckWork = Number(memberData.user_id) === CURRENT_USER_ID;
 
@@ -427,6 +452,8 @@ function renderGoalSection(title, goals, memberData, emptyMessage, allowUpload =
 
 function renderGoalCard(goalData, memberData, allowUpload) {
   const progress = asPercent(goalData.progress_percent);
+  const canSubmit =
+    allowUpload && goalData.status === 'active' && !goalData.is_completed && progress < 100;
   const taskText = goalData.description
     ? `<p class="member-goal-task"><span>Question/task</span>${escapeHtml(goalData.description)}</p>`
     : '';
@@ -445,7 +472,7 @@ function renderGoalCard(goalData, memberData, allowUpload) {
         <span style="width: ${progress}%"></span>
       </div>
       <div class="member-evidence-list">${renderEvidenceList(goalData.evidence || [])}</div>
-      ${allowUpload ? renderEvidenceForm(memberData, goalData) : ''}
+      ${canSubmit ? renderEvidenceForm(memberData, goalData) : ''}
     </article>
   `;
 }
@@ -872,8 +899,8 @@ async function submitMemberGoalEvidence(form) {
     formData.set('user_id', form.dataset.userId);
     await postForm(`${apiBase}/micro-goals/${form.dataset.goalId}/evidence`, formData);
     form.reset();
-    showMessage('Evidence submitted and micro-goal completed.', 'info');
     await loadSession();
+    showMessage('Evidence submitted. Moving to the next queued micro-goal.', 'info');
     openMemberGoalsModal(form.dataset.userId);
   } catch (error) {
     setWorkCheckError(form, error.message);
@@ -1085,6 +1112,7 @@ async function submitCompletionEvidence(event) {
     form.reset();
     showModal(page.completionModal, false);
     await loadSession();
+    showMessage('Micro-goal completed. Moving to the next queued micro-goal.', 'info');
   } catch (error) {
     showMessage(error.message, 'danger');
   }
@@ -1145,6 +1173,315 @@ function setConsultationStatus(text, isVisible = true) {
   page.consultationWorkspaceStatus.classList.toggle('is-visible', Boolean(isVisible && text));
 }
 
+function clampUnit(value) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return 0;
+  return Math.min(Math.max(numberValue, 0), 1);
+}
+
+function sanitizeWhiteboardStrokes(strokes) {
+  if (!Array.isArray(strokes)) return [];
+
+  return strokes
+    .map((stroke) => {
+      const points = Array.isArray(stroke?.points)
+        ? stroke.points
+            .map((point) => ({
+              x: clampUnit(point?.x),
+              y: clampUnit(point?.y),
+            }))
+            .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+        : [];
+      if (!points.length) return null;
+
+      const width = Number(stroke.width);
+      return {
+        color: /^#[0-9a-f]{6}$/i.test(stroke.color) ? stroke.color : '#111827',
+        width: Number.isFinite(width) ? Math.min(Math.max(width, 1), 12) : 3,
+        points,
+      };
+    })
+    .filter(Boolean);
+}
+
+function hasUnsavedWorkspaceChanges() {
+  return workspaceRevision > savedWorkspaceRevision;
+}
+
+function markWorkspaceDirty() {
+  workspaceRevision += 1;
+}
+
+function markWorkspaceClean(revision = workspaceRevision) {
+  savedWorkspaceRevision = Math.max(savedWorkspaceRevision, revision);
+}
+
+function resetConsultationWorkspaceState() {
+  window.clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer = null;
+  workspaceSaveInFlight = false;
+  workspaceRevision = 0;
+  savedWorkspaceRevision = 0;
+  lastWorkspaceUpdatedAt = null;
+  whiteboardDrawing = false;
+  whiteboardStrokes = [];
+  whiteboardCurrentStroke = null;
+  if (page.consultationScratchpad) page.consultationScratchpad.value = '';
+  switchWorkspaceTab('whiteboard');
+  resizeWhiteboardCanvas();
+}
+
+function switchWorkspaceTab(tabName) {
+  activeWorkspaceTab = tabName === 'scratchpad' ? 'scratchpad' : 'whiteboard';
+
+  page.workspaceTabButtons.forEach((button) => {
+    const isActive = button.dataset.workspaceTab === activeWorkspaceTab;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', String(isActive));
+  });
+
+  page.workspacePanels.forEach((panel) => {
+    panel.classList.toggle('d-none', panel.dataset.workspacePanel !== activeWorkspaceTab);
+  });
+
+  if (activeWorkspaceTab === 'whiteboard') scheduleWhiteboardResize();
+}
+
+function scheduleWhiteboardResize() {
+  window.requestAnimationFrame(resizeWhiteboardCanvas);
+  window.setTimeout(resizeWhiteboardCanvas, 120);
+}
+
+function whiteboardSize() {
+  const rect = page.consultationWhiteboard?.getBoundingClientRect();
+  return {
+    width: Math.max(1, Math.round(rect?.width || 1)),
+    height: Math.max(1, Math.round(rect?.height || 1)),
+  };
+}
+
+function resizeWhiteboardCanvas() {
+  const canvas = page.consultationWhiteboard;
+  if (!canvas) return;
+
+  const { width, height } = whiteboardSize();
+  const pixelRatio = window.devicePixelRatio || 1;
+  const nextWidth = Math.max(1, Math.round(width * pixelRatio));
+  const nextHeight = Math.max(1, Math.round(height * pixelRatio));
+
+  if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+    canvas.width = nextWidth;
+    canvas.height = nextHeight;
+  }
+
+  whiteboardContext = canvas.getContext('2d');
+  whiteboardContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  redrawWhiteboard();
+}
+
+function paintWhiteboardBackground() {
+  if (!whiteboardContext) return;
+  const { width, height } = whiteboardSize();
+  whiteboardContext.clearRect(0, 0, width, height);
+  whiteboardContext.fillStyle = '#ffffff';
+  whiteboardContext.fillRect(0, 0, width, height);
+}
+
+function drawWhiteboardStroke(stroke) {
+  if (!whiteboardContext || !stroke?.points?.length) return;
+
+  const { width, height } = whiteboardSize();
+  whiteboardContext.beginPath();
+  whiteboardContext.lineCap = 'round';
+  whiteboardContext.lineJoin = 'round';
+  whiteboardContext.strokeStyle = stroke.color || '#111827';
+  whiteboardContext.lineWidth = Number(stroke.width) || 3;
+
+  stroke.points.forEach((point, index) => {
+    const x = clampUnit(point.x) * width;
+    const y = clampUnit(point.y) * height;
+    if (index === 0) {
+      whiteboardContext.moveTo(x, y);
+      if (stroke.points.length === 1) whiteboardContext.lineTo(x + 0.1, y + 0.1);
+      return;
+    }
+    whiteboardContext.lineTo(x, y);
+  });
+
+  whiteboardContext.stroke();
+}
+
+function redrawWhiteboard() {
+  if (!whiteboardContext) return;
+  paintWhiteboardBackground();
+  whiteboardStrokes.forEach(drawWhiteboardStroke);
+  drawWhiteboardStroke(whiteboardCurrentStroke);
+}
+
+function getWhiteboardPoint(event) {
+  const rect = page.consultationWhiteboard.getBoundingClientRect();
+  return {
+    x: clampUnit((event.clientX - rect.left) / (rect.width || 1)),
+    y: clampUnit((event.clientY - rect.top) / (rect.height || 1)),
+  };
+}
+
+function shouldAddWhiteboardPoint(stroke, point) {
+  const previous = stroke.points[stroke.points.length - 1];
+  if (!previous) return true;
+  const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+  return distance > 0.003;
+}
+
+function startWhiteboardStroke(event) {
+  if (!activeConsultation || activeConsultation.ended_at) return;
+
+  event.preventDefault();
+  resizeWhiteboardCanvas();
+  whiteboardDrawing = true;
+  whiteboardCurrentStroke = {
+    color: '#111827',
+    width: 3,
+    points: [getWhiteboardPoint(event)],
+  };
+  page.consultationWhiteboard.setPointerCapture?.(event.pointerId);
+  redrawWhiteboard();
+}
+
+function moveWhiteboardStroke(event) {
+  if (!whiteboardDrawing || !whiteboardCurrentStroke) return;
+
+  event.preventDefault();
+  const point = getWhiteboardPoint(event);
+  if (!shouldAddWhiteboardPoint(whiteboardCurrentStroke, point)) return;
+  whiteboardCurrentStroke.points.push(point);
+  redrawWhiteboard();
+}
+
+function finishWhiteboardStroke(event) {
+  if (!whiteboardDrawing || !whiteboardCurrentStroke) return;
+
+  event?.preventDefault();
+  if (event?.clientX !== undefined) {
+    const point = getWhiteboardPoint(event);
+    if (shouldAddWhiteboardPoint(whiteboardCurrentStroke, point)) {
+      whiteboardCurrentStroke.points.push(point);
+    }
+  }
+
+  whiteboardDrawing = false;
+  if (
+    event?.pointerId !== undefined &&
+    page.consultationWhiteboard.hasPointerCapture?.(event.pointerId)
+  ) {
+    page.consultationWhiteboard.releasePointerCapture(event.pointerId);
+  }
+  whiteboardStrokes.push(whiteboardCurrentStroke);
+  whiteboardCurrentStroke = null;
+  markWorkspaceDirty();
+  scheduleConsultationWorkspaceSave();
+  redrawWhiteboard();
+}
+
+function clearWhiteboard() {
+  if (!activeConsultation || activeConsultation.ended_at) return;
+
+  whiteboardStrokes = [];
+  whiteboardCurrentStroke = null;
+  markWorkspaceDirty();
+  scheduleConsultationWorkspaceSave();
+  redrawWhiteboard();
+}
+
+function applyConsultationWorkspace(workspace) {
+  if (workspace?.updated_at && workspace.updated_at === lastWorkspaceUpdatedAt) return;
+
+  lastWorkspaceUpdatedAt = workspace?.updated_at || null;
+  whiteboardStrokes = sanitizeWhiteboardStrokes(workspace?.whiteboard_strokes);
+  whiteboardCurrentStroke = null;
+  if (page.consultationScratchpad) {
+    page.consultationScratchpad.value = workspace?.scratchpad_text || '';
+  }
+  workspaceRevision += 1;
+  markWorkspaceClean();
+  redrawWhiteboard();
+}
+
+async function loadConsultationWorkspace(options = {}) {
+  if (!activeConsultation?.id) return;
+  if (
+    !options.force &&
+    (whiteboardDrawing || workspaceSaveInFlight || hasUnsavedWorkspaceChanges())
+  ) {
+    return;
+  }
+
+  try {
+    const workspace = await getJson(consultationWorkspaceUrl(activeConsultation.id));
+    if (
+      !options.force &&
+      (whiteboardDrawing || workspaceSaveInFlight || hasUnsavedWorkspaceChanges())
+    ) {
+      return;
+    }
+    applyConsultationWorkspace(workspace);
+  } catch (error) {
+    if (!options.silent) setConsultationStatus(error.message);
+  }
+}
+
+async function saveConsultationWorkspace(options = {}) {
+  if (!activeConsultation?.id) return;
+  if (!options.force && !hasUnsavedWorkspaceChanges()) return;
+  if (workspaceSaveInFlight) {
+    scheduleConsultationWorkspaceSave();
+    return;
+  }
+
+  const revisionToSave = workspaceRevision;
+  workspaceSaveInFlight = true;
+  window.clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer = null;
+
+  try {
+    const workspace = await getJson(consultationWorkspaceUrl(activeConsultation.id), {
+      method: 'PATCH',
+      body: JSON.stringify({
+        user_id: CURRENT_USER_ID,
+        whiteboard_strokes: whiteboardStrokes,
+        scratchpad_text: page.consultationScratchpad?.value || '',
+      }),
+    });
+
+    lastWorkspaceUpdatedAt = workspace.updated_at || lastWorkspaceUpdatedAt;
+    markWorkspaceClean(revisionToSave);
+    if (hasUnsavedWorkspaceChanges()) scheduleConsultationWorkspaceSave();
+  } catch (error) {
+    if (!options.silent) setConsultationStatus(error.message);
+  } finally {
+    workspaceSaveInFlight = false;
+  }
+}
+
+function scheduleConsultationWorkspaceSave() {
+  window.clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer = window.setTimeout(() => {
+    saveConsultationWorkspace({ silent: true });
+  }, 700);
+}
+
+function startConsultationWorkspacePolling() {
+  window.clearInterval(workspacePollTimer);
+  workspacePollTimer = window.setInterval(() => {
+    loadConsultationWorkspace({ silent: true });
+  }, 5000);
+}
+
+function stopConsultationWorkspacePolling() {
+  window.clearInterval(workspacePollTimer);
+  workspacePollTimer = null;
+}
+
 function renderConsultationContext() {
   if (!activeConsultation) return;
 
@@ -1176,12 +1513,20 @@ function renderConsultationWorkspace() {
 
 function openConsultationWorkspace(consultation) {
   activeConsultation = consultation;
+  resetConsultationWorkspaceState();
   renderConsultationWorkspace();
   showModal(page.consultationWorkspaceModal, true);
+  window.requestAnimationFrame(() => {
+    scheduleWhiteboardResize();
+    loadConsultationWorkspace({ force: true, silent: true });
+    startConsultationWorkspacePolling();
+  });
   updateRejoinButton();
 }
 
 function closeConsultationWorkspace() {
+  saveConsultationWorkspace({ silent: true });
+  stopConsultationWorkspacePolling();
   showModal(page.consultationWorkspaceModal, false);
   updateRejoinButton();
 }
@@ -1295,6 +1640,7 @@ async function finishConsultation(event) {
   button.disabled = true;
 
   try {
+    await saveConsultationWorkspace({ force: true, silent: false });
     activeConsultation = await getJson(consultationFinishUrl(activeConsultation.id), {
       method: 'PATCH',
       body: JSON.stringify(payload),
@@ -1426,6 +1772,23 @@ document.addEventListener('DOMContentLoaded', () => {
   byId('confirmConsultationButton').addEventListener('click', startConsultation);
   byId('closeConsultationWorkspaceButton').addEventListener('click', closeConsultationWorkspace);
   byId('finishConsultationButton').addEventListener('click', finishConsultation);
+  page.workspaceTabButtons.forEach((button) => {
+    button.addEventListener('click', () => switchWorkspaceTab(button.dataset.workspaceTab));
+  });
+  page.consultationWhiteboard.addEventListener('pointerdown', startWhiteboardStroke);
+  page.consultationWhiteboard.addEventListener('pointermove', moveWhiteboardStroke);
+  page.consultationWhiteboard.addEventListener('pointerup', finishWhiteboardStroke);
+  page.consultationWhiteboard.addEventListener('pointercancel', finishWhiteboardStroke);
+  page.consultationScratchpad.addEventListener('input', () => {
+    markWorkspaceDirty();
+    scheduleConsultationWorkspaceSave();
+  });
+  page.clearWhiteboardButton.addEventListener('click', clearWhiteboard);
+  window.addEventListener('resize', () => {
+    if (!page.consultationWorkspaceModal.classList.contains('d-none')) {
+      resizeWhiteboardCanvas();
+    }
+  });
   page.rejoinConsultationButton.addEventListener('click', () =>
     openConsultationWorkspace(activeConsultation),
   );

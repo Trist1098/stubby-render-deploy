@@ -13,6 +13,14 @@ router.patch(
   '/:sessionId/consultations/:consultationId/review',
   studySessionController.saveConsultationReview,
 );
+router.get(
+  '/:sessionId/consultations/:consultationId/workspace',
+  studySessionController.getConsultationWorkspace,
+);
+router.patch(
+  '/:sessionId/consultations/:consultationId/workspace',
+  studySessionController.saveConsultationWorkspace,
+);
 router.post('/:sessionId/micro-goals', studySessionController.addMicroGoal);
 router.post(
   '/:sessionId/micro-goals/:microGoalId/evidence',
