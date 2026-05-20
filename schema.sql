@@ -301,8 +301,10 @@ CREATE TABLE ChatMessage (
     is_deleted      BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     edited_at       TIMESTAMP,
+    parent_message_id INT,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_message_id) REFERENCES ChatMessage(message_id) ON DELETE SET NULL
 );
 
 CREATE TABLE MessagePin (

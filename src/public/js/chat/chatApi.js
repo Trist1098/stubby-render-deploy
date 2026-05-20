@@ -40,6 +40,10 @@ export function unpinMessageRequest(conversationId, messageId) {
   return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/pin`, 'DELETE');
 }
 
+export function replyToMessageRequest(conversationId, parentMessageId, text) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${parentMessageId}/reply`, 'POST', { text });
+}
+
 export function addReactionRequest(conversationId, messageId, emoji) {
   return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, 'POST');
 }

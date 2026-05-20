@@ -1,4 +1,24 @@
-const { createConversation, getConversationsByUserId, getConversationById, checkFriendship, getFriends, isConversationMember, sendMessage, getMessagesByConversationId, pinMessage: pinMessageModel, unpinMessage: unpinMessageModel, getPinnedMessages: getPinnedMessagesModel, getMessageById, addMessageReaction, removeMessageReaction, deleteMessage: deleteMessageModel, editMessage: editMessageModel, uploadFile: uploadFileModel, uploadVoiceMessage: uploadVoiceMessageModel } = require('../models/Chat.model');
+const {
+  createConversation,
+  getConversationsByUserId,
+  getConversationById,
+  checkFriendship,
+  getFriends,
+  isConversationMember,
+  sendMessage,
+  getMessagesByConversationId,
+  pinMessage: pinMessageModel,
+  unpinMessage: unpinMessageModel,
+  getPinnedMessages: getPinnedMessagesModel,
+  getMessageById,
+  addMessageReaction,
+  removeMessageReaction,
+  deleteMessage: deleteMessageModel,
+  editMessage: editMessageModel,
+  uploadFile: uploadFileModel,
+  uploadVoiceMessage: uploadVoiceMessageModel,
+  replyToMessage: replyToMessageModel,
+} = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
   const userId = res.locals.userId;
@@ -323,6 +343,33 @@ module.exports.uploadFile = async (req, res, next) => {
       req.file.originalname,
       req.file.size,
     );
+    res.status(201).json(message);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.replyToMessage = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const parentMessageId = Number(req.params.messageId);
+  const text = typeof req.body.text === 'string' ? req.body.text.trim() : '';
+
+  if (!Number.isInteger(conversationId) || !Number.isInteger(parentMessageId)) {
+    return res.status(400).json({ message: 'Invalid id' });
+  }
+  if (!text) {
+    return res.status(400).json({ message: 'Message cannot be empty' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+
+    const parent = await getMessageById(conversationId, parentMessageId);
+    if (!parent) return res.status(404).json({ message: 'Message not found' });
+
+    const message = await replyToMessageModel(conversationId, userId, text, parentMessageId);
     res.status(201).json(message);
   } catch (error) {
     next(error);

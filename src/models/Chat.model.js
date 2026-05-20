@@ -143,6 +143,12 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
        cm.is_deleted,
        cm.created_at,
        cm.edited_at,
+       cm.parent_message_id,
+       pm.text          AS parent_text,
+       pm.file_name     AS parent_file_name,
+       pm.file_type     AS parent_file_type,
+       pm.is_deleted    AS parent_is_deleted,
+       pu.username      AS parent_sender_username,
        COALESCE(
          json_agg(
            json_build_object(
@@ -154,15 +160,48 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
        ) AS reactions
      FROM ChatMessage cm
      JOIN "User" u ON u.user_id = cm.sender_id
+     LEFT JOIN ChatMessage pm ON pm.message_id = cm.parent_message_id
+     LEFT JOIN "User" pu ON pu.user_id = pm.sender_id
      LEFT JOIN MessageReaction mr ON mr.message_id = cm.message_id
      WHERE cm.conversation_id = $1
-     GROUP BY cm.message_id, u.username
+     GROUP BY cm.message_id, u.user_id, pm.message_id, pu.user_id
      ORDER BY cm.created_at DESC
      LIMIT $2 OFFSET $3`,
     [conversationId, limit, offset]
   );
 
   return result.rows.reverse();
+};
+
+module.exports.replyToMessage = async (conversationId, senderId, text, parentMessageId) => {
+  const result = await pool.query(
+    `INSERT INTO ChatMessage (conversation_id, sender_id, text, parent_message_id)
+     VALUES ($1, $2, $3, $4)
+     RETURNING message_id, conversation_id, sender_id, text, parent_message_id, is_announcement, created_at`,
+    [conversationId, senderId, text, parentMessageId]
+  );
+  const message = result.rows[0];
+  const [senderResult, parentResult] = await Promise.all([
+    pool.query(`SELECT username FROM "User" WHERE user_id = $1`, [senderId]),
+    pool.query(
+      `SELECT cm.text, cm.file_name, cm.file_type, cm.is_deleted, u.username
+       FROM ChatMessage cm
+       JOIN "User" u ON u.user_id = cm.sender_id
+       WHERE cm.message_id = $1`,
+      [parentMessageId]
+    ),
+  ]);
+  const parent = parentResult.rows[0];
+  return {
+    ...message,
+    sender_username: senderResult.rows[0]?.username || 'Unknown user',
+    parent_text: parent?.text || null,
+    parent_file_name: parent?.file_name || null,
+    parent_file_type: parent?.file_type || null,
+    parent_is_deleted: parent?.is_deleted || false,
+    parent_sender_username: parent?.username || null,
+    reactions: [],
+  };
 };
 
 module.exports.pinMessage = async (messageId, conversationId) => {

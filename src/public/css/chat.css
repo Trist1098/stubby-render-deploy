@@ -479,6 +479,61 @@
   background: rgba(13, 110, 253, 0.12);
 }
 
+/* Reply quote inside message bubble */
+.msg-reply-quote {
+  border-left: 3px solid rgba(255, 255, 255, 0.5);
+  padding: 0.2rem 0.5rem;
+  margin-bottom: 0.4rem;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.message-row.received .msg-reply-quote {
+  border-left-color: #0d6efd;
+}
+
+.msg-reply-quote-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: 0.1rem;
+}
+
+.msg-reply-quote-text {
+  font-size: 0.75rem;
+}
+
+/* Reply bar above composer */
+.message-composer {
+  background: #fff;
+}
+
+.reply-bar {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* Copy toast */
+.copy-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #212529;
+  color: #fff;
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  z-index: 9999;
+  pointer-events: none;
+  animation: copyFadeInOut 1.5s ease forwards;
+}
+
+@keyframes copyFadeInOut {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Responsive */
 @media (max-width: 576px) {
   .chat-sidebar {
