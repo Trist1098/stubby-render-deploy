@@ -163,8 +163,15 @@
 
                     <h4 class="fw-bold mb-4">Badges</h4>
 
-                    <div id="profile-badges-list" class="d-flex flex-wrap gap-2">
-                        <span class="text-secondary">Loading badges...</span>
+                    <div class="badge-section-row">
+                        <button id="view-all-badges-btn" class="btn btn-sm btn-white" type="button">
+                            <i class="fas fa-award me-2"></i>
+                            View all Badges
+                        </button>
+
+                        <div id="profile-badges-list" class="d-flex flex-wrap gap-2">
+                            <span class="text-secondary">Loading badges...</span>
+                        </div>
                     </div>
 
                 </div>
@@ -357,6 +364,64 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-white" data-bs-dismiss="modal">Cancel</button>
                     <button id="confirm-remove-friend-btn" type="button" class="btn btn-danger">Remove Friend</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="badgeDetailsModal" tabindex="-1" aria-labelledby="badgeDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="badgeDetailsModalLabel">Badge Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="badge-detail-header">
+                        <div id="badge-detail-icon" class="badge-detail-icon">
+                            <i class="fas fa-award"></i>
+                        </div>
+                        <div>
+                            <h5 id="badge-detail-name" class="fw-bold mb-1">Badge</h5>
+                            <p id="badge-detail-category" class="text-secondary mb-0">Category</p>
+                        </div>
+                    </div>
+                    <p id="badge-detail-description" class="text-secondary mt-3 mb-0">Badge description</p>
+                    <p id="badge-detail-earned" class="badge-earned-text mt-3 mb-0"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="allBadgesModal" tabindex="-1" aria-labelledby="allBadgesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="allBadgesModalLabel">All Badges</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="all-badges-toolbar mb-3">
+                        <div class="all-badges-search">
+                            <i class="fas fa-search"></i>
+                            <input id="all-badges-search-input" class="form-control" type="search" placeholder="Search badges">
+                        </div>
+                        <select id="all-badges-category-filter" class="form-select" aria-label="Filter badges by category">
+                            <option value="">All categories</option>
+                        </select>
+                        <select id="all-badges-status-filter" class="form-select" aria-label="Filter badges by status">
+                            <option value="">All statuses</option>
+                            <option value="obtained">Obtained</option>
+                            <option value="unattained">Unattained</option>
+                        </select>
+                        <button id="all-badges-reset-btn" class="btn all-badges-reset-btn" type="button">
+                            <i class="fas fa-rotate-left me-2"></i>
+                            Reset all filters
+                        </button>
+                    </div>
+                    <div id="all-badges-list" class="all-badges-grid">
+                        <span class="text-secondary">Loading badges...</span>
+                    </div>
                 </div>
             </div>
         </div>

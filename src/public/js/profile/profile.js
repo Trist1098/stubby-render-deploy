@@ -25,6 +25,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const connectButton = document.getElementById('profile-connect-button');
     const messageButton = document.getElementById('profile-message-button');
     const friendSearchInput = document.getElementById('friend-search-input');
+    const viewAllBadgesBtn = document.getElementById('view-all-badges-btn');
+    const allBadgesSearchInput = document.getElementById('all-badges-search-input');
+    const allBadgesCategoryFilter = document.getElementById('all-badges-category-filter');
+    const allBadgesStatusFilter = document.getElementById('all-badges-status-filter');
+    const allBadgesResetBtn = document.getElementById('all-badges-reset-btn');
+    const allBadgesList = document.getElementById('all-badges-list');
+    const badgeDetailsModalEl = document.getElementById('badgeDetailsModal');
+    const allBadgesModalEl = document.getElementById('allBadgesModal');
+    const badgeDetailName = document.getElementById('badge-detail-name');
+    const badgeDetailCategory = document.getElementById('badge-detail-category');
+    const badgeDetailDescription = document.getElementById('badge-detail-description');
+    const badgeDetailEarned = document.getElementById('badge-detail-earned');
+    const badgeDetailIcon = document.getElementById('badge-detail-icon');
     const profilePictureContainer = document.querySelector('.profile-picture');
     const profileUploadButton = document.getElementById('profile-upload-button');
     const profileUploadInput = document.getElementById('profile-upload-input');
@@ -43,11 +56,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settingsPrivateToggle = document.getElementById('settings-private-profile');
     const settingsSaveFeedback = document.getElementById('settings-save-feedback');
     const settingsModal = profileSettingsModalEl ? bootstrap.Modal.getOrCreateInstance(profileSettingsModalEl) : null;
+    const badgeDetailsModal = badgeDetailsModalEl ? bootstrap.Modal.getOrCreateInstance(badgeDetailsModalEl) : null;
+    const allBadgesModal = allBadgesModalEl ? bootstrap.Modal.getOrCreateInstance(allBadgesModalEl) : null;
 
     const profileAboutInstitutionEl = document.getElementById('profile-about-institution');
     const profileAboutDiplomaEl = document.getElementById('profile-about-diploma');
     const profileAboutYearEl = document.getElementById('profile-about-year');
     const SETTINGS_STORAGE_KEY = 'stubbyProfileSettings';
+
+    const escapeHtml = (value) => {
+        const div = document.createElement('div');
+        div.textContent = value || '';
+        return div.innerHTML;
+    };
 
     const applyTheme = (theme) => {
         if (theme === 'Dark') {
@@ -737,28 +758,214 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (profileBadgesList) {
-        const userBadges = await fetchJson(`/api/userbadges/${pageUserId}`);
+        const userBadges = await fetchJson(`/api/userbadges/${pageUserId}`) || [];
+        const allBadges = await fetchJson('/api/badge') || [];
+        const earnedBadgeIds = new Set(userBadges.map((badge) => badge.badge_id?.toString()));
 
-        if (!userBadges || !Array.isArray(userBadges) || userBadges.length === 0) {
-            profileBadgesList.innerHTML = '<span class="text-secondary">No badges yet.</span>';
-        } else {
-            const getBadgeLabel = (badge) => {
-                return (
-                    badge?.badge_name ||
-                    badge?.name ||
-                    badge?.title ||
-                    badge?.badge ||
-                    badge?.id ||
-                    'Badge'
-                );
-            };
+        const getBadgeLabel = (badge) => (
+            badge?.badge_name ||
+            badge?.name ||
+            badge?.title ||
+            badge?.badge ||
+            badge?.id ||
+            'Badge'
+        );
+
+        const getBadgeIcon = (badge) => {
+            const category = (badge?.category || '').toLowerCase();
+            if (category.includes('commitment')) return 'fa-clock';
+            if (category.includes('periodic')) return 'fa-calendar-check';
+            if (category.includes('elite')) return 'fa-crown';
+            if (category.includes('contribution')) return 'fa-hands-helping';
+            if (category.includes('first')) return 'fa-star';
+            return 'fa-award';
+        };
+
+        const formatCategory = (badge) => {
+            const category = badge?.category || 'General';
+            return category.charAt(0).toUpperCase() + category.slice(1);
+        };
+
+        const formatAwardDate = (badge) => {
+            if (!badge?.awarded_at) return '';
+            const date = new Date(badge.awarded_at);
+            if (Number.isNaN(date.getTime())) return '';
+            return `Earned on ${date.toLocaleDateString()}`;
+        };
+
+        const findBadge = (badgeId) => {
+            const id = badgeId?.toString();
+            return userBadges.find((badge) => badge.badge_id?.toString() === id)
+                || allBadges.find((badge) => badge.badge_id?.toString() === id);
+        };
+
+        const renderBadgeFilters = () => {
+            if (!allBadgesCategoryFilter) return;
+
+            const categories = [...new Set(allBadges.map((badge) => formatCategory(badge)))]
+                .filter(Boolean)
+                .sort((first, second) => first.localeCompare(second));
+
+            allBadgesCategoryFilter.innerHTML = '<option value="">All categories</option>';
+            categories.forEach((category) => {
+                const option = document.createElement('option');
+                option.value = category.toLowerCase();
+                option.textContent = category;
+                allBadgesCategoryFilter.appendChild(option);
+            });
+        };
+
+        const openBadgeDetails = (badgeId) => {
+            const badge = findBadge(badgeId);
+            if (!badge) return;
+
+            const earned = earnedBadgeIds.has(badge.badge_id?.toString());
+            const label = getBadgeLabel(badge);
+
+            if (badgeDetailName) badgeDetailName.textContent = label;
+            if (badgeDetailCategory) {
+                badgeDetailCategory.textContent = `${formatCategory(badge)} badge`;
+            }
+            if (badgeDetailDescription) {
+                badgeDetailDescription.textContent = badge.description || 'No description has been added for this badge yet.';
+            }
+            if (badgeDetailEarned) {
+                badgeDetailEarned.textContent = earned
+                    ? (formatAwardDate(badge) || 'This badge has been earned.')
+                    : 'Unattained.';
+                badgeDetailEarned.className = earned
+                    ? 'badge-earned-text badge-earned mt-3 mb-0'
+                    : 'badge-earned-text badge-locked mt-3 mb-0';
+            }
+            if (badgeDetailIcon) {
+                badgeDetailIcon.innerHTML = `<i class="fas ${getBadgeIcon(badge)}"></i>`;
+                badgeDetailIcon.classList.toggle('badge-locked-icon', !earned);
+            }
+
+            badgeDetailsModal?.show();
+        };
+
+        const renderOwnedBadges = () => {
+            if (!Array.isArray(userBadges) || userBadges.length === 0) {
+                profileBadgesList.innerHTML = '<span class="text-secondary">No badges yet.</span>';
+                return;
+            }
 
             profileBadgesList.innerHTML = userBadges
                 .map((badge) => {
-                    const label = getBadgeLabel(badge);
-                    return `<span class="badge-item">${label}</span>`;
+                    const label = escapeHtml(getBadgeLabel(badge));
+                    return `
+                        <button class="badge-item" type="button" data-badge-id="${badge.badge_id}">
+                            <i class="fas ${getBadgeIcon(badge)} me-1"></i>
+                            ${label}
+                        </button>
+                    `;
                 })
                 .join('');
+        };
+
+        const renderAllBadges = () => {
+            if (!allBadgesList) return;
+
+            if (!Array.isArray(allBadges) || allBadges.length === 0) {
+                allBadgesList.innerHTML = '<span class="text-secondary">No badges available.</span>';
+                return;
+            }
+
+            const searchTerm = allBadgesSearchInput?.value?.trim().toLowerCase() || '';
+            const selectedCategory = allBadgesCategoryFilter?.value || '';
+            const selectedStatus = allBadgesStatusFilter?.value || '';
+            const shownBadges = allBadges.filter((badge) => {
+                const label = getBadgeLabel(badge);
+                const category = formatCategory(badge);
+                const description = badge?.description || '';
+                const earned = earnedBadgeIds.has(badge.badge_id?.toString());
+                const status = earned ? 'obtained' : 'unattained';
+                const matchesSearch = `${label} ${category} ${description}`.toLowerCase().includes(searchTerm);
+                const matchesCategory = !selectedCategory || category.toLowerCase() === selectedCategory;
+                const matchesStatus = !selectedStatus || status === selectedStatus;
+                return matchesSearch && matchesCategory && matchesStatus;
+            });
+
+            if (shownBadges.length === 0) {
+                allBadgesList.innerHTML = '<span class="text-secondary">No badges match your search.</span>';
+                return;
+            }
+
+            allBadgesList.innerHTML = shownBadges
+                .map((badge) => {
+                    const earned = earnedBadgeIds.has(badge.badge_id?.toString());
+                    const label = escapeHtml(getBadgeLabel(badge));
+                    const description = escapeHtml(badge.description || 'No description yet.');
+                    const category = escapeHtml(formatCategory(badge));
+                    const earnedText = earned ? 'Obtained' : 'Unattained';
+                    const cardClass = earned ? 'all-badge-card' : 'all-badge-card locked';
+
+                    return `
+                        <button class="${cardClass}" type="button" data-badge-id="${badge.badge_id}">
+                            <div class="all-badge-icon">
+                                <i class="fas ${getBadgeIcon(badge)}"></i>
+                            </div>
+                            <div class="all-badge-content">
+                                <div class="d-flex align-items-center justify-content-between gap-2">
+                                    <h6 class="fw-bold mb-0">${label}</h6>
+                                    <span class="all-badge-status">${earnedText}</span>
+                                </div>
+                                <small class="text-secondary">${category}</small>
+                                <p class="text-secondary mb-0">${description}</p>
+                            </div>
+                        </button>
+                    `;
+                })
+                .join('');
+        };
+
+        const resetAllBadgeFilters = () => {
+            if (allBadgesSearchInput) allBadgesSearchInput.value = '';
+            if (allBadgesCategoryFilter) allBadgesCategoryFilter.value = '';
+            if (allBadgesStatusFilter) allBadgesStatusFilter.value = '';
+            renderAllBadges();
+        };
+
+        renderOwnedBadges();
+        renderBadgeFilters();
+        renderAllBadges();
+
+        profileBadgesList.addEventListener('click', (event) => {
+            const badgeButton = event.target.closest('[data-badge-id]');
+            if (!badgeButton) return;
+            openBadgeDetails(badgeButton.dataset.badgeId);
+        });
+
+        if (allBadgesList) {
+            allBadgesList.addEventListener('click', (event) => {
+                const badgeButton = event.target.closest('[data-badge-id]');
+                if (!badgeButton) return;
+                openBadgeDetails(badgeButton.dataset.badgeId);
+            });
+        }
+
+        if (allBadgesSearchInput) {
+            allBadgesSearchInput.addEventListener('input', renderAllBadges);
+        }
+
+        if (allBadgesCategoryFilter) {
+            allBadgesCategoryFilter.addEventListener('change', renderAllBadges);
+        }
+
+        if (allBadgesStatusFilter) {
+            allBadgesStatusFilter.addEventListener('change', renderAllBadges);
+        }
+
+        if (allBadgesResetBtn) {
+            allBadgesResetBtn.addEventListener('click', resetAllBadgeFilters);
+        }
+
+        if (viewAllBadgesBtn) {
+            viewAllBadgesBtn.addEventListener('click', () => {
+                resetAllBadgeFilters();
+                allBadgesModal?.show();
+            });
         }
     }
 });
