@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", function () {
             authLink.className = "nav-item dropdown";
             authLink.innerHTML = `
                 <div class="dropdown">
-                    <button class="btn btn-white fw-bold dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                    <button class="btn btn-white fw-bold dropdown-toggle d-flex align-items-center gap-2 text-primary" type="button" data-bs-toggle="dropdown">
                         <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center user-avatar-sm">
                             ${(user.name || 'U').charAt(0).toUpperCase()}
                         </div>
@@ -51,6 +51,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
                 window.location.href = 'profile.html?settings=true';
             });
+
+            document.getElementById('logoutButton')?.addEventListener('click', () => {
+                if (typeof auth !== 'undefined' && typeof auth.logout === 'function') {
+                    auth.logout();
+                } else {
+                    localStorage.clear();
+                    window.location.href = 'login.html';
+                }
+            });
         } else {
             authLink.innerHTML = `<a href="login.html" class="btn btn-primary px-4">Login</a>`;
         }
@@ -58,6 +67,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Run the render function
     renderNavbar();
+
+    // 3. SCROLL EVENT FOR TRANSPARENT NAVBAR
+    const headerEl = document.querySelector('.header-transparent');
+    if (headerEl) {
+        const handleScroll = () => {
+            if (window.scrollY > 100) {
+                headerEl.classList.add('scrolled');
+            } else {
+                headerEl.classList.remove('scrolled');
+            }
+        };
+        handleScroll();
+        window.addEventListener('scroll', handleScroll);
+    }
 
     // Listen for custom user update event to re-render navbar without full page reload
     window.addEventListener("userUpdated", () => {
