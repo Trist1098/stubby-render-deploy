@@ -186,6 +186,23 @@
             </div>
         </div>
 
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="card shadow-sm p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Recent activity</h5>
+                            <p class="text-muted small mb-0">Track recent event changes in one place.</p>
+                        </div>
+                        <button id="refreshActivity" type="button" class="btn btn-sm btn-outline-primary">Refresh</button>
+                    </div>
+                    <div id="activityList" class="list-group">
+                        <div class="list-group-item text-muted">Loading recent activity...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <section class="mb-5">
             <div class="row g-4">
                 <div class="col-lg-8">
@@ -362,6 +379,8 @@
             const eventDescriptionInput = document.getElementById('eventDescription');
             const prevMonth = document.getElementById('prevMonth');
             const nextMonth = document.getElementById('nextMonth');
+            const refreshActivityButton = document.getElementById('refreshActivity');
+            const activityList = document.getElementById('activityList');
 
             let currentMonth = new Date();
             let events = [];
@@ -621,6 +640,45 @@
                 }
             };
 
+            const renderActivity = (items) => {
+                if (!activityList) return;
+                if (!items || items.length === 0) {
+                    activityList.innerHTML = '<div class="list-group-item text-muted">No recent activity.</div>';
+                    return;
+                }
+
+                activityList.innerHTML = '';
+                items.forEach((item) => {
+                    const entry = document.createElement('div');
+                    entry.className = 'list-group-item';
+                    entry.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <div class="fw-semibold">${item.message}</div>
+                                <div class="small text-secondary">${item.details || ''}</div>
+                            </div>
+                            <div class="text-end text-muted small">${new Date(item.createdAt).toLocaleString()}</div>
+                        </div>
+                    `;
+                    activityList.appendChild(entry);
+                });
+            };
+
+            const fetchActivity = async () => {
+                if (!activityList) return;
+                activityList.innerHTML = '<div class="list-group-item text-muted">Loading recent activity...</div>';
+                try {
+                    const response = await apiRequest('/api/activity?limit=10');
+                    if (response && response.activity) {
+                        renderActivity(response.activity);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error loading activity:', error);
+                }
+                activityList.innerHTML = '<div class="list-group-item text-muted">Unable to load recent activity.</div>';
+            };
+
             const loadProgress = async () => {
                 try {
                     const overallResponse = await apiRequest('/api/progress/summary');
@@ -641,9 +699,12 @@
                 }
             };
 
+            refreshActivityButton?.addEventListener('click', fetchActivity);
+
             resetForm();
             await loadEvents();
             await loadProgress();
+            await fetchActivity();
         });
     </script>
 </body>

@@ -10,6 +10,7 @@ const {
   getProgressSummary,
   getTodayProgress,
   getGoalProgress,
+  getActivity,
 } = require('../controllers/Home.controller');
 
 // ##############################################################
@@ -26,5 +27,6 @@ router.delete('/calendar/:id', jwtMiddleware.verifyToken, deleteCalendarEvent);
 router.get('/progress/summary', jwtMiddleware.verifyToken, getProgressSummary);
 router.get('/progress/today', jwtMiddleware.verifyToken, getTodayProgress);
 router.get('/progress/goals', jwtMiddleware.verifyToken, getGoalProgress);
+router.get('/activity', jwtMiddleware.verifyToken, getActivity);
 
 module.exports = router;

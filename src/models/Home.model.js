@@ -52,12 +52,34 @@ const calendarEvents = [
 const allowedPriorities = ['low', 'medium', 'high'];
 const allowedColors = ['primary', 'success', 'warning', 'danger', 'info', 'secondary'];
 
+const activityLog = [];
+
 const cloneEvent = (event) => ({ ...event });
+
+const recordActivity = (action, event) => {
+  const entry = {
+    id: activityLog.length + 1,
+    type: action,
+    message: `${action.charAt(0).toUpperCase() + action.slice(1)} event: ${event.title}`,
+    details: event.description || '',
+    eventId: event.id,
+    createdAt: new Date().toISOString(),
+  };
+  activityLog.unshift(entry);
+  if (activityLog.length > 50) {
+    activityLog.pop();
+  }
+  return entry;
+};
 
 // Return only events that are not marked as goalCompleted so completed goals
 // are removed from the main calendar view.
 const getCalendarEvents = () => Promise.resolve(
   calendarEvents.filter((event) => !event.goalCompleted).map(cloneEvent)
+);
+
+const getActivity = (userId, limit = 20) => Promise.resolve(
+  activityLog.slice(0, limit).map((item) => ({ ...item }))
 );
 
 const getCalendarEventById = (id) => {
@@ -110,6 +132,7 @@ const createCalendarEvent = (payload) => {
   };
 
   calendarEvents.push(event);
+  recordActivity('created', event);
   return Promise.resolve(cloneEvent(event));
 };
 
@@ -143,6 +166,7 @@ const updateCalendarEvent = (id, payload) => {
   event.goal = payload.goal !== undefined ? payload.goal : event.goal;
   event.goalCompleted = payload.goalCompleted !== undefined ? Boolean(payload.goalCompleted) : event.goalCompleted;
 
+  recordActivity('updated', event);
   return Promise.resolve(cloneEvent(event));
 };
 
@@ -152,6 +176,7 @@ const deleteCalendarEvent = (id) => {
     return Promise.resolve(null);
   }
   const [deleted] = calendarEvents.splice(index, 1);
+  recordActivity('deleted', deleted);
   return Promise.resolve(cloneEvent(deleted));
 };
 
@@ -201,4 +226,5 @@ module.exports = {
   getProgressSummary,
   getTodayProgress,
   getGoalProgress,
+  getActivity,
 };
