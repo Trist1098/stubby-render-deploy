@@ -23,7 +23,7 @@ const languageRoutes = require('./routers/Language.router');
 const app = express();
 
 // Parse incoming JSON request bodies (e.g. from POST/PUT requests)
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Serve static files (HTML, CSS, JS, images) from the 'public' folder.
 // e.g. src/public/index.html is accessible at http://localhost:<port>/
