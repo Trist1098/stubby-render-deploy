@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const updateConnectButtonState = async () => {
         if (!connectButton || isOwnProfile || !pageUserId || !userId) return;
 
-        const ownFriends = await fetchJson('/api/friend') || [];
+        const ownFriends = await fetchJson('/api/friends') || [];
         const isAlreadyFriend = ownFriends.some(friend => friend.friend_id?.toString() === pageUserId.toString());
         if (isAlreadyFriend) {
             setConnectButton('Friends', true);
@@ -623,8 +623,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (profileFriendsList) {
         const friendsEndpoint = isViewProfilePage && friendId
-            ? `/api/friend/${friendId}`
-            : '/api/friend';
+            ? `/api/friends/${friendId}`
+            : '/api/friends';
 
         let friends = await fetchJson(friendsEndpoint) || [];
 
@@ -684,7 +684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 confirmRemoveFriendBtn.textContent = 'Removing...';
             }
 
-            const response = await requestWithBody(`/api/friend/${selectedFriendId}`, 'DELETE');
+            const response = await requestWithBody(`/api/friends/${selectedFriendId}`, 'DELETE');
 
             if (confirmRemoveFriendBtn) {
                 confirmRemoveFriendBtn.disabled = false;

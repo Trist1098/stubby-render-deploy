@@ -37,7 +37,7 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/sessions', studySessionRoutes);
 app.use('/api/chats', chatRoutes);
 
-app.use('/api/friend', friendRoutes);
+app.use('/api/friends', friendRoutes);
 app.use('/api/friendrequest', friendRequestRoutes);
 app.use('/api/institution', institutionRoutes);
 app.use('/api/diploma', diplomaRoutes);
