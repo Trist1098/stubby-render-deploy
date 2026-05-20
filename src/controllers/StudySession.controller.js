@@ -46,6 +46,42 @@ const getWorkCheckFile = async (file) => {
 const getStringList = (value) =>
   Array.isArray(value) ? value.map(getTrimmedString).filter(Boolean) : [];
 
+const clampUnit = (value) => {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return null;
+  return Math.min(Math.max(numberValue, 0), 1);
+};
+
+const getWhiteboardStrokes = (value) => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .slice(-250)
+    .map((stroke) => {
+      const points = Array.isArray(stroke?.points)
+        ? stroke.points
+            .slice(0, 500)
+            .map((point) => {
+              const x = clampUnit(point?.x);
+              const y = clampUnit(point?.y);
+              return x === null || y === null ? null : { x, y };
+            })
+            .filter(Boolean)
+        : [];
+
+      if (!points.length) return null;
+
+      const width = Number(stroke.width);
+      const color = /^#[0-9a-f]{6}$/i.test(stroke.color) ? stroke.color : '#111827';
+      return {
+        color,
+        width: Number.isFinite(width) ? Math.min(Math.max(width, 1), 12) : 3,
+        points,
+      };
+    })
+    .filter(Boolean);
+};
+
 module.exports.getSession = async function getSession(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
   if (!sessionId) return badReq(res, 'Valid session id is required');
@@ -127,10 +163,11 @@ module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, r
       },
     ].filter(Boolean);
 
-    const savedEvidence = (
-      await Promise.all(evidencePayloads.map(model.insertMicroGoalEvidence))
-    ).filter(Boolean);
-    if (!savedEvidence.length) return notFound(res, 'Micro-goal not found');
+    const savedEvidence = await model.insertMicroGoalEvidence({
+      ...baseEvidence,
+      evidence_items: evidencePayloads,
+    });
+    if (!savedEvidence?.length) return notFound(res, 'Micro-goal not found');
 
     return created(res, savedEvidence);
   } catch (error) {
@@ -165,6 +202,9 @@ module.exports.checkMicroGoalWork = async function checkMicroGoalWork(req, res, 
 
     const microGoal = await model.selectMicroGoalById(sessionId, microGoalId);
     if (!microGoal) return notFound(res, 'Micro-goal not found');
+    if (microGoal.status !== 'active') {
+      return res.status(409).json({ error: 'This micro-goal is already completed or not active' });
+    }
 
     const feedback = await checkWorkWithAi({
       microGoal,
@@ -293,6 +333,58 @@ module.exports.saveConsultationReview = async function saveConsultationReview(re
 
     if (!consultation) return notFound(res, 'Consultation not found');
     return ok(res, consultation);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.getConsultationWorkspace = async function getConsultationWorkspace(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const consultationId = parseId(req.params.consultationId);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!consultationId) return badReq(res, 'Valid consultation id is required');
+
+  try {
+    const workspace = await model.selectConsultationWorkspace({
+      study_session_id: sessionId,
+      consultation_session_id: consultationId,
+    });
+
+    if (!workspace) return notFound(res, 'Consultation not found');
+    return ok(res, workspace);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.saveConsultationWorkspace = async function saveConsultationWorkspace(
+  req,
+  res,
+  next,
+) {
+  const sessionId = parseId(req.params.sessionId);
+  const consultationId = parseId(req.params.consultationId);
+  const userId = parseId(req.body.user_id);
+  const scratchpadText =
+    typeof req.body.scratchpad_text === 'string' ? req.body.scratchpad_text : '';
+  const whiteboardStrokes = getWhiteboardStrokes(req.body.whiteboard_strokes);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!consultationId) return badReq(res, 'Valid consultation id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
+
+  try {
+    const workspace = await model.saveConsultationWorkspace({
+      study_session_id: sessionId,
+      consultation_session_id: consultationId,
+      user_id: userId,
+      scratchpad_text: scratchpadText,
+      whiteboard_strokes: whiteboardStrokes,
+    });
+
+    if (!workspace) return notFound(res, 'Consultation member not found');
+    return ok(res, workspace);
   } catch (error) {
     return next(error);
   }

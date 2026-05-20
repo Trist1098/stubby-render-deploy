@@ -49,7 +49,6 @@ DROP TABLE IF EXISTS status_events CASCADE;
 DROP TABLE IF EXISTS consultation_reflections CASCADE;
 DROP TABLE IF EXISTS consultation_notes CASCADE;
 DROP TABLE IF EXISTS consultation_sessions CASCADE;
-DROP TABLE IF EXISTS consultation_messages CASCADE;
 DROP TABLE IF EXISTS SessionReflection CASCADE;
 DROP TABLE IF EXISTS SessionMember CASCADE;
 DROP TABLE IF EXISTS MatchRequest CASCADE;
