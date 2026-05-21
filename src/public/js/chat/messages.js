@@ -1,4 +1,19 @@
-import { fetchMessages, sendMessageRequest, uploadFileRequest, uploadVoiceRequest, editMessageRequest, deleteMessageRequest, addReactionRequest, removeReactionRequest, fetchPinnedMessages, pinMessageRequest, unpinMessageRequest } from './chatApi.js';
+import {
+  fetchMessages,
+  sendMessageRequest,
+  replyToMessageRequest,
+  uploadFileRequest,
+  uploadVoiceRequest,
+  editMessageRequest,
+  deleteMessageRequest,
+  addReactionRequest,
+  removeReactionRequest,
+  fetchPinnedMessages,
+  pinMessageRequest,
+  unpinMessageRequest,
+  sendTypingRequest,
+  fetchTypingUsers,
+} from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
@@ -14,6 +29,7 @@ let voiceChunks = [];
 let voiceRecordingStart = null;
 let voiceTimerInterval = null;
 let voiceDiscarded = false;
+let replyingTo = null;
 const reactionChoices = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F389}'];
 
 function cleanupVoiceState() {
@@ -47,6 +63,7 @@ export function renderEmptyChat() {
 
 export function renderChatPanel() {
   cleanupVoiceState();
+  replyingTo = null;
 
   const panel = document.getElementById('chatPanel');
   const conv = getActiveConversation();
@@ -63,29 +80,34 @@ export function renderChatPanel() {
         <div class="fw-bold text-truncate">${escapeHtml(getConversationName(conv))}</div>
         <div class="text-muted small">${conv.type === 'group' ? 'Group conversation' : 'Direct message'}</div>
       </div>
-      <select class="form-select form-select-sm wallpaper-picker" id="wallpaperPicker" aria-label="Chat wallpaper">
-        <option value="default" ${chatState.activeWallpaper === 'default' ? 'selected' : ''}>Dots</option>
-        <option value="soft" ${chatState.activeWallpaper === 'soft' ? 'selected' : ''}>Soft</option>
-        <option value="grid" ${chatState.activeWallpaper === 'grid' ? 'selected' : ''}>Grid</option>
-      </select>
+      <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm wallpaper-picker" id="wallpaperPicker" aria-label="Chat wallpaper">
+          <option value="default" ${chatState.activeWallpaper === 'default' ? 'selected' : ''}>Dots</option>
+          <option value="soft" ${chatState.activeWallpaper === 'soft' ? 'selected' : ''}>Soft</option>
+          <option value="grid" ${chatState.activeWallpaper === 'grid' ? 'selected' : ''}>Grid</option>
+        </select>
+      </div>
     </div>
     ${renderPinnedBar()}
     <div class="messages-list chat-wallpaper ${chatState.activeWallpaper === 'default' ? '' : chatState.activeWallpaper} flex-grow-1 overflow-auto" id="messagesList">
       ${renderMessages()}
     </div>
-    <form class="message-composer d-flex gap-2 p-3 border-top" id="messageForm">
-      <label class="btn btn-outline-secondary flex-shrink-0" for="fileInput" title="Attach file">
-        <i class="fas fa-paperclip"></i>
-      </label>
-      <input type="file" id="fileInput" class="d-none">
-      <button class="btn btn-outline-secondary flex-shrink-0" id="voiceBtn" type="button" title="Record voice message">
-        <i class="fas fa-microphone"></i>
-      </button>
-      <input class="form-control" id="messageInput" type="text" placeholder="Type a message" autocomplete="off">
-      <button class="btn btn-primary flex-shrink-0" type="submit">
-        <i class="fas fa-paper-plane me-1"></i> Send
-      </button>
-    </form>`;
+    <div class="message-composer border-top" id="messageComposerWrap">
+      <div class="reply-bar d-none" id="replyBar"></div>
+      <form class="d-flex gap-2 p-3" id="messageForm">
+        <label class="btn btn-outline-secondary flex-shrink-0" for="fileInput" title="Attach file">
+          <i class="fas fa-paperclip"></i>
+        </label>
+        <input type="file" id="fileInput" class="d-none">
+        <button class="btn btn-outline-secondary flex-shrink-0" id="voiceBtn" type="button" title="Record voice message">
+          <i class="fas fa-microphone"></i>
+        </button>
+        <input class="form-control" id="messageInput" type="text" placeholder="Type a message" autocomplete="off">
+        <button class="btn btn-primary flex-shrink-0" type="submit">
+          <i class="fas fa-paper-plane me-1"></i> Send
+        </button>
+      </form>
+    </div>`;
 
   document.getElementById('wallpaperPicker').addEventListener('change', (event) => {
     chatState.activeWallpaper = event.target.value;
@@ -93,6 +115,11 @@ export function renderChatPanel() {
     renderChatPanel();
     scrollMessagesToBottom('auto');
   });
+
+  const messageInput = document.getElementById('messageInput');
+  if (messageInput) {
+    messageInput.addEventListener('input', handleTypingInput);
+  }
 
   const pinnedBar = document.getElementById('pinnedBar');
   if (pinnedBar) pinnedBar.addEventListener('click', handlePinnedBarClick);
@@ -119,6 +146,7 @@ export function renderChatPanel() {
   });
 
   scrollMessagesToBottom('auto');
+  renderTypingIndicator();
 }
 
 function renderMessageList(shouldScroll = false) {
@@ -127,6 +155,7 @@ function renderMessageList(shouldScroll = false) {
 
   const wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
   list.innerHTML = renderMessages();
+  renderTypingIndicator();
 
   if (shouldScroll || wasNearBottom) {
     scrollMessagesToBottom('smooth');
@@ -155,6 +184,10 @@ function renderMessages() {
       const ddItems = [];
       if (!message.is_deleted) {
         ddItems.push(`<button class="msg-dd-item pin-btn ${isPinned ? 'pinned' : ''}" data-message-id="${message.message_id}"><i class="fas fa-thumbtack me-2"></i>${isPinned ? 'Unpin' : 'Pin'}</button>`);
+        ddItems.push(`<button class="msg-dd-item reply-btn" data-message-id="${message.message_id}"><i class="fas fa-reply me-2"></i>Reply</button>`);
+      }
+      if (!message.is_deleted && message.text && !message.file_url) {
+        ddItems.push(`<button class="msg-dd-item copy-btn" data-message-id="${message.message_id}"><i class="fas fa-copy me-2"></i>Copy</button>`);
       }
       if (isSent && message.text && !message.file_url && !message.is_deleted) {
         ddItems.push(`<button class="msg-dd-item edit-btn" data-message-id="${message.message_id}"><i class="fas fa-pen me-2"></i>Edit</button>`);
@@ -182,6 +215,7 @@ function renderMessages() {
             ${moreBtn}
           </div>
           ${dropdown}
+          ${renderReplyQuote(message)}
           ${renderMessageContent(message)}
           ${editedLabel}
           ${renderReactions(message)}
@@ -279,6 +313,17 @@ function handleMessageAction(e) {
 
   if (!e.target.closest('.msg-dropdown')) closeAllDropdowns();
 
+  const replyBtn = e.target.closest('.reply-btn');
+  if (replyBtn) {
+    closeAllDropdowns();
+    const msg = chatState.activeMessages.find((m) => m.message_id === Number(replyBtn.dataset.messageId));
+    if (msg) startReply(msg);
+  }
+  const copyBtn = e.target.closest('.copy-btn');
+  if (copyBtn) {
+    closeAllDropdowns();
+    copyMessage(Number(copyBtn.dataset.messageId));
+  }
   const editBtn = e.target.closest('.edit-btn');
   if (editBtn) startEditMessage(Number(editBtn.dataset.messageId));
   const deleteBtn = e.target.closest('.delete-btn');
@@ -291,6 +336,67 @@ function handleMessageAction(e) {
   if (pickerBtn) addReaction(Number(pickerBtn.dataset.messageId), pickerBtn.dataset.emoji);
   const reactionBtn = e.target.closest('.msg-reaction');
   if (reactionBtn) toggleReaction(Number(reactionBtn.dataset.messageId), reactionBtn.dataset.emoji);
+}
+
+function renderReplyQuote(message) {
+  if (!message.parent_message_id || !message.parent_sender_username) return '';
+  const snippet = message.parent_is_deleted
+    ? 'Deleted message'
+    : escapeHtml((message.parent_text || message.parent_file_name || 'File').slice(0, 100));
+  return `
+    <div class="msg-reply-quote">
+      <div class="msg-reply-quote-name">${escapeHtml(message.parent_sender_username)}</div>
+      <div class="msg-reply-quote-text text-truncate">${snippet}</div>
+    </div>`;
+}
+
+function startReply(message) {
+  replyingTo = message;
+  const replyBar = document.getElementById('replyBar');
+  if (!replyBar) return;
+  const name = escapeHtml(message.sender_username);
+  const snippet = message.is_deleted
+    ? 'Deleted message'
+    : escapeHtml((message.text || message.file_name || 'File').slice(0, 80));
+  replyBar.innerHTML = `
+    <div class="d-flex align-items-center gap-2 px-3 py-2">
+      <i class="fas fa-reply text-primary small flex-shrink-0"></i>
+      <div class="min-w-0 flex-grow-1">
+        <div class="fw-semibold small text-primary">${name}</div>
+        <div class="text-muted small text-truncate">${snippet}</div>
+      </div>
+      <button class="msg-action-btn" id="replyCancelBtn" type="button" title="Cancel reply"><i class="fas fa-times"></i></button>
+    </div>`;
+  replyBar.classList.remove('d-none');
+  replyBar.querySelector('#replyCancelBtn').addEventListener('click', clearReply);
+  document.getElementById('messageInput')?.focus();
+}
+
+function clearReply() {
+  replyingTo = null;
+  const replyBar = document.getElementById('replyBar');
+  if (!replyBar) return;
+  replyBar.classList.add('d-none');
+  replyBar.innerHTML = '';
+}
+
+async function copyMessage(messageId) {
+  const message = chatState.activeMessages.find((m) => m.message_id === messageId);
+  if (!message || !message.text) return;
+  try {
+    await navigator.clipboard.writeText(message.text);
+    showCopyToast();
+  } catch {
+    // clipboard unavailable
+  }
+}
+
+function showCopyToast() {
+  const toast = document.createElement('div');
+  toast.className = 'copy-toast';
+  toast.textContent = 'Copied!';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 1500);
 }
 
 function showReactionPicker(messageId) {
@@ -465,6 +571,18 @@ function scrollMessagesToBottom(behavior = 'smooth') {
 }
 
 export async function loadMessages(conversationId) {
+  if (chatState.activeConversationId && chatState.isTyping) {
+    try {
+      await sendTypingRequest(chatState.activeConversationId, false);
+    } catch (e) {}
+  }
+  if (chatState.typingTimeout) {
+    clearTimeout(chatState.typingTimeout);
+    chatState.typingTimeout = null;
+  }
+  chatState.isTyping = false;
+  chatState.typingUsers = [];
+
   chatState.pinnedMessages = [];
   renderChatPanel();
   const [data, pinned] = await Promise.all([
@@ -479,13 +597,21 @@ export async function loadMessages(conversationId) {
 
 async function refreshMessages() {
   if (!chatState.activeConversationId || chatState.messageRefreshInFlight) return;
-
   chatState.messageRefreshInFlight = true;
   const conversationId = chatState.activeConversationId;
-  const data = await fetchMessages(conversationId);
+
+  const [data, typingData] = await Promise.all([
+    fetchMessages(conversationId),
+    fetchTypingUsers(conversationId),
+  ]);
   chatState.messageRefreshInFlight = false;
 
-  if (conversationId !== chatState.activeConversationId || !Array.isArray(data)) return;
+  if (conversationId !== chatState.activeConversationId) return;
+
+  chatState.typingUsers = Array.isArray(typingData) ? typingData : [];
+  renderTypingIndicator();
+
+  if (!Array.isArray(data)) return;
 
   const oldLastId = chatState.activeMessages.at(-1)?.message_id;
   const newLastId = data.at(-1)?.message_id;
@@ -506,10 +632,11 @@ async function refreshMessages() {
 
 function startMessageRefresh() {
   if (chatState.messageRefreshTimer) clearInterval(chatState.messageRefreshTimer);
-  chatState.messageRefreshTimer = setInterval(refreshMessages, 2000);
+  chatState.messageRefreshTimer = setInterval(refreshMessages, 1000);
 }
 
 async function startVoiceRecording() {
+  clearReply();
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -656,7 +783,9 @@ async function sendActiveMessage(event) {
   if (!text || !chatState.activeConversationId) return;
 
   input.disabled = true;
-  const result = await sendMessageRequest(chatState.activeConversationId, text);
+  const result = replyingTo
+    ? await replyToMessageRequest(chatState.activeConversationId, replyingTo.message_id, text)
+    : await sendMessageRequest(chatState.activeConversationId, text);
   input.disabled = false;
   input.focus();
 
@@ -665,6 +794,7 @@ async function sendActiveMessage(event) {
     return;
   }
 
+  clearReply();
   input.value = '';
   chatState.activeMessages.push(result);
   const conv = getActiveConversation();
@@ -674,4 +804,62 @@ async function sendActiveMessage(event) {
   }
   renderConversationList(loadMessages);
   renderMessageList(true);
+}
+
+function handleTypingInput() {
+  if (!chatState.activeConversationId) return;
+
+  if (!chatState.isTyping) {
+    chatState.isTyping = true;
+    sendTypingRequest(chatState.activeConversationId, true).catch(() => {});
+  }
+
+  if (chatState.typingTimeout) {
+    clearTimeout(chatState.typingTimeout);
+  }
+
+  chatState.typingTimeout = setTimeout(() => {
+    chatState.isTyping = false;
+    sendTypingRequest(chatState.activeConversationId, false).catch(() => {});
+  }, 2000);
+}
+
+function renderTypingIndicator() {
+  const list = document.getElementById('messagesList');
+  if (!list) return;
+
+  let indicator = list.querySelector('.typing-indicator-bubble');
+
+  if (!chatState.typingUsers.length) {
+    if (indicator && !indicator.classList.contains('hiding')) {
+      indicator.classList.add('hiding');
+      indicator.addEventListener('animationend', () => indicator.remove(), { once: true });
+    }
+    return;
+  }
+
+  if (!indicator || indicator.classList.contains('hiding')) {
+    if (indicator) indicator.remove();
+    indicator = document.createElement('div');
+    indicator.className = 'typing-indicator-bubble message-row received new-message';
+    list.appendChild(indicator);
+    const wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 150;
+    if (wasNearBottom) scrollMessagesToBottom('smooth');
+  }
+
+  const conv = getActiveConversation();
+  const showName = conv && conv.type !== 'friend';
+  const nameLine = showName
+    ? `<div class="message-meta mb-1">${chatState.typingUsers.map((u) => escapeHtml(u.username)).join(', ')}</div>`
+    : '';
+
+  indicator.innerHTML = `
+    <div class="message-bubble">
+      ${nameLine}
+      <div class="typing-dots">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+      </div>
+    </div>`;
 }

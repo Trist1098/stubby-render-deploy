@@ -319,8 +319,10 @@ CREATE TABLE ChatMessage (
     is_deleted      BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     edited_at       TIMESTAMP,
+    parent_message_id INT,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_message_id) REFERENCES ChatMessage(message_id) ON DELETE SET NULL
 );
 
 CREATE TABLE MessagePin (
@@ -341,6 +343,15 @@ CREATE TABLE MessageReaction (
     FOREIGN KEY (message_id) REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(message_id, user_id, emoji)
+);
+
+CREATE TABLE UserPresence (
+    user_id         INT PRIMARY KEY,
+    typing_status   BOOLEAN DEFAULT FALSE,
+    conversation_id INT,
+    last_seen       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE SET NULL
 );
 
 -- =============================================
