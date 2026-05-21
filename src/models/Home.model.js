@@ -53,8 +53,11 @@ const allowedPriorities = ['low', 'medium', 'high'];
 const allowedColors = ['primary', 'success', 'warning', 'danger', 'info', 'secondary'];
 
 const activityLog = [];
+const reminders = [];
 
 const cloneEvent = (event) => ({ ...event });
+
+const cloneReminder = (reminder) => ({ ...reminder });
 
 const recordActivity = (action, event) => {
   const entry = {
@@ -74,6 +77,21 @@ const recordActivity = (action, event) => {
 
 // Return only events that are not marked as goalCompleted so completed goals
 // are removed from the main calendar view.
+const parseReminderOffset = (offset, event) => {
+  if (!offset || !event?.date || !event?.start) return null;
+  const mapping = {
+    '10m': 10,
+    '30m': 30,
+    '1h': 60,
+    '1d': 1440,
+  };
+  const minutes = mapping[offset];
+  if (!minutes) return null;
+  const eventDateTime = new Date(`${event.date}T${event.start}:00`);
+  eventDateTime.setMinutes(eventDateTime.getMinutes() - minutes);
+  return eventDateTime.toISOString();
+};
+
 const getCalendarEvents = () => Promise.resolve(
   calendarEvents.filter((event) => !event.goalCompleted).map(cloneEvent)
 );
@@ -81,6 +99,47 @@ const getCalendarEvents = () => Promise.resolve(
 const getActivity = (userId, limit = 20) => Promise.resolve(
   activityLog.slice(0, limit).map((item) => ({ ...item }))
 );
+
+const getReminders = (userId, limit = 20) => {
+  const eventReminders = calendarEvents
+    .filter((event) => event.remindAt)
+    .map((event) => ({
+      id: `event-${event.id}`,
+      type: 'event',
+      eventId: event.id,
+      eventTitle: event.title,
+      message: `Reminder for ${event.title}`,
+      remindAt: event.remindAt,
+      createdAt: event.remindAt,
+    }));
+  const allReminders = [...eventReminders, ...reminders.map(cloneReminder)];
+  allReminders.sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt));
+  return Promise.resolve(allReminders.slice(0, limit));
+};
+
+const createReminder = (payload) => {
+  if (!payload.eventId || !payload.remindAt) {
+    return Promise.reject(new Error('eventId and remindAt are required'));
+  }
+  const eventId = Number(payload.eventId);
+  const event = calendarEvents.find((item) => item.id === eventId);
+  if (!event) {
+    return Promise.reject(new Error('Event not found'));
+  }
+  const reminder = {
+    id: reminders.length + 1,
+    eventId,
+    eventTitle: event.title,
+    message: payload.message || `Reminder for ${event.title}`,
+    remindAt: payload.remindAt,
+    createdAt: new Date().toISOString(),
+  };
+  reminders.unshift(reminder);
+  if (reminders.length > 50) {
+    reminders.pop();
+  }
+  return Promise.resolve(cloneReminder(reminder));
+};
 
 const getCalendarEventById = (id) => {
   const event = calendarEvents.find((item) => item.id === id);
@@ -129,6 +188,7 @@ const createCalendarEvent = (payload) => {
     priority: payload.priority || 'medium',
     goal: payload.goal || '',
     goalCompleted: Boolean(payload.goalCompleted),
+    remindAt: payload.remindAt || parseReminderOffset(payload.reminderOffset, payload) || null,
   };
 
   calendarEvents.push(event);
@@ -165,6 +225,11 @@ const updateCalendarEvent = (id, payload) => {
   event.description = payload.description !== undefined ? payload.description : event.description;
   event.goal = payload.goal !== undefined ? payload.goal : event.goal;
   event.goalCompleted = payload.goalCompleted !== undefined ? Boolean(payload.goalCompleted) : event.goalCompleted;
+  if (payload.remindAt !== undefined) {
+    event.remindAt = payload.remindAt || null;
+  } else if (payload.reminderOffset) {
+    event.remindAt = parseReminderOffset(payload.reminderOffset, { date: event.date, start: event.start }) || event.remindAt;
+  }
 
   recordActivity('updated', event);
   return Promise.resolve(cloneEvent(event));
@@ -227,4 +292,6 @@ module.exports = {
   getTodayProgress,
   getGoalProgress,
   getActivity,
+  getReminders,
+  createReminder,
 };

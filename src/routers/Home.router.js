@@ -11,6 +11,8 @@ const {
   getTodayProgress,
   getGoalProgress,
   getActivity,
+  getReminders,
+  createReminder,
 } = require('../controllers/Home.controller');
 
 // ##############################################################
@@ -28,5 +30,7 @@ router.get('/progress/summary', jwtMiddleware.verifyToken, getProgressSummary);
 router.get('/progress/today', jwtMiddleware.verifyToken, getTodayProgress);
 router.get('/progress/goals', jwtMiddleware.verifyToken, getGoalProgress);
 router.get('/activity', jwtMiddleware.verifyToken, getActivity);
+router.get('/reminders', jwtMiddleware.verifyToken, getReminders);
+router.post('/reminders', jwtMiddleware.verifyToken, createReminder);
 
 module.exports = router;
