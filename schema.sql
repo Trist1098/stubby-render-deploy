@@ -37,6 +37,7 @@ DROP TABLE IF EXISTS EventComment;
 DROP TABLE IF EXISTS EventParticipant;
 DROP TABLE IF EXISTS CalendarEvent;
 DROP TABLE IF EXISTS Notification;
+DROP TABLE IF EXISTS UserPresence;
 DROP TABLE IF EXISTS MessagePin;
 DROP TABLE IF EXISTS MessageReaction;
 DROP TABLE IF EXISTS ChatMessage;
@@ -325,6 +326,15 @@ CREATE TABLE MessageReaction (
     FOREIGN KEY (message_id) REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(message_id, user_id, emoji)
+);
+
+CREATE TABLE UserPresence (
+    user_id         INT PRIMARY KEY,
+    typing_status   BOOLEAN DEFAULT FALSE,
+    conversation_id INT,
+    last_seen       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE SET NULL
 );
 
 -- =============================================

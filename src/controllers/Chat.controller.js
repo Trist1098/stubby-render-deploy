@@ -18,6 +18,8 @@ const {
   uploadFile: uploadFileModel,
   uploadVoiceMessage: uploadVoiceMessageModel,
   replyToMessage: replyToMessageModel,
+  setTypingStatus: setTypingStatusModel,
+  getTypingUsers: getTypingUsersModel,
 } = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
@@ -371,6 +373,45 @@ module.exports.replyToMessage = async (req, res, next) => {
 
     const message = await replyToMessageModel(conversationId, userId, text, parentMessageId);
     res.status(201).json(message);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.setTypingStatus = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const isTyping = Boolean(req.body.typing);
+
+  if (!Number.isInteger(conversationId)) {
+    return res.status(400).json({ message: 'Invalid conversation id' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+
+    await setTypingStatusModel(userId, conversationId, isTyping);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getTypingUsers = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+
+  if (!Number.isInteger(conversationId)) {
+    return res.status(400).json({ message: 'Invalid conversation id' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+
+    const typingUsers = await getTypingUsersModel(conversationId, userId);
+    res.json(typingUsers);
   } catch (error) {
     next(error);
   }

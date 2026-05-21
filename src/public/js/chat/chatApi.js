@@ -88,3 +88,11 @@ export async function uploadFileRequest(conversationId, file) {
     return { message: 'Network error' };
   }
 }
+
+export function sendTypingRequest(conversationId, typing) {
+  return apiRequest(`/api/chats/${conversationId}/typing`, 'PUT', { typing });
+}
+
+export function fetchTypingUsers(conversationId) {
+  return apiRequest(`/api/chats/${conversationId}/typing`);
+}

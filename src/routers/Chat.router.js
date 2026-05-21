@@ -20,6 +20,8 @@ const {
   unpinMessage,
   getPinnedMessages,
   replyToMessage,
+  setTypingStatus,
+  getTypingUsers,
 } = require('../controllers/Chat.controller');
 
 // Get friends for the new chat modal
@@ -28,6 +30,8 @@ router.get('/friends', jwtMiddleware.verifyToken, getFriends);
 // Conversation list and creation
 router.get('/', jwtMiddleware.verifyToken, getAllConversations);
 router.post('/', jwtMiddleware.verifyToken, createConversation);
+router.put('/:conversationId/typing', jwtMiddleware.verifyToken, setTypingStatus);
+router.get('/:conversationId/typing', jwtMiddleware.verifyToken, getTypingUsers);
 router.get('/:conversationId/messages', jwtMiddleware.verifyToken, getMessages);
 router.post('/:conversationId/messages', jwtMiddleware.verifyToken, sendMessage);
 router.patch('/:conversationId/messages/:messageId', jwtMiddleware.verifyToken, editMessage);

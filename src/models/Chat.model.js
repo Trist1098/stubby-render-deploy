@@ -333,3 +333,29 @@ module.exports.uploadFile = async (conversationId, senderId, fileUrl, fileType, 
   );
   return { ...message, sender_username: senderResult.rows[0]?.username || 'Unknown user' };
 };
+
+module.exports.setTypingStatus = async (userId, conversationId, isTyping) => {
+  await pool.query(
+    `INSERT INTO UserPresence (user_id, typing_status, conversation_id, last_seen)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (user_id) DO UPDATE
+     SET typing_status = EXCLUDED.typing_status,
+         conversation_id = EXCLUDED.conversation_id,
+         last_seen = NOW()`,
+    [userId, isTyping, isTyping ? conversationId : null]
+  );
+};
+
+module.exports.getTypingUsers = async (conversationId, excludeUserId) => {
+  const result = await pool.query(
+    `SELECT u.user_id, u.username
+     FROM UserPresence up
+     JOIN "User" u ON u.user_id = up.user_id
+     WHERE up.typing_status = TRUE
+       AND up.conversation_id = $1
+       AND up.user_id != $2
+       AND up.last_seen >= NOW() - INTERVAL '5 seconds'`,
+    [conversationId, excludeUserId]
+  );
+  return result.rows;
+};

@@ -11,6 +11,8 @@ import {
   fetchPinnedMessages,
   pinMessageRequest,
   unpinMessageRequest,
+  sendTypingRequest,
+  fetchTypingUsers,
 } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
@@ -78,11 +80,13 @@ export function renderChatPanel() {
         <div class="fw-bold text-truncate">${escapeHtml(getConversationName(conv))}</div>
         <div class="text-muted small">${conv.type === 'group' ? 'Group conversation' : 'Direct message'}</div>
       </div>
-      <select class="form-select form-select-sm wallpaper-picker" id="wallpaperPicker" aria-label="Chat wallpaper">
-        <option value="default" ${chatState.activeWallpaper === 'default' ? 'selected' : ''}>Dots</option>
-        <option value="soft" ${chatState.activeWallpaper === 'soft' ? 'selected' : ''}>Soft</option>
-        <option value="grid" ${chatState.activeWallpaper === 'grid' ? 'selected' : ''}>Grid</option>
-      </select>
+      <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm wallpaper-picker" id="wallpaperPicker" aria-label="Chat wallpaper">
+          <option value="default" ${chatState.activeWallpaper === 'default' ? 'selected' : ''}>Dots</option>
+          <option value="soft" ${chatState.activeWallpaper === 'soft' ? 'selected' : ''}>Soft</option>
+          <option value="grid" ${chatState.activeWallpaper === 'grid' ? 'selected' : ''}>Grid</option>
+        </select>
+      </div>
     </div>
     ${renderPinnedBar()}
     <div class="messages-list chat-wallpaper ${chatState.activeWallpaper === 'default' ? '' : chatState.activeWallpaper} flex-grow-1 overflow-auto" id="messagesList">
@@ -112,6 +116,11 @@ export function renderChatPanel() {
     scrollMessagesToBottom('auto');
   });
 
+  const messageInput = document.getElementById('messageInput');
+  if (messageInput) {
+    messageInput.addEventListener('input', handleTypingInput);
+  }
+
   const pinnedBar = document.getElementById('pinnedBar');
   if (pinnedBar) pinnedBar.addEventListener('click', handlePinnedBarClick);
 
@@ -137,6 +146,7 @@ export function renderChatPanel() {
   });
 
   scrollMessagesToBottom('auto');
+  renderTypingIndicator();
 }
 
 function renderMessageList(shouldScroll = false) {
@@ -145,6 +155,7 @@ function renderMessageList(shouldScroll = false) {
 
   const wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
   list.innerHTML = renderMessages();
+  renderTypingIndicator();
 
   if (shouldScroll || wasNearBottom) {
     scrollMessagesToBottom('smooth');
@@ -560,6 +571,18 @@ function scrollMessagesToBottom(behavior = 'smooth') {
 }
 
 export async function loadMessages(conversationId) {
+  if (chatState.activeConversationId && chatState.isTyping) {
+    try {
+      await sendTypingRequest(chatState.activeConversationId, false);
+    } catch (e) {}
+  }
+  if (chatState.typingTimeout) {
+    clearTimeout(chatState.typingTimeout);
+    chatState.typingTimeout = null;
+  }
+  chatState.isTyping = false;
+  chatState.typingUsers = [];
+
   chatState.pinnedMessages = [];
   renderChatPanel();
   const [data, pinned] = await Promise.all([
@@ -574,13 +597,21 @@ export async function loadMessages(conversationId) {
 
 async function refreshMessages() {
   if (!chatState.activeConversationId || chatState.messageRefreshInFlight) return;
-
   chatState.messageRefreshInFlight = true;
   const conversationId = chatState.activeConversationId;
-  const data = await fetchMessages(conversationId);
+
+  const [data, typingData] = await Promise.all([
+    fetchMessages(conversationId),
+    fetchTypingUsers(conversationId),
+  ]);
   chatState.messageRefreshInFlight = false;
 
-  if (conversationId !== chatState.activeConversationId || !Array.isArray(data)) return;
+  if (conversationId !== chatState.activeConversationId) return;
+
+  chatState.typingUsers = Array.isArray(typingData) ? typingData : [];
+  renderTypingIndicator();
+
+  if (!Array.isArray(data)) return;
 
   const oldLastId = chatState.activeMessages.at(-1)?.message_id;
   const newLastId = data.at(-1)?.message_id;
@@ -601,7 +632,7 @@ async function refreshMessages() {
 
 function startMessageRefresh() {
   if (chatState.messageRefreshTimer) clearInterval(chatState.messageRefreshTimer);
-  chatState.messageRefreshTimer = setInterval(refreshMessages, 2000);
+  chatState.messageRefreshTimer = setInterval(refreshMessages, 1000);
 }
 
 async function startVoiceRecording() {
@@ -773,4 +804,62 @@ async function sendActiveMessage(event) {
   }
   renderConversationList(loadMessages);
   renderMessageList(true);
+}
+
+function handleTypingInput() {
+  if (!chatState.activeConversationId) return;
+
+  if (!chatState.isTyping) {
+    chatState.isTyping = true;
+    sendTypingRequest(chatState.activeConversationId, true).catch(() => {});
+  }
+
+  if (chatState.typingTimeout) {
+    clearTimeout(chatState.typingTimeout);
+  }
+
+  chatState.typingTimeout = setTimeout(() => {
+    chatState.isTyping = false;
+    sendTypingRequest(chatState.activeConversationId, false).catch(() => {});
+  }, 2000);
+}
+
+function renderTypingIndicator() {
+  const list = document.getElementById('messagesList');
+  if (!list) return;
+
+  let indicator = list.querySelector('.typing-indicator-bubble');
+
+  if (!chatState.typingUsers.length) {
+    if (indicator && !indicator.classList.contains('hiding')) {
+      indicator.classList.add('hiding');
+      indicator.addEventListener('animationend', () => indicator.remove(), { once: true });
+    }
+    return;
+  }
+
+  if (!indicator || indicator.classList.contains('hiding')) {
+    if (indicator) indicator.remove();
+    indicator = document.createElement('div');
+    indicator.className = 'typing-indicator-bubble message-row received new-message';
+    list.appendChild(indicator);
+    const wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 150;
+    if (wasNearBottom) scrollMessagesToBottom('smooth');
+  }
+
+  const conv = getActiveConversation();
+  const showName = conv && conv.type !== 'friend';
+  const nameLine = showName
+    ? `<div class="message-meta mb-1">${chatState.typingUsers.map((u) => escapeHtml(u.username)).join(', ')}</div>`
+    : '';
+
+  indicator.innerHTML = `
+    <div class="message-bubble">
+      ${nameLine}
+      <div class="typing-dots">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+      </div>
+    </div>`;
 }
