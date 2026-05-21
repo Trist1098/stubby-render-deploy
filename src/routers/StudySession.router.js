@@ -4,6 +4,7 @@ const studySessionController = require('../controllers/StudySession.controller')
 const upload = require('../middlewares/upload');
 
 router.get('/:sessionId', studySessionController.getSession);
+router.get('/:sessionId/focus-status-mix', studySessionController.getFocusStatusMix);
 router.post('/:sessionId/consultations', studySessionController.startConsultation);
 router.patch(
   '/:sessionId/consultations/:consultationId/finish',

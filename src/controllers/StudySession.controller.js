@@ -252,6 +252,18 @@ module.exports.getMicroGoalWorkChecks = async function getMicroGoalWorkChecks(re
   }
 };
 
+module.exports.getFocusStatusMix = async function getFocusStatusMix(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+
+  try {
+    const statusMix = await model.selectFocusStatusMix(sessionId);
+    return ok(res, statusMix);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports.startConsultation = async function startConsultation(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
   const studentUserId = parseId(req.body.student_user_id);

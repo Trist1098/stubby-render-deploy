@@ -188,6 +188,85 @@
   background: linear-gradient(90deg, var(--primary), #22c55e);
 }
 
+.focus-credit-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: center;
+  margin-top: 9px;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: #ffffff;
+}
+
+.focus-credit-score {
+  display: grid;
+  gap: 1px;
+  min-width: 54px;
+}
+
+.focus-credit-score span,
+.focus-credit-detail span {
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.focus-credit-score strong {
+  color: #203047;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.focus-credit-detail {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.focus-credit-detail b {
+  color: #334155;
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.focus-credit-detail span {
+  overflow-wrap: anywhere;
+}
+
+.focus-credit-meter {
+  grid-column: 1 / -1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf2f7;
+}
+
+.focus-credit-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #64748b, #22c55e);
+}
+
+.focus-credit-excellent .focus-credit-meter span {
+  background: linear-gradient(90deg, #10b981, #f59e0b);
+}
+
+.focus-credit-reliable .focus-credit-meter span {
+  background: linear-gradient(90deg, #2563eb, #22c55e);
+}
+
+.focus-credit-building .focus-credit-meter span {
+  background: linear-gradient(90deg, #f59e0b, #22c55e);
+}
+
+.focus-credit-starter .focus-credit-meter span {
+  background: linear-gradient(90deg, #94a3b8, #38bdf8);
+}
+
 .status-controls-box {
   margin-top: 12px;
   padding: 14px;
@@ -747,4 +826,157 @@
 
 .completion-ai-feedback ul {
   padding-left: 18px;
+}
+
+.status-mix-dashboard {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  padding: 22px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+
+.status-mix-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status-mix-heading h2 {
+  margin: 2px 0 0;
+  color: #111827;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.status-mix-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-mix-chart-shell {
+  min-width: 0;
+}
+
+.status-mix-chart {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+}
+
+.status-mix-empty {
+  margin: 0;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 20px;
+  color: #64748b;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.status-mix-member-row {
+  display: grid;
+  gap: 8px;
+}
+
+.status-mix-member-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.status-mix-member-heading strong {
+  color: #1f2937;
+  font-size: 0.92rem;
+}
+
+.status-mix-member-heading span {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.status-mix-stacked-bar {
+  display: flex;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #e2e8f0;
+}
+
+.status-mix-bar-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2px;
+  overflow: hidden;
+  padding: 0 7px;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.22);
+  white-space: nowrap;
+}
+
+.status-mix-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.status-mix-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.status-mix-status-chip i {
+  width: 8px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.status-mix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-mix-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.status-mix-legend-swatch {
+  width: 10px;
+  aspect-ratio: 1;
+  border-radius: 50%;
 }

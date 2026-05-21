@@ -90,6 +90,15 @@ const updateMemberStatusesInTransaction = async (client, sessionId, userIds, sta
   const normalizedUserIds = [...new Set(userIds.map(Number).filter((id) => Number.isInteger(id)))];
   if (!normalizedUserIds.length) return [];
 
+  await client.query(
+    `
+      UPDATE StudySession
+      SET started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+      WHERE session_id = $1
+    `,
+    [sessionId],
+  );
+
   const memberResult = await client.query(
     `
       UPDATE SessionMember
@@ -150,6 +159,95 @@ const groupBy = (rows, key) =>
     groups[groupKey].push(row);
     return groups;
   }, {});
+
+const clampScore = (value) => Math.min(Math.max(Math.round(value), 0), 100);
+
+const buildFocusCredit = (row = {}) => {
+  const focusSeconds = Number(row.focus_seconds) || 0;
+  const plannedSessionSeconds = Number(row.planned_session_seconds) || 0;
+  const completedMicroGoals = Number(row.completed_micro_goals) || 0;
+  const evidenceUploads = Number(row.evidence_uploads) || 0;
+  const helpParticipation = Number(row.help_participation) || 0;
+
+  const focusMinutes = Math.floor(focusSeconds / 60);
+  const focusPoints = plannedSessionSeconds
+    ? Math.min(Math.floor((focusSeconds / plannedSessionSeconds) * 20), 20)
+    : 0;
+  const goalPoints = Math.min(completedMicroGoals * 10, 20);
+  const evidencePoints = Math.min(evidenceUploads * 8, 20);
+  const helpPoints = Math.min(helpParticipation * 5, 15);
+  const score = clampScore(45 + focusPoints + goalPoints + evidencePoints + helpPoints);
+
+  let label = 'Getting started';
+  if (score >= 85) label = 'Excellent';
+  else if (score >= 70) label = 'Reliable';
+  else if (score >= 55) label = 'Building';
+
+  return {
+    score,
+    label,
+    focus_minutes: focusMinutes,
+    completed_micro_goals: completedMicroGoals,
+    evidence_uploads: evidenceUploads,
+    help_participation: helpParticipation,
+    breakdown: {
+      focus: focusPoints,
+      micro_goals: goalPoints,
+      evidence: evidencePoints,
+      help: helpPoints,
+    },
+  };
+};
+
+const focusStatusOrder = ['focus', 'break', 'need_help', 'in_consultation'];
+
+const focusStatusLabels = {
+  focus: 'Focusing',
+  break: 'On Break',
+  need_help: 'Need Help',
+  in_consultation: 'In Consultation',
+};
+
+const dateMs = (value) => {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+};
+
+const maxDate = (...values) => {
+  const times = values.map(dateMs).filter((time) => time !== null);
+  return times.length ? new Date(Math.max(...times)) : null;
+};
+
+const minDate = (...values) => {
+  const times = values.map(dateMs).filter((time) => time !== null);
+  return times.length ? new Date(Math.min(...times)) : null;
+};
+
+const secondsBetween = (start, end) => {
+  const startTime = dateMs(start);
+  const endTime = dateMs(end);
+  if (startTime === null || endTime === null || endTime <= startTime) return 0;
+  return Math.floor((endTime - startTime) / 1000);
+};
+
+const addStatusSeconds = (totals, status, start, end) => {
+  const normalizedStatus = normalizeMemberStatus(status);
+  if (!focusStatusOrder.includes(normalizedStatus)) return;
+  totals[normalizedStatus] += secondsBetween(start, end);
+};
+
+const buildFocusStatusSegments = (totals) => {
+  const totalSeconds = focusStatusOrder.reduce((sum, status) => sum + totals[status], 0);
+  return focusStatusOrder.map((status) => {
+    const seconds = totals[status];
+    return {
+      status,
+      label: focusStatusLabels[status],
+      seconds,
+      percentage: totalSeconds ? Number(((seconds / totalSeconds) * 100).toFixed(1)) : 0,
+    };
+  });
+};
 
 const mapAiCheck = (row) => ({
   id: row.id,
@@ -426,11 +524,94 @@ module.exports.selectSessionMembers = async function selectSessionMembers(
     ORDER BY w.created_at ASC, w.id ASC
   `;
 
+  const creditSql = `
+    SELECT
+      sm.user_id,
+      COALESCE(ss.planned_duration_seconds, ss.duration, 0)::INT AS planned_session_seconds,
+      (
+        COALESCE(focus_stats.focus_seconds, 0)
+        + CASE
+            WHEN COALESCE(focus_stats.focus_seconds, 0) = 0
+              AND LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')) IN ('focus', 'focusing')
+            THEN COALESCE(sm.status_timer, 0)
+            ELSE 0
+          END
+      )::INT AS focus_seconds,
+      COALESCE(goal_stats.completed_micro_goals, 0)::INT AS completed_micro_goals,
+      COALESCE(evidence_stats.evidence_uploads, 0)::INT AS evidence_uploads,
+      (
+        COALESCE(help_status.help_status_count, 0)
+        + COALESCE(consultation_stats.consultation_count, 0)
+        + CASE
+            WHEN LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')) IN ('need_help', 'in_consultation')
+            THEN 1
+            ELSE 0
+          END
+      )::INT AS help_participation
+    FROM SessionMember sm
+    INNER JOIN StudySession ss ON ss.session_id = sm.session_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        SUM(
+          GREATEST(
+            EXTRACT(
+              EPOCH FROM (
+                COALESCE(se.ended_at, CURRENT_TIMESTAMP)
+                - GREATEST(se.started_at, COALESCE(ss.started_at, CURRENT_TIMESTAMP))
+              )
+            ),
+            0
+          )
+        ),
+        0
+      )::INT AS focus_seconds
+      FROM status_events se
+      WHERE se.study_session_participant_id = sm.member_id
+        AND LOWER(REPLACE(se.status, ' ', '_')) IN ('focus', 'focusing')
+        AND COALESCE(se.ended_at, CURRENT_TIMESTAMP) >= COALESCE(ss.started_at, CURRENT_TIMESTAMP)
+    ) focus_stats ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS completed_micro_goals
+      FROM micro_goal_progress mgp
+      INNER JOIN micro_goals mg ON mg.id = mgp.micro_goal_id
+      WHERE mg.study_session_id = sm.session_id
+        AND mgp.user_id = sm.user_id
+        AND mgp.is_completed = TRUE
+    ) goal_stats ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS evidence_uploads
+      FROM micro_goal_workings w
+      INNER JOIN micro_goal_progress mgp ON mgp.id = w.micro_goal_progress_id
+      INNER JOIN micro_goals mg ON mg.id = mgp.micro_goal_id
+      WHERE mg.study_session_id = sm.session_id
+        AND mgp.user_id = sm.user_id
+    ) evidence_stats ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS help_status_count
+      FROM status_events se
+      WHERE se.study_session_participant_id = sm.member_id
+        AND LOWER(REPLACE(se.status, ' ', '_')) IN ('need_help', 'in_consultation')
+        AND se.started_at >= COALESCE(ss.started_at, CURRENT_TIMESTAMP)
+    ) help_status ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS consultation_count
+      FROM consultation_sessions cs
+      WHERE cs.study_session_id = sm.session_id
+        AND sm.user_id IN (cs.student_user_id, cs.teacher_user_id)
+    ) consultation_stats ON TRUE
+    WHERE sm.session_id = $1
+      AND sm.left_at IS NULL
+  `;
+
   const membersResult = await pool.query(memberSql, [sessionId, microGoalId]);
   const goalsResult = await pool.query(goalSql, [sessionId, microGoalId]);
   const evidenceResult = await pool.query(evidenceSql, [sessionId]);
+  const creditResult = await pool.query(creditSql, [sessionId]);
 
   const evidenceByProgress = groupBy(evidenceResult.rows, 'progress_id');
+  const creditByUser = Object.fromEntries(
+    creditResult.rows.map((row) => [row.user_id, buildFocusCredit(row)]),
+  );
   const goalsByUser = groupBy(
     goalsResult.rows.map((goal) => ({
       id: goal.id,
@@ -457,6 +638,7 @@ module.exports.selectSessionMembers = async function selectSessionMembers(
     current_status: prettyStatus(member.status),
     status_class: cssStatus(member.status),
     progress_percent: member.progress_percent,
+    focus_credit: creditByUser[member.user_id] || buildFocusCredit(),
     goals: goalsByUser[member.user_id] || [],
   }));
 };
@@ -471,6 +653,102 @@ module.exports.selectMicroGoalById = async function selectMicroGoalById(sessionI
     `;
   const { rows } = await pool.query(SQLSTATEMENT, [sessionId, microGoalId]);
   return rows[0] || null;
+};
+
+module.exports.selectFocusStatusMix = async function selectFocusStatusMix(sessionId) {
+  const SQLSTATEMENT = `
+    SELECT
+      sm.member_id,
+      sm.user_id,
+      u.name,
+      LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')) AS current_status,
+      sm.joined_at,
+      sm.left_at,
+      ss.started_at,
+      CURRENT_TIMESTAMP AS captured_at,
+      se.id AS event_id,
+      se.status AS event_status,
+      se.started_at AS event_time,
+      se.ended_at AS event_ended_at
+    FROM SessionMember sm
+    INNER JOIN StudySession ss ON ss.session_id = sm.session_id
+    INNER JOIN "User" u ON u.user_id = sm.user_id
+    LEFT JOIN status_events se
+      ON se.study_session_participant_id = sm.member_id
+      AND ss.started_at IS NOT NULL
+      AND COALESCE(se.ended_at, CURRENT_TIMESTAMP) >= ss.started_at
+    WHERE sm.session_id = $1
+      AND sm.left_at IS NULL
+    ORDER BY sm.member_id ASC, se.started_at ASC NULLS LAST, se.id ASC NULLS LAST
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [sessionId]);
+  const members = groupBy(rows, 'member_id');
+
+  return {
+    mode: 'focus_status_mix',
+    generated_at: rows[0]?.captured_at || new Date().toISOString(),
+    members: Object.values(members).map((memberRows) => {
+      const firstRow = memberRows[0];
+      const capturedAt = firstRow.captured_at || new Date();
+      const events = memberRows
+        .filter((row) => row.event_id)
+        .sort((a, b) => {
+          const timeDiff = dateMs(a.event_time) - dateMs(b.event_time);
+          return timeDiff || Number(a.event_id) - Number(b.event_id);
+        });
+      const sessionStart = firstRow.started_at || null;
+      const memberStart = sessionStart
+        ? maxDate(sessionStart, firstRow.joined_at) || sessionStart
+        : capturedAt;
+      const memberEnd = minDate(firstRow.left_at || capturedAt, capturedAt) || capturedAt;
+      const totals = focusStatusOrder.reduce((statusTotals, status) => {
+        statusTotals[status] = 0;
+        return statusTotals;
+      }, {});
+      let cursor = memberStart;
+      let lastStatus = 'focus';
+
+      events.forEach((event) => {
+        const eventStatus = normalizeMemberStatus(event.event_status);
+        const eventStart = maxDate(event.event_time, memberStart);
+        const eventEnd = minDate(event.event_ended_at || memberEnd, memberEnd);
+
+        if (!eventStart || !eventEnd || dateMs(eventEnd) <= dateMs(memberStart)) return;
+        if (dateMs(eventStart) >= dateMs(memberEnd)) return;
+
+        if (dateMs(eventStart) > dateMs(cursor)) {
+          addStatusSeconds(totals, lastStatus, cursor, eventStart);
+        }
+
+        const segmentStart = maxDate(eventStart, cursor, memberStart);
+        if (dateMs(eventEnd) > dateMs(segmentStart)) {
+          addStatusSeconds(totals, eventStatus, segmentStart, eventEnd);
+        }
+
+        if (dateMs(eventEnd) > dateMs(cursor)) cursor = eventEnd;
+        lastStatus = eventStatus;
+      });
+
+      if (dateMs(memberEnd) > dateMs(cursor)) {
+        addStatusSeconds(totals, firstRow.current_status || lastStatus, cursor, memberEnd);
+      }
+
+      const segments = buildFocusStatusSegments(totals);
+      const totalSeconds = segments.reduce((sum, segment) => sum + segment.seconds, 0);
+      const currentStatus = normalizeMemberStatus(firstRow.current_status);
+
+      return {
+        user_id: firstRow.user_id,
+        name: firstRow.name,
+        current_status: prettyStatus(currentStatus),
+        current_status_key: currentStatus,
+        joined_at: firstRow.joined_at,
+        tracked_from: memberStart,
+        total_seconds: totalSeconds,
+        segments,
+      };
+    }),
+  };
 };
 
 module.exports.insertMicroGoalAiCheck = async function insertMicroGoalAiCheck(data) {
@@ -1154,6 +1432,15 @@ module.exports.updateMemberStatus = async function updateMemberStatus(data) {
       await client.query('ROLLBACK');
       return null;
     }
+
+    await client.query(
+      `
+        UPDATE StudySession
+        SET started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+        WHERE session_id = $1
+      `,
+      [data.study_session_id],
+    );
 
     await client.query(
       `

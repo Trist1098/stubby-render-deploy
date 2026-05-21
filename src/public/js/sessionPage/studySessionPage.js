@@ -6,6 +6,14 @@ const sessionId = Number.isInteger(selectedId) && selectedId > 0 ? selectedId : 
 const apiBase = `/api/sessions/${sessionId}`;
 const MEMBER_PREVIEW_LIMIT = 3;
 const CHECKLIST_STORAGE_PREFIX = 'workCheckChecklist:';
+const INTENTION_STORAGE_PREFIX = 'sessionIntention:';
+const STATUS_BREAKDOWN_ORDER = ['focus', 'break', 'need_help', 'in_consultation'];
+const STATUS_BREAKDOWN_META = {
+  focus: { label: 'Focusing', color: '#16a34a' },
+  break: { label: 'On Break', color: '#f59e0b' },
+  need_help: { label: 'Need Help', color: '#ef4444' },
+  in_consultation: { label: 'In Consultation', color: '#6366f1' },
+};
 
 let sessionData = {
   id: sessionId,
@@ -20,6 +28,15 @@ let sessionData = {
 let timerStartedAt = Date.now();
 let timerInterval = null;
 let statusTimerInterval = null;
+let focusStatusMixPollInterval = null;
+let focusStatusMixRenderInterval = null;
+let focusStatusMixData = null;
+let focusStatusMixRequestVersion = 0;
+let statusUpdateInFlight = false;
+let pendingStatusUpdate = null;
+const focusStatusLiveAnchors = new Map();
+const focusStatusLocalTotalMs = new Map();
+const focusStatusMemberTotalAnchors = new Map();
 let activeProgressDrag = null;
 let membersExpanded = false;
 let pendingConsultationMemberId = null;
@@ -38,7 +55,11 @@ let lastWorkspaceUpdatedAt = null;
 const page = {};
 
 function bindPage() {
+  page.editMissionButton = byId('editMissionButton');
   page.exitModal = byId('exitModal');
+  page.intentionForm = byId('intentionForm');
+  page.intentionInput = byId('intentionInput');
+  page.intentionModal = byId('intentionModal');
   page.completionAiFeedback = byId('completionAiFeedback');
   page.completionForm = byId('completionEvidenceForm');
   page.completionModal = byId('completionModal');
@@ -67,6 +88,8 @@ function bindPage() {
   page.membersList = byId('membersList');
   page.membersToggle = byId('membersToggleButton');
   page.message = byId('sessionMessage');
+  page.missionStrip = byId('sessionMissionStrip');
+  page.missionText = byId('sessionMissionText');
   page.nextQueuedGoal = byId('nextQueuedGoal');
   page.queueModal = byId('queueModal');
   page.queuedGoalCount = byId('queuedGoalCount');
@@ -82,6 +105,9 @@ function bindPage() {
   page.statusProgressText = byId('statusProgressText');
   page.workspacePanels = Array.from(document.querySelectorAll('[data-workspace-panel]'));
   page.workspaceTabButtons = Array.from(document.querySelectorAll('[data-workspace-tab]'));
+  page.statusMixChart = byId('statusMixChart');
+  page.statusMixLegend = byId('statusMixLegend');
+  page.statusMixSummary = byId('statusMixSummary');
 }
 
 function byId(id) {
@@ -147,6 +173,45 @@ function clearMessage() {
 
 function showModal(modal, shouldShow) {
   modal.classList.toggle('d-none', !shouldShow);
+}
+
+function sessionIntentionKey() {
+  return `${INTENTION_STORAGE_PREFIX}${sessionId}:${CURRENT_USER_ID}`;
+}
+
+function readSessionIntention() {
+  return localStorage.getItem(sessionIntentionKey()) || '';
+}
+
+function renderSessionIntention() {
+  const intention = readSessionIntention();
+  page.missionStrip.classList.toggle('d-none', !intention);
+  page.missionText.textContent = intention;
+}
+
+function openIntentionModal() {
+  page.intentionInput.value = readSessionIntention();
+  showModal(page.intentionModal, true);
+  window.setTimeout(() => page.intentionInput.focus(), 0);
+}
+
+function promptForSessionIntention() {
+  renderSessionIntention();
+  if (!readSessionIntention()) openIntentionModal();
+}
+
+function saveSessionIntention(event) {
+  event.preventDefault();
+
+  const intention = page.intentionInput.value.trim();
+  if (!intention) {
+    page.intentionInput.focus();
+    return;
+  }
+
+  localStorage.setItem(sessionIntentionKey(), intention);
+  showModal(page.intentionModal, false);
+  renderSessionIntention();
 }
 
 function showToast({ title, message, type = 'info', actionLabel = '', action = null }) {
@@ -223,6 +288,10 @@ function workCheckHistoryUrl(goalId, userId) {
   return `${apiBase}/micro-goals/${goalId}/work-checks?user_id=${userId}`;
 }
 
+function focusStatusMixUrl() {
+  return `${apiBase}/focus-status-mix`;
+}
+
 function consultationUrl(consultationId = '') {
   return `${apiBase}/consultations${consultationId ? `/${consultationId}` : ''}`;
 }
@@ -248,6 +317,8 @@ function renderPage() {
   updateRejoinButton();
   startTimer();
   startStatusTimer();
+  startFocusStatusMixTicker();
+  startFocusStatusPolling();
 }
 
 function renderCurrentGoal() {
@@ -283,6 +354,368 @@ function renderQueuedGoal(queuedGoal) {
       </div>
     </article>
   `;
+}
+
+function focusStatusMeta(status) {
+  return (
+    STATUS_BREAKDOWN_META[normalizeStatusForApi(status)] || {
+      label: 'Other',
+      color: '#64748b',
+    }
+  );
+}
+
+function formatStatusPercentage(value) {
+  const safeValue = asPercent(value);
+  if (!safeValue) return '0%';
+  return safeValue < 10 && !Number.isInteger(safeValue)
+    ? `${safeValue.toFixed(1)}%`
+    : `${Math.round(safeValue)}%`;
+}
+
+function focusStatusAnchorKey(member) {
+  return String(member.user_id ?? member.name ?? 'member');
+}
+
+function localStatusTotalsMs(anchorKey) {
+  if (!focusStatusLocalTotalMs.has(anchorKey)) {
+    focusStatusLocalTotalMs.set(
+      anchorKey,
+      STATUS_BREAKDOWN_ORDER.reduce((totals, status) => {
+        totals[status] = 0;
+        return totals;
+      }, {}),
+    );
+  }
+  return focusStatusLocalTotalMs.get(anchorKey);
+}
+
+function commitLiveStatusAnchor(anchorKey, anchor) {
+  if (!anchor) return;
+
+  const totals = localStatusTotalsMs(anchorKey);
+  const elapsedMs = Math.max(0, Date.now() - anchor.startedAtMs);
+  const liveMs = Math.max(0, anchor.baseMs + elapsedMs);
+  totals[anchor.status] = Math.max(totals[anchor.status] || 0, liveMs);
+}
+
+function serverStatusTotalMs(member) {
+  const segmentTotalMs = (member.segments || []).reduce(
+    (sum, segment) => sum + Math.max(0, Number(segment.seconds) || 0) * 1000,
+    0,
+  );
+  const memberTotalMs = Math.max(0, Number(member.total_seconds) || 0) * 1000;
+  return Math.max(segmentTotalMs, memberTotalMs);
+}
+
+function localStatusTotalMs(anchorKey) {
+  const totals = localStatusTotalsMs(anchorKey);
+  return STATUS_BREAKDOWN_ORDER.reduce((sum, status) => sum + (totals[status] || 0), 0);
+}
+
+function liveMemberTotalSeconds(member, segmentTotalMs) {
+  const anchorKey = focusStatusAnchorKey(member);
+  const serverTotalMs = Math.max(serverStatusTotalMs(member), Math.max(0, segmentTotalMs || 0));
+  const now = Date.now();
+  let anchor = focusStatusMemberTotalAnchors.get(anchorKey);
+
+  if (!anchor) {
+    anchor = {
+      baseMs: Math.max(serverTotalMs, localStatusTotalMs(anchorKey)),
+      startedAtMs: now,
+    };
+    focusStatusMemberTotalAnchors.set(anchorKey, anchor);
+  }
+
+  const liveMs = anchor.baseMs + Math.max(0, now - anchor.startedAtMs);
+  if (serverTotalMs > liveMs) {
+    anchor = { baseMs: serverTotalMs, startedAtMs: now };
+    focusStatusMemberTotalAnchors.set(anchorKey, anchor);
+  }
+
+  const nextLiveMs = anchor.baseMs + Math.max(0, now - anchor.startedAtMs);
+  return Math.floor(Math.max(nextLiveMs, serverTotalMs) / 1000);
+}
+
+function updateStatusMixMemberStatus(userId, status) {
+  if (!focusStatusMixData?.members) return;
+
+  const member = focusStatusMixData.members.find((item) => Number(item.user_id) === Number(userId));
+  if (!member) return;
+
+  const activeStatus = normalizeStatusForApi(status);
+  const anchorKey = focusStatusAnchorKey(member);
+  const existingAnchor = focusStatusLiveAnchors.get(anchorKey);
+  const currentStatus = normalizeStatusForApi(member.current_status_key || member.current_status);
+  if (currentStatus === activeStatus && existingAnchor?.status === activeStatus) return;
+
+  commitLiveStatusAnchor(anchorKey, focusStatusLiveAnchors.get(anchorKey));
+
+  const totals = localStatusTotalsMs(anchorKey);
+  const serverSegment = (member.segments || []).find(
+    (segment) => normalizeStatusForApi(segment.status) === activeStatus,
+  );
+  const baseMs = Math.max(
+    totals[activeStatus] || 0,
+    Math.max(0, Number(serverSegment?.seconds) || 0) * 1000,
+  );
+
+  member.current_status_key = activeStatus;
+  member.current_status = focusStatusMeta(activeStatus).label;
+  focusStatusMixData.generated_at = new Date().toISOString();
+  focusStatusLiveAnchors.set(anchorKey, {
+    status: activeStatus,
+    baseMs,
+    startedAtMs: Date.now(),
+  });
+}
+
+function liveStatusSeconds(member, activeStatus, serverSeconds) {
+  const anchorKey = focusStatusAnchorKey(member);
+  const serverBaseMs = Math.max(0, Number(serverSeconds) || 0) * 1000;
+  const localTotals = localStatusTotalsMs(anchorKey);
+  let anchor = focusStatusLiveAnchors.get(anchorKey);
+  const now = Date.now();
+
+  if (!anchor || anchor.status !== activeStatus) {
+    commitLiveStatusAnchor(anchorKey, anchor);
+    focusStatusLiveAnchors.set(anchorKey, {
+      status: activeStatus,
+      baseMs: Math.max(serverBaseMs, localTotals[activeStatus] || 0),
+      startedAtMs: now,
+    });
+    anchor = focusStatusLiveAnchors.get(anchorKey);
+  }
+
+  const liveMs = anchor.baseMs + Math.max(0, now - anchor.startedAtMs);
+  if (serverBaseMs > liveMs) {
+    focusStatusLiveAnchors.set(anchorKey, {
+      status: activeStatus,
+      baseMs: serverBaseMs,
+      startedAtMs: now,
+    });
+    anchor = focusStatusLiveAnchors.get(anchorKey);
+  }
+
+  const elapsedMs = Math.max(0, now - anchor.startedAtMs);
+  const nextLiveMs = anchor.baseMs + elapsedMs;
+  localTotals[activeStatus] = Math.max(localTotals[activeStatus] || 0, nextLiveMs);
+  return Math.floor(nextLiveMs / 1000);
+}
+
+function buildLiveStatusSegments(member) {
+  const anchorKey = focusStatusAnchorKey(member);
+  const localTotals = localStatusTotalsMs(anchorKey);
+  const msByStatus = STATUS_BREAKDOWN_ORDER.reduce((totals, status) => {
+    totals[status] = 0;
+    return totals;
+  }, {});
+  const activeStatus = normalizeStatusForApi(member.current_status_key || member.current_status);
+
+  (member.segments || []).forEach((segment) => {
+    const status = normalizeStatusForApi(segment.status);
+    if (Object.prototype.hasOwnProperty.call(msByStatus, status)) {
+      msByStatus[status] += Math.max(0, Number(segment.seconds) || 0) * 1000;
+    }
+  });
+  STATUS_BREAKDOWN_ORDER.forEach((status) => {
+    if (status === activeStatus) return;
+    msByStatus[status] = Math.max(msByStatus[status], localTotals[status] || 0);
+  });
+  if (Object.prototype.hasOwnProperty.call(msByStatus, activeStatus)) {
+    msByStatus[activeStatus] = liveStatusSeconds(
+      member,
+      activeStatus,
+      msByStatus[activeStatus] / 1000,
+    ) * 1000;
+  }
+
+  const segmentTotalMs = STATUS_BREAKDOWN_ORDER.reduce(
+    (sum, status) => sum + msByStatus[status],
+    0,
+  );
+  const totalSeconds = liveMemberTotalSeconds(member, segmentTotalMs);
+
+  return STATUS_BREAKDOWN_ORDER.map((status) => ({
+    status,
+    ...focusStatusMeta(status),
+    seconds: Math.floor(msByStatus[status] / 1000),
+    percentage: segmentTotalMs
+      ? Number(((msByStatus[status] / segmentTotalMs) * 100).toFixed(1))
+      : 0,
+    segmentTotalSeconds: Math.floor(segmentTotalMs / 1000),
+    totalSeconds,
+  }));
+}
+
+function updateStatusSegmentElement(segmentEl, segment) {
+  if (!segmentEl) return;
+
+  const percentageText = formatStatusPercentage(segment.percentage);
+  const label = segment.percentage >= 12 ? `${segment.label} ${percentageText}` : '';
+  segmentEl.style.width = `${segment.percentage}%`;
+  segmentEl.style.minWidth = segment.percentage ? '2px' : '0';
+  segmentEl.style.padding = segment.percentage ? '0 7px' : '0';
+  segmentEl.title = `${segment.label} ${percentageText}`;
+  segmentEl.textContent = label;
+}
+
+function renderStatusSegment(segment) {
+  const percentageText = formatStatusPercentage(segment.percentage);
+  const label = segment.percentage >= 12 ? `${escapeHtml(segment.label)} ${percentageText}` : '';
+
+  return `
+    <span
+      class="status-mix-bar-segment status-${escapeHtml(segment.status)}"
+      data-status-mix-segment="${escapeHtml(segment.status)}"
+      style="width: ${segment.percentage}%; min-width: ${
+        segment.percentage ? '2px' : '0'
+      }; padding: ${segment.percentage ? '0 7px' : '0'}; background: ${segment.color}"
+      title="${escapeHtml(segment.label)} ${percentageText}"
+    >${label}</span>
+  `;
+}
+
+function renderStatusBreakdownChips(segments) {
+  return segments
+    .map(
+      (segment) => `
+        <span class="status-mix-status-chip" data-status-mix-chip="${escapeHtml(segment.status)}">
+          <i style="background: ${segment.color}"></i>
+          <span class="status-mix-chip-text">
+            ${escapeHtml(segment.label)} ${formatStatusPercentage(segment.percentage)}
+          </span>
+        </span>
+      `,
+    )
+    .join('');
+}
+
+function findStatusMixRow(anchorKey) {
+  if (!page.statusMixChart) return null;
+  return Array.from(page.statusMixChart.querySelectorAll('[data-status-mix-member]')).find(
+    (row) => row.dataset.statusMixMember === String(anchorKey),
+  );
+}
+
+function refreshFocusStatusMixDom(data = focusStatusMixData) {
+  const members = data?.members || [];
+  if (!members.length || !page.statusMixChart) return;
+
+  let needsFullRender = false;
+
+  members.forEach((member) => {
+    const anchorKey = focusStatusAnchorKey(member);
+    const row = findStatusMixRow(anchorKey);
+    if (!row) {
+      needsFullRender = true;
+      return;
+    }
+
+    const segments = buildLiveStatusSegments(member);
+    const totalSeconds = segments[0]?.totalSeconds || Number(member.total_seconds) || 0;
+    const currentStatus = focusStatusMeta(member.current_status_key || member.current_status);
+    const heading = row.querySelector('[data-status-mix-current]');
+    if (heading) {
+      heading.textContent = `${currentStatus.label} now - ${statusTime(totalSeconds)} tracked`;
+    }
+
+    segments.forEach((segment) => {
+      updateStatusSegmentElement(
+        row.querySelector(`[data-status-mix-segment="${segment.status}"]`),
+        segment,
+      );
+
+      const chipText = row.querySelector(
+        `[data-status-mix-chip="${segment.status}"] .status-mix-chip-text`,
+      );
+      if (chipText) {
+        chipText.textContent = `${segment.label} ${formatStatusPercentage(segment.percentage)}`;
+      }
+    });
+  });
+
+  if (needsFullRender) renderFocusStatusMixChart(data);
+}
+
+function renderFocusStatusMix(data, members) {
+  page.statusMixSummary.textContent = `Live - whole session - ${members.length} ${
+    members.length === 1 ? 'member' : 'members'
+  }`;
+
+  page.statusMixChart.innerHTML = members
+    .map((member) => {
+      const segments = buildLiveStatusSegments(member);
+      const totalSeconds = segments[0]?.totalSeconds || Number(member.total_seconds) || 0;
+      const currentStatus = focusStatusMeta(member.current_status_key || member.current_status);
+      const anchorKey = focusStatusAnchorKey(member);
+      return `
+        <article class="status-mix-member-row" data-status-mix-member="${escapeHtml(anchorKey)}">
+          <div class="status-mix-member-heading">
+            <strong>${escapeHtml(member.name || 'Member')}</strong>
+            <span data-status-mix-current>${escapeHtml(currentStatus.label)} now - ${statusTime(
+              totalSeconds,
+            )} tracked</span>
+          </div>
+          <div
+            class="status-mix-stacked-bar"
+            aria-label="${escapeHtml(member.name || 'Member')} focus status percentages"
+          >
+            ${segments.map(renderStatusSegment).join('')}
+          </div>
+          <div class="status-mix-status-chips">
+            ${renderStatusBreakdownChips(segments)}
+          </div>
+        </article>
+      `;
+    })
+    .join('');
+
+  page.statusMixLegend.innerHTML = STATUS_BREAKDOWN_ORDER.map((status) => {
+    const meta = focusStatusMeta(status);
+    return `
+      <span class="status-mix-legend-item">
+        <i class="status-mix-legend-swatch" style="background: ${meta.color}"></i>
+        ${escapeHtml(meta.label)}
+      </span>
+    `;
+  }).join('');
+}
+
+function renderFocusStatusMixChart(data) {
+  const members = data?.members || [];
+  if (!members.length) {
+    page.statusMixSummary.textContent = 'No activity yet';
+    page.statusMixLegend.innerHTML = '';
+    page.statusMixChart.innerHTML = '<p class="status-mix-empty">No focus status data yet</p>';
+    return;
+  }
+
+  renderFocusStatusMix(data, members);
+}
+
+async function loadFocusStatusMix(options = {}) {
+  if (options.showLoading !== false) page.statusMixSummary.textContent = 'Loading';
+  const requestVersion = ++focusStatusMixRequestVersion;
+
+  try {
+    const statusMix = await getJson(focusStatusMixUrl());
+    if (requestVersion !== focusStatusMixRequestVersion) return;
+
+    focusStatusMixData = statusMix;
+    if (page.statusMixChart?.querySelector('[data-status-mix-member]')) {
+      refreshFocusStatusMixDom(statusMix);
+    } else {
+      renderFocusStatusMixChart(statusMix);
+    }
+  } catch (error) {
+    if (requestVersion !== focusStatusMixRequestVersion) return;
+
+    focusStatusMixData = null;
+    page.statusMixSummary.textContent = 'Unavailable';
+    page.statusMixLegend.innerHTML = '';
+    page.statusMixChart.innerHTML = `<p class="status-mix-empty">${escapeHtml(error.message)}</p>`;
+  }
 }
 
 function renderMembers() {
@@ -362,6 +795,41 @@ function renderMemberCardInPlace(memberData) {
   renderStatusTimers();
 }
 
+function focusCreditTone(score) {
+  if (score >= 85) return 'excellent';
+  if (score >= 70) return 'reliable';
+  if (score >= 55) return 'building';
+  return 'starter';
+}
+
+function renderFocusCredit(memberData) {
+  const credit = memberData.focus_credit || {};
+  const score = asPercent(credit.score ?? 45);
+  const label = credit.label || 'Getting started';
+  const stats = [
+    `${Number(credit.focus_minutes) || 0}m focus`,
+    `${Number(credit.completed_micro_goals) || 0} goals`,
+    `${Number(credit.evidence_uploads) || 0} evidence`,
+    `${Number(credit.help_participation) || 0} help`,
+  ].join(' · ');
+
+  return `
+    <div class="focus-credit-strip focus-credit-${focusCreditTone(score)}" aria-label="Focus Credit Score ${score}, ${escapeHtml(label)}">
+      <div class="focus-credit-score">
+        <span>Focus Credit</span>
+        <strong>${score}</strong>
+      </div>
+      <div class="focus-credit-detail">
+        <b>${escapeHtml(label)}</b>
+        <span>${escapeHtml(stats)}</span>
+      </div>
+      <div class="focus-credit-meter" aria-hidden="true">
+        <span style="width: ${score}%"></span>
+      </div>
+    </div>
+  `;
+}
+
 function renderMemberCard(memberData) {
   const progress = asPercent(memberData.progress_percent);
   const statusClass = memberData.status_class || 'focusing';
@@ -395,6 +863,7 @@ function renderMemberCard(memberData) {
           <div class="member-progress-bar" aria-label="Goal progress ${progress}%">
             <span class="member-progress-fill" style="width: ${progress}%"></span>
           </div>
+          ${renderFocusCredit(memberData)}
         </div>
       </div>
       <button
@@ -555,6 +1024,19 @@ function startStatusTimer() {
   statusTimerInterval = setInterval(renderStatusTimers, 1000);
 }
 
+function startFocusStatusMixTicker() {
+  clearInterval(focusStatusMixRenderInterval);
+  refreshFocusStatusMixDom();
+  focusStatusMixRenderInterval = setInterval(refreshFocusStatusMixDom, 1000);
+}
+
+function startFocusStatusPolling() {
+  clearInterval(focusStatusMixPollInterval);
+  focusStatusMixPollInterval = setInterval(() => {
+    loadFocusStatusMix({ showLoading: false });
+  }, 10000);
+}
+
 function renderTimer() {
   const elapsedSeconds = Math.floor((Date.now() - timerStartedAt) / 1000);
   const remainingSeconds = Math.max(0, Number(sessionData.remaining_seconds || 0) - elapsedSeconds);
@@ -582,6 +1064,8 @@ async function loadSession() {
   timerStartedAt = Date.now();
   localStorage.setItem('currentStudySessionId', String(sessionId));
   renderPage();
+  promptForSessionIntention();
+  loadFocusStatusMix();
 }
 
 async function addMicroGoal(event) {
@@ -1127,33 +1611,82 @@ function normalizeStatusForApi(status) {
   return normalized;
 }
 
-async function updateCurrentStatus(event) {
+function statusClassForApiStatus(status) {
+  const normalizedStatus = normalizeStatusForApi(status);
+  return normalizedStatus === 'break' ? 'on-break' : normalizedStatus.replace(/_/g, '-');
+}
+
+function applyOptimisticCurrentStatus(status) {
+  const normalizedStatus = normalizeStatusForApi(status);
+  const currentMember = getCurrentMember();
+
+  if (currentMember) {
+    const previousStatus = normalizeStatusForApi(
+      currentMember.status_class || currentMember.current_status,
+    );
+    currentMember.current_status = focusStatusMeta(normalizedStatus).label;
+    currentMember.status_class = statusClassForApiStatus(normalizedStatus);
+    if (previousStatus !== normalizedStatus) currentMember.status_timer = 0;
+  }
+
+  updateStatusMixMemberStatus(CURRENT_USER_ID, normalizedStatus);
+  refreshFocusStatusMixDom();
+  if (currentMember) renderMemberCardInPlace(currentMember);
+  renderStatusControls();
+}
+
+async function flushStatusUpdateQueue() {
+  if (statusUpdateInFlight) return;
+
+  statusUpdateInFlight = true;
+  try {
+    while (pendingStatusUpdate) {
+      const statusToSend = pendingStatusUpdate;
+      pendingStatusUpdate = null;
+
+      try {
+        const updatedMember = await getJson(`${apiBase}/members/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            user_id: CURRENT_USER_ID,
+            status: statusToSend,
+          }),
+        });
+
+        if (!pendingStatusUpdate) {
+          const currentMember = getCurrentMember();
+          if (currentMember) {
+            currentMember.current_status = updatedMember.current_status;
+            currentMember.status_class = updatedMember.status_class;
+            currentMember.status_timer = updatedMember.status_timer || 0;
+            renderMemberCardInPlace(currentMember);
+            renderStatusControls();
+          }
+        }
+      } catch (error) {
+        if (!pendingStatusUpdate) showMessage(error.message, 'danger');
+      }
+    }
+  } finally {
+    statusUpdateInFlight = false;
+  }
+
+  loadFocusStatusMix({ showLoading: false });
+}
+
+function updateCurrentStatus(event) {
   const button = event.currentTarget;
-  const status = button.dataset.status;
-  if (!status) return;
+  const rawStatus = button.dataset.status;
+  if (!rawStatus) return;
+  const status = normalizeStatusForApi(rawStatus);
 
   syncRenderedStatusTimers();
-
-  try {
-    const updatedMember = await getJson(`${apiBase}/members/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        user_id: CURRENT_USER_ID,
-        status,
-      }),
-    });
-    const currentMember = getCurrentMember();
-    if (currentMember) {
-      currentMember.current_status = updatedMember.current_status;
-      currentMember.status_class = updatedMember.status_class;
-      currentMember.status_timer = updatedMember.status_timer || 0;
-    }
-    renderMemberCardInPlace(currentMember);
-    renderStatusControls();
-  } catch (error) {
-    showMessage(error.message, 'danger');
-  }
+  focusStatusMixRequestVersion += 1;
+  applyOptimisticCurrentStatus(status);
+  pendingStatusUpdate = status;
+  flushStatusUpdateQueue();
 }
+
 
 function openConsultationModal(memberName, memberUserId) {
   pendingConsultationMemberId = Number(memberUserId) || null;
@@ -1743,6 +2276,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   page.goalForm.addEventListener('submit', addMicroGoal);
+  page.intentionForm.addEventListener('submit', saveSessionIntention);
+  page.editMissionButton.addEventListener('click', openIntentionModal);
   page.membersList.addEventListener('click', handleMemberActivation);
   page.membersList.addEventListener('click', handleMemberGoalsButton);
   page.memberGoalsModal.addEventListener('submit', handleEvidenceFormSubmit);
@@ -1838,6 +2373,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   page.completionModal.addEventListener('click', (event) => {
     if (event.target === page.completionModal) showModal(page.completionModal, false);
+  });
+  page.intentionModal.addEventListener('click', (event) => {
+    if (event.target === page.intentionModal && readSessionIntention()) {
+      showModal(page.intentionModal, false);
+    }
   });
 
   loadSession();

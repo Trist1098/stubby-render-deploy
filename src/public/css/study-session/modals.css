@@ -66,6 +66,45 @@
   width: min(100%, 560px);
 }
 
+.intention-modal-card {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.intention-form {
+  display: grid;
+  gap: 14px;
+}
+
+.intention-form label {
+  display: grid;
+  gap: 7px;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.intention-form textarea {
+  width: 100%;
+  border: 1px solid #d8dee8;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #1f2937;
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.intention-form button {
+  justify-self: end;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 14px;
+  background: #203047;
+  color: #ffffff;
+  font-weight: 800;
+}
+
 .consultation-workspace-card {
   display: grid;
   gap: 14px;

@@ -38,36 +38,36 @@
             </button>
 
             <div class="collapse navbar-collapse" id="navContent">
-              <ul class="navbar-nav mx-auto gap-2 study-nav-links" id="nav-links">
+              <ul class="navbar-nav mx-auto gap-2" id="nav-links">
                 <li class="nav-item">
-                  <a href="index.html" class="nav-link study-nav-link">
-                    <i class="fas fa-home"></i>
-                    <span>Home</span>
+                  <a href="index.html" class="nav-link">Dashboard</a>
+                </li>
+                <li class="nav-item dropdown">
+                  <a
+                    href="matchmaking.html"
+                    class="nav-link dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                  >
+                    Matchmaking
                   </a>
+                  <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
+                    <li>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">
+                        Browse Matches
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">
+                        My Requests
+                      </a>
+                    </li>
+                  </ul>
                 </li>
                 <li class="nav-item">
-                  <a href="study-session.html" class="nav-link study-nav-link active">
-                    <i class="fas fa-layer-group"></i>
-                    <span>Study</span>
-                  </a>
+                  <a href="study-session.html" class="nav-link active">Sessions</a>
                 </li>
                 <li class="nav-item">
-                  <a href="matchmaking.html" class="nav-link study-nav-link">
-                    <i class="fas fa-user-friends"></i>
-                    <span>Match</span>
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a href="chat.html" class="nav-link study-nav-link">
-                    <i class="far fa-comment"></i>
-                    <span>Chat</span>
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a href="profile.html" class="nav-link study-nav-link">
-                    <i class="far fa-user"></i>
-                    <span>Profile</span>
-                  </a>
+                  <a href="chat.html" class="nav-link">Chat</a>
                 </li>
               </ul>
               <ul class="navbar-nav">
@@ -100,6 +100,21 @@
         <div id="sessionMessage" class="session-alert d-none"></div>
 
         <section class="session-focus-card">
+          <div id="sessionMissionStrip" class="mission-strip d-none">
+            <div>
+              <span>Mission</span>
+              <strong id="sessionMissionText"></strong>
+            </div>
+            <button
+              id="editMissionButton"
+              class="mission-edit-button"
+              type="button"
+              aria-label="Edit session mission"
+            >
+              <i class="fas fa-pen"></i>
+            </button>
+          </div>
+
           <div class="timer-ring" aria-label="Session countdown timer">
             <span id="countdownTimer">37:50</span>
           </div>
@@ -209,8 +224,54 @@
           </div>
           <div id="membersList" class="members-list"></div>
         </section>
+
+        <section class="status-mix-dashboard" aria-labelledby="statusMixTitle">
+          <div class="status-mix-heading">
+            <div>
+              <span class="session-kicker">Learning Analytics</span>
+              <h2 id="statusMixTitle">Focus Status Mix</h2>
+            </div>
+            <div id="statusMixSummary" class="status-mix-summary"></div>
+          </div>
+          <div class="status-mix-chart-shell">
+            <div
+              id="statusMixChart"
+              class="status-mix-chart"
+              role="img"
+              aria-label="Percentage of session time spent in each focus status"
+            ></div>
+          </div>
+          <div id="statusMixLegend" class="status-mix-legend"></div>
+        </section>
       </section>
     </main>
+
+    <div
+      id="intentionModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="intentionModalTitle"
+    >
+      <section class="session-modal-card intention-modal-card">
+        <div class="session-modal-header">
+          <h2 id="intentionModalTitle">What do you want done by the end?</h2>
+        </div>
+        <form id="intentionForm" class="intention-form">
+          <label>
+            <span>Session intention</span>
+            <textarea
+              id="intentionInput"
+              rows="3"
+              maxlength="180"
+              placeholder="Finish SDLC revision notes and submit evidence"
+              required
+            ></textarea>
+          </label>
+          <button type="submit">Set Mission</button>
+        </form>
+      </section>
+    </div>
 
     <div
       id="queueModal"
@@ -533,6 +594,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
-    <script src="js/sessionPage/studySessionPage.js?v=shared-workspace"></script>
+    <script src="js/sessionPage/studySessionPage.js?v=status-mix-total-anchor-fix"></script>
   </body>
 </html>
