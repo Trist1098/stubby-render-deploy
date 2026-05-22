@@ -1,5 +1,5 @@
 const DEFAULT_SESSION_ID = 2;
-const CURRENT_USER_ID = 2;
+const CURRENT_USER_ID = currentUserIdFromAuth();
 const urlParams = new URLSearchParams(window.location.search);
 const selectedId = Number(urlParams.get('id'));
 const sessionId = Number.isInteger(selectedId) && selectedId > 0 ? selectedId : DEFAULT_SESSION_ID;
@@ -57,7 +57,25 @@ let workspaceSaveInFlight = false;
 let workspaceRevision = 0;
 let savedWorkspaceRevision = 0;
 let lastWorkspaceUpdatedAt = null;
+const modalFocusStack = [];
 const page = {};
+
+function currentUserIdFromAuth() {
+  try {
+    const user = window.auth ? window.auth.getUser() : null;
+    const userId = Number(user?.user_id || user?.id || user?.userId);
+    return Number.isInteger(userId) && userId > 0 ? userId : null;
+  } catch {
+    return null;
+  }
+}
+
+function requireStudySessionLogin() {
+  if (window.auth?.isLoggedIn() && CURRENT_USER_ID) return true;
+
+  window.location.href = 'login.html';
+  return false;
+}
 
 function bindPage() {
   page.editMissionButton = byId('editMissionButton');
@@ -77,6 +95,8 @@ function bindPage() {
   page.consultationDirectionText = byId('consultationDirectionText');
   page.consultationModal = byId('consultationModal');
   page.consultationMemberName = byId('consultationMemberName');
+  page.openConsultationChatButton = byId('openConsultationChatButton');
+  page.openPendingConsultationChatButton = byId('openPendingConsultationChatButton');
   page.consultationReviewForm = byId('consultationReviewForm');
   page.consultationReviewModal = byId('consultationReviewModal');
   page.consultationReviewPrompt = byId('consultationReviewPrompt');
@@ -185,9 +205,44 @@ function clearMessage() {
   page.message.className = 'session-alert d-none';
 }
 
+function focusableElements(container) {
+  return Array.from(
+    container.querySelectorAll(
+      [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(', '),
+    ),
+  ).filter((element) => {
+    const style = window.getComputedStyle(element);
+    return (
+      !element.hasAttribute('disabled') &&
+      element.getAttribute('aria-hidden') !== 'true' &&
+      style.display !== 'none' &&
+      style.visibility !== 'hidden'
+    );
+  });
+}
+
 function showModal(modal, shouldShow) {
   if (!modal) return;
+  const wasHidden = modal.classList.contains('d-none');
+
+  if (shouldShow && wasHidden) modalFocusStack.push(document.activeElement);
   modal.classList.toggle('d-none', !shouldShow);
+  modal.setAttribute('aria-hidden', String(!shouldShow));
+  if (shouldShow && wasHidden) {
+    if (!modal.hasAttribute('tabindex')) modal.setAttribute('tabindex', '-1');
+    window.setTimeout(() => (focusableElements(modal)[0] || modal).focus(), 0);
+  }
+  if (!shouldShow && !wasHidden) {
+    const previousFocus = modalFocusStack.pop();
+    if (previousFocus?.isConnected) previousFocus.focus();
+  }
 }
 
 function setButtonsDisabled(buttons, disabled) {
@@ -206,6 +261,67 @@ function isCurrentMemberTimerPaused() {
 
 function timersPausedForViewer() {
   return isSessionExpired() || isCurrentMemberTimerPaused() || sessionData.status === 'completed';
+}
+
+function sessionMemberForViewer(data = sessionData) {
+  return (data.members || []).find((memberData) => Number(memberData.user_id) === CURRENT_USER_ID);
+}
+
+function sessionTimersPausedForViewer(data = sessionData) {
+  const currentMember = sessionMemberForViewer(data);
+  return (
+    data.status === 'expired' ||
+    data.status === 'completed' ||
+    Boolean(currentMember?.is_timer_paused)
+  );
+}
+
+function remainingSecondsForSession(data = sessionData, anchorStartedAt = timerStartedAt) {
+  const elapsedSeconds = sessionTimersPausedForViewer(data)
+    ? 0
+    : Math.floor((Date.now() - anchorStartedAt) / 1000);
+  return Math.max(0, Number(data.remaining_seconds || 0) - elapsedSeconds);
+}
+
+function shouldPreserveCountdown(previousData, nextData, options = {}) {
+  if (!options.silent) return false;
+  if (!previousData?.id || previousData.id !== nextData?.id) return false;
+  if (previousData.status !== nextData.status) return false;
+  if (sessionTimersPausedForViewer(previousData) || sessionTimersPausedForViewer(nextData)) {
+    return false;
+  }
+
+  return (
+    Number(previousData.planned_duration_seconds || 0) ===
+    Number(nextData.planned_duration_seconds || 0)
+  );
+}
+
+function memberStatusKey(memberData) {
+  return normalizeStatusForApi(memberData?.status_class || memberData?.current_status);
+}
+
+function preserveMemberStatusTimers(previousData, nextData, options = {}) {
+  if (!options.silent || !previousData?.id || previousData.id !== nextData?.id) return;
+
+  const previousMembersByUser = new Map(
+    (previousData.members || []).map((memberData) => [Number(memberData.user_id), memberData]),
+  );
+
+  (nextData.members || []).forEach((nextMember) => {
+    const previousMember = previousMembersByUser.get(Number(nextMember.user_id));
+    if (!previousMember) return;
+
+    const sameStatus = memberStatusKey(previousMember) === memberStatusKey(nextMember);
+    const samePauseState =
+      Boolean(previousMember.is_timer_paused) === Boolean(nextMember.is_timer_paused);
+    if (!sameStatus || !samePauseState) return;
+
+    nextMember.status_timer = Math.max(
+      Number(nextMember.status_timer) || 0,
+      Number(previousMember.status_timer) || 0,
+    );
+  });
 }
 
 function statusMixMemberIsPaused(member) {
@@ -346,18 +462,41 @@ function emptyText(text, className = 'member-evidence-empty') {
   return `<p class="${className}">${escapeHtml(text)}</p>`;
 }
 
+function authRequestHeaders(headers = {}) {
+  const token = window.auth ? window.auth.getToken() : null;
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
+}
+
+function saveRotatedToken(response) {
+  const nextToken = response.headers.get('X-New-Token');
+  if (nextToken && window.auth) window.auth.setToken(nextToken);
+}
+
+function logoutIfUnauthorized(response) {
+  if (response.status === 401 && window.auth) window.auth.logout();
+}
+
 async function getJson(url, options = {}) {
+  const { headers = {}, ...fetchOptions } = options;
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
+    ...fetchOptions,
+    headers: authRequestHeaders({ 'Content-Type': 'application/json', ...headers }),
   });
+  saveRotatedToken(response);
+  logoutIfUnauthorized(response);
   const payload = response.status === 204 ? {} : await response.json();
   if (!response.ok) throw new Error(payload.error || 'Request failed');
   return payload.data || payload;
 }
 
 async function postForm(url, formData) {
-  const response = await fetch(url, { method: 'POST', body: formData });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: authRequestHeaders(),
+    body: formData,
+  });
+  saveRotatedToken(response);
+  logoutIfUnauthorized(response);
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || 'Upload failed');
   return payload.data || payload;
@@ -389,6 +528,10 @@ function consultationReviewUrl(consultationId) {
 
 function consultationWorkspaceUrl(consultationId) {
   return `${consultationUrl(consultationId)}/workspace`;
+}
+
+function sessionMemberChatUrl(memberUserId) {
+  return `${apiBase}/members/${memberUserId}/chat`;
 }
 
 function renderPage() {
@@ -1149,12 +1292,10 @@ function startFocusStatusPolling() {
 }
 
 function renderTimer() {
-  const elapsedSeconds = timersPausedForViewer() ? 0 : Math.floor((Date.now() - timerStartedAt) / 1000);
-  const baseRemainingSeconds =
+  const remainingSeconds =
     pausedRemainingSeconds !== null
-      ? pausedRemainingSeconds
-      : Number(sessionData.remaining_seconds || 0);
-  const remainingSeconds = Math.max(0, baseRemainingSeconds - elapsedSeconds);
+      ? Math.max(0, pausedRemainingSeconds)
+      : remainingSecondsForSession();
   const totalSeconds = Math.max(
     remainingSeconds,
     Number(sessionData.planned_duration_seconds || 0),
@@ -1190,9 +1331,14 @@ async function loadSession(options = {}) {
   if (sessionLoadInFlight) return;
   sessionLoadInFlight = true;
   if (!options.silent) clearMessage();
+  syncRenderedStatusTimers();
+
+  const previousSessionData = sessionData;
+  const previousRemainingSeconds = remainingSecondsForSession(previousSessionData);
+  let nextSessionData;
 
   try {
-    sessionData = await getJson(apiBase);
+    nextSessionData = await getJson(apiBase);
   } catch (error) {
     if (!options.silent) {
       showMessage(error.message || 'Could not load the live study session.', 'danger');
@@ -1201,6 +1347,13 @@ async function loadSession(options = {}) {
     return;
   }
 
+  if (shouldPreserveCountdown(previousSessionData, nextSessionData, options)) {
+    const serverRemainingSeconds = Number(nextSessionData.remaining_seconds || 0);
+    nextSessionData.remaining_seconds = Math.min(previousRemainingSeconds, serverRemainingSeconds);
+  }
+
+  preserveMemberStatusTimers(previousSessionData, nextSessionData, options);
+  sessionData = nextSessionData;
   timerStartedAt = Date.now();
   localStorage.setItem('currentStudySessionId', String(sessionId));
   renderPage();
@@ -1542,11 +1695,35 @@ function progressFromPointer(event) {
   return Math.round((offset / rect.width) * 100);
 }
 
+function progressFromKey(event) {
+  const currentProgress = asPercent(getCurrentMember()?.progress_percent);
+  const step = event.shiftKey ? 10 : 5;
+
+  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') return currentProgress + step;
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') return currentProgress - step;
+  if (event.key === 'PageUp') return currentProgress + 10;
+  if (event.key === 'PageDown') return currentProgress - 10;
+  if (event.key === 'Home') return 0;
+  if (event.key === 'End') return 100;
+  if (event.key === 'Enter' || event.key === ' ') return currentProgress;
+  return null;
+}
+
+function handleProgressKeydown(event) {
+  const progress = progressFromKey(event);
+  if (progress === null) return;
+
+  event.preventDefault();
+  if (isProgressLocked()) return;
+  updateCurrentProgress(asPercent(progress));
+}
+
 function paintProgress(progress) {
   page.statusProgressText.textContent = `${progress}%`;
   page.statusProgressFill.style.width = `${progress}%`;
   page.statusProgressBar.style.setProperty('--status-progress', `${progress}%`);
   page.statusProgressBar.setAttribute('aria-valuenow', String(progress));
+  page.statusProgressBar.setAttribute('aria-valuetext', `${progress}%`);
 
   const currentCard = page.membersList.querySelector(
     `.session-member-card[data-member-user-id="${CURRENT_USER_ID}"]`,
@@ -1847,6 +2024,42 @@ function openConsultationModal(memberName, memberUserId) {
   showModal(page.consultationModal, true);
 }
 
+function consultationOtherUserId(consultation = activeConsultation) {
+  if (!consultation) return pendingConsultationMemberId;
+
+  const studentUserId = Number(consultation.student_user_id);
+  const teacherUserId = Number(consultation.teacher_user_id);
+  return studentUserId === CURRENT_USER_ID ? teacherUserId : studentUserId;
+}
+
+async function openConsultationChat(event) {
+  const otherUserId =
+    event?.currentTarget?.id === 'openPendingConsultationChatButton'
+      ? pendingConsultationMemberId
+      : consultationOtherUserId();
+  if (!otherUserId) {
+    showMessage('Choose a consultation member before opening chat.', 'danger');
+    return;
+  }
+
+  setButtonsDisabled(
+    [page.openPendingConsultationChatButton, page.openConsultationChatButton].filter(Boolean),
+    true,
+  );
+
+  try {
+    const chat = await getJson(sessionMemberChatUrl(otherUserId), { method: 'POST' });
+    if (!chat.conversation_id) throw new Error('Chat could not be opened');
+    window.location.href = `chat.html?conversationId=${encodeURIComponent(chat.conversation_id)}`;
+  } catch (error) {
+    setButtonsDisabled(
+      [page.openPendingConsultationChatButton, page.openConsultationChatButton].filter(Boolean),
+      false,
+    );
+    showMessage(error.message, 'danger');
+  }
+}
+
 function handleMemberActivation(event) {
   const button = event.target.closest('.consultation-status-button');
   if (!button) return;
@@ -1924,13 +2137,38 @@ function switchWorkspaceTab(tabName) {
     const isActive = button.dataset.workspaceTab === activeWorkspaceTab;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-selected', String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
   });
 
   page.workspacePanels.forEach((panel) => {
-    panel.classList.toggle('d-none', panel.dataset.workspacePanel !== activeWorkspaceTab);
+    const isActive = panel.dataset.workspacePanel === activeWorkspaceTab;
+    panel.classList.toggle('d-none', !isActive);
+    panel.hidden = !isActive;
   });
 
   if (activeWorkspaceTab === 'whiteboard') scheduleWhiteboardResize();
+}
+
+function handleWorkspaceTabKeydown(event) {
+  const currentIndex = page.workspaceTabButtons.indexOf(event.currentTarget);
+  if (currentIndex < 0) return;
+
+  const lastIndex = page.workspaceTabButtons.length - 1;
+  const nextIndexByKey = {
+    ArrowRight: currentIndex === lastIndex ? 0 : currentIndex + 1,
+    ArrowDown: currentIndex === lastIndex ? 0 : currentIndex + 1,
+    ArrowLeft: currentIndex === 0 ? lastIndex : currentIndex - 1,
+    ArrowUp: currentIndex === 0 ? lastIndex : currentIndex - 1,
+    Home: 0,
+    End: lastIndex,
+  };
+  const nextIndex = nextIndexByKey[event.key];
+  if (nextIndex === undefined) return;
+
+  event.preventDefault();
+  const nextButton = page.workspaceTabButtons[nextIndex];
+  nextButton.focus();
+  switchWorkspaceTab(nextButton.dataset.workspaceTab);
 }
 
 function scheduleWhiteboardResize() {
@@ -2195,6 +2433,7 @@ function renderConsultationWorkspace() {
   const finishButton = byId('finishConsultationButton');
   finishButton.disabled = isCompleted;
   finishButton.textContent = isCompleted ? 'Ended' : 'End Consultation';
+  page.openConsultationChatButton.disabled = !consultationOtherUserId();
 }
 
 function openConsultationWorkspace(consultation) {
@@ -2491,6 +2730,64 @@ function bindBackdropClose(modal, handler) {
   });
 }
 
+function visibleModalClosers() {
+  return [
+    { modal: page.exitModal, close: () => showModal(page.exitModal, false) },
+    { modal: page.queueModal, close: () => showModal(page.queueModal, false) },
+    { modal: page.consultationModal, close: () => showModal(page.consultationModal, false) },
+    { modal: page.consultationWorkspaceModal, close: closeConsultationWorkspace },
+    { modal: page.consultationReviewModal, close: () => showModal(page.consultationReviewModal, false) },
+    { modal: page.consultationDirectionModal, close: () => showModal(page.consultationDirectionModal, false) },
+    { modal: page.memberGoalsModal, close: () => showModal(page.memberGoalsModal, false) },
+    { modal: page.completionModal, close: () => showModal(page.completionModal, false) },
+    {
+      modal: page.intentionModal,
+      close: () => {
+        if (readSessionIntention()) showModal(page.intentionModal, false);
+      },
+    },
+  ];
+}
+
+function closeVisibleModalOnEscape(event) {
+  if (event.key !== 'Escape') return;
+
+  const visibleModal = visibleModalClosers().find(
+    (item) => item.modal && !item.modal.classList.contains('d-none'),
+  );
+  if (!visibleModal) return;
+
+  event.preventDefault();
+  visibleModal.close();
+}
+
+function keepFocusInsideVisibleModal(event) {
+  if (event.key !== 'Tab') return;
+
+  const visibleModal = visibleModalClosers()
+    .map((item) => item.modal)
+    .find((modal) => modal && !modal.classList.contains('d-none'));
+  if (!visibleModal) return;
+
+  const focusableItems = focusableElements(visibleModal);
+  if (!focusableItems.length) {
+    event.preventDefault();
+    visibleModal.focus();
+    return;
+  }
+
+  const firstItem = focusableItems[0];
+  const lastItem = focusableItems[focusableItems.length - 1];
+
+  if (event.shiftKey && document.activeElement === firstItem) {
+    event.preventDefault();
+    lastItem.focus();
+  } else if (!event.shiftKey && document.activeElement === lastItem) {
+    event.preventDefault();
+    firstItem.focus();
+  }
+}
+
 function toggleGoalForm() {
   page.goalForm.classList.toggle('d-none');
   if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
@@ -2532,6 +2829,7 @@ function bindStatusAndTimerEvents() {
   page.statusProgressBar.addEventListener('pointermove', moveProgressDrag);
   page.statusProgressBar.addEventListener('pointerup', finishProgressDrag);
   page.statusProgressBar.addEventListener('pointercancel', cancelProgressDrag);
+  page.statusProgressBar.addEventListener('keydown', handleProgressKeydown);
   page.completionForm.addEventListener('submit', submitCompletionEvidence);
 
   bindClick('exitSessionButton', () => showModal(page.exitModal, true));
@@ -2547,10 +2845,13 @@ function bindStatusAndTimerEvents() {
 function bindConsultationEvents() {
   bindClick('cancelConsultationButton', () => showModal(page.consultationModal, false));
   bindClick('confirmConsultationButton', startConsultation);
+  bindClick('openPendingConsultationChatButton', openConsultationChat);
+  bindClick('openConsultationChatButton', openConsultationChat);
   bindClick('closeConsultationWorkspaceButton', closeConsultationWorkspace);
   bindClick('finishConsultationButton', finishConsultation);
   page.workspaceTabButtons.forEach((button) => {
     button.addEventListener('click', () => switchWorkspaceTab(button.dataset.workspaceTab));
+    button.addEventListener('keydown', handleWorkspaceTabKeydown);
   });
   page.consultationWhiteboard.addEventListener('pointerdown', startWhiteboardStroke);
   page.consultationWhiteboard.addEventListener('pointermove', moveWhiteboardStroke);
@@ -2600,9 +2901,14 @@ function bindStudySessionEvents() {
   bindStatusAndTimerEvents();
   bindConsultationEvents();
   bindQueueAndModalEvents();
+  switchWorkspaceTab(activeWorkspaceTab);
+  document.addEventListener('keydown', closeVisibleModalOnEscape);
+  document.addEventListener('keydown', keepFocusInsideVisibleModal);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (!requireStudySessionLogin()) return;
+
   bindPage();
   bindStudySessionEvents();
 

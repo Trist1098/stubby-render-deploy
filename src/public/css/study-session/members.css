@@ -114,7 +114,6 @@
 }
 
 .member-name-row,
-.member-progress-label,
 .member-meta-row {
   display: flex;
   align-items: center;
@@ -166,8 +165,7 @@
   color: #166534;
 }
 
-.member-meta-row,
-.member-progress-label {
+.member-meta-row {
   margin-top: 4px;
   color: #7b8494;
   font-size: 0.72rem;

@@ -287,6 +287,40 @@ const freezeMemberTimer = async (client, memberId) => {
   );
 };
 
+const ensureInitialStatusEvents = async (client, sessionId) => {
+  const sessionResult = await client.query(
+    `
+      UPDATE StudySession
+      SET started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+      WHERE session_id = $1
+        AND status = 'active'
+      RETURNING started_at
+    `,
+    [sessionId],
+  );
+  const session = sessionResult.rows[0];
+  if (!session) return;
+
+  await client.query(
+    `
+      INSERT INTO status_events (study_session_participant_id, status, started_at)
+      SELECT
+        sm.member_id,
+        LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')),
+        $2::timestamp
+      FROM SessionMember sm
+      WHERE sm.session_id = $1
+        AND sm.left_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM status_events existing_event
+          WHERE existing_event.study_session_participant_id = sm.member_id
+        )
+    `,
+    [sessionId, session.started_at],
+  );
+};
+
 const insertNotification = async (client, data) => {
   const { rows } = await client.query(
     `
@@ -1001,6 +1035,90 @@ const getConsultationIdForStart = async (client, data) => {
   return insertConsultationSession(client, data, context);
 };
 
+const selectSessionChatMember = async (client, data) => {
+  const chatMemberSql = `
+    SELECT
+      other_member.user_id AS other_user_id,
+      COALESCE(other_user.name, other_user.username, 'Study buddy') AS other_name
+    FROM SessionMember current_member
+    INNER JOIN SessionMember other_member
+      ON other_member.session_id = current_member.session_id
+      AND other_member.user_id = $3
+      AND other_member.left_at IS NULL
+    INNER JOIN "User" other_user ON other_user.user_id = other_member.user_id
+    WHERE current_member.session_id = $1
+      AND current_member.user_id = $2
+      AND current_member.left_at IS NULL
+    LIMIT 1
+  `;
+  const { rows } = await client.query(chatMemberSql, [
+    data.study_session_id,
+    data.user_id,
+    data.other_user_id,
+  ]);
+  return rows[0] || null;
+};
+
+const insertFriendshipPair = async (client, userId, friendId) => {
+  await client.query(
+    `
+      INSERT INTO Friendship (user_id, friend_id)
+      VALUES ($1, $2), ($2, $1)
+      ON CONFLICT (user_id, friend_id) DO NOTHING
+    `,
+    [userId, friendId],
+  );
+};
+
+const selectFriendConversation = async (client, userId, friendId) => {
+  const friendConversationSql = `
+    SELECT cc.conversation_id, cc.name, cc.type, cc.created_at
+    FROM ChatConversation cc
+    INNER JOIN ConversationMember first_member
+      ON first_member.conversation_id = cc.conversation_id
+      AND first_member.user_id = $1
+    INNER JOIN ConversationMember second_member
+      ON second_member.conversation_id = cc.conversation_id
+      AND second_member.user_id = $2
+    WHERE cc.type = 'friend'
+      AND (
+        SELECT COUNT(*)
+        FROM ConversationMember member_count
+        WHERE member_count.conversation_id = cc.conversation_id
+      ) = 2
+    ORDER BY cc.created_at ASC, cc.conversation_id ASC
+    LIMIT 1
+  `;
+  const { rows } = await client.query(friendConversationSql, [userId, friendId]);
+  return rows[0] || null;
+};
+
+const insertFriendConversation = async (client, userId, friendId) => {
+  const conversationResult = await client.query(
+    `
+      INSERT INTO ChatConversation (name, type)
+      VALUES (NULL, 'friend')
+      RETURNING conversation_id, name, type, created_at
+    `,
+  );
+  const conversation = conversationResult.rows[0];
+
+  await client.query(
+    `
+      INSERT INTO ConversationMember (conversation_id, user_id, role)
+      VALUES ($1, $2, 'admin'), ($1, $3, 'member')
+      ON CONFLICT (conversation_id, user_id) DO NOTHING
+    `,
+    [conversation.conversation_id, userId, friendId],
+  );
+
+  return conversation;
+};
+
+const getOrCreateFriendConversation = async (client, userId, friendId) =>
+  (await selectFriendConversation(client, userId, friendId)) ||
+  insertFriendConversation(client, userId, friendId);
+
 const finishOpenConsultation = async (client, data) => {
   const finishSql = `
     UPDATE consultation_sessions
@@ -1175,6 +1293,10 @@ module.exports.selectSessionById = async function selectSessionById(sessionId) {
     `;
   const { rows } = await pool.query(SQLSTATEMENT, [sessionId]);
   return rows[0] || null;
+};
+
+module.exports.ensureActiveSessionTimers = async function ensureActiveSessionTimers(sessionId) {
+  return withTransaction((client) => ensureInitialStatusEvents(client, sessionId));
 };
 
 module.exports.expireSessionIfTimeElapsed = async function expireSessionIfTimeElapsed(sessionId) {
@@ -1464,6 +1586,26 @@ module.exports.saveConsultationReview = async function saveConsultationReview(da
   } finally {
     client.release();
   }
+};
+
+module.exports.ensureSessionMemberChat = async function ensureSessionMemberChat(data) {
+  return withTransaction(async (client) => {
+    const member = await selectSessionChatMember(client, data);
+    if (!member) return null;
+
+    await insertFriendshipPair(client, data.user_id, member.other_user_id);
+    const conversation = await getOrCreateFriendConversation(
+      client,
+      data.user_id,
+      member.other_user_id,
+    );
+
+    return {
+      ...conversation,
+      other_user_id: member.other_user_id,
+      other_name: member.other_name,
+    };
+  });
 };
 
 module.exports.selectQueuedMicroGoals = async function selectQueuedMicroGoals(

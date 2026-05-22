@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const studySessionController = require('../controllers/StudySession.controller');
+const jwtMiddleware = require('../middlewares/jwt.middleware');
 const upload = require('../middlewares/upload');
+
+router.use(jwtMiddleware.verifyToken);
 
 router.get('/:sessionId', studySessionController.getSession);
 router.get('/:sessionId/focus-status-mix', studySessionController.getFocusStatusMix);
@@ -22,6 +25,7 @@ router.patch(
   '/:sessionId/consultations/:consultationId/workspace',
   studySessionController.saveConsultationWorkspace,
 );
+router.post('/:sessionId/members/:memberUserId/chat', studySessionController.openMemberChat);
 router.post('/:sessionId/micro-goals', studySessionController.addMicroGoal);
 router.post(
   '/:sessionId/micro-goals/:microGoalId/evidence',
