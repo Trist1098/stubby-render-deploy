@@ -44,12 +44,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileFeedback = document.getElementById('profile-feedback');
   const studentSearchInput = document.getElementById('student-search-input');
   const studentSearchResults = document.getElementById('student-search-results');
+  const profileVisibleContent = document.getElementById('profile-visible-content');
+  const privateProfileModalEl = document.getElementById('privateProfileModal');
+  const privateProfileModal = privateProfileModalEl
+    ? bootstrap.Modal.getOrCreateInstance(privateProfileModalEl)
+    : null;
 
   const profileSettingsModalEl = document.getElementById('profileSettingsModal');
   const profileSettingsForm = document.getElementById('profile-settings-form');
   const settingsNameInput = document.getElementById('settings-name');
   const settingsEmailInput = document.getElementById('settings-email');
-  const settingsPasswordInput = document.getElementById('settings-password');
+  const openPasswordModalBtn = document.getElementById('open-password-modal-btn');
+  const passwordSettingsModalEl = document.getElementById('passwordSettingsModal');
+  const passwordSettingsForm = document.getElementById('password-settings-form');
+  const settingsCurrentPasswordInput = document.getElementById('settings-current-password');
+  const settingsNewPasswordInput = document.getElementById('settings-new-password');
+  const settingsConfirmPasswordInput = document.getElementById('settings-confirm-password');
+  const passwordSaveFeedback = document.getElementById('password-save-feedback');
   const settingsPersonalInfoInput = document.getElementById('settings-personal-info');
   const settingsYearInput = document.getElementById('settings-year');
   const settingsInstitutionSelect = document.getElementById('settings-institution');
@@ -60,6 +71,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const settingsSaveFeedback = document.getElementById('settings-save-feedback');
   const settingsModal = profileSettingsModalEl
     ? bootstrap.Modal.getOrCreateInstance(profileSettingsModalEl)
+    : null;
+  const passwordSettingsModal = passwordSettingsModalEl
+    ? bootstrap.Modal.getOrCreateInstance(passwordSettingsModalEl)
     : null;
   const badgeDetailsModal = badgeDetailsModalEl
     ? bootstrap.Modal.getOrCreateInstance(badgeDetailsModalEl)
@@ -108,9 +122,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       year: userData?.year || 1,
       institutionId: userData?.institution_id || '',
       diplomaId: userData?.diploma_id || '',
-      theme: stored.theme || 'Light',
-      language: stored.language || 'English',
-      privateProfile: stored.privateProfile || false,
+      theme: userData?.theme || stored.theme || 'Light',
+      language: userData?.language || stored.language || 'English',
+      privateProfile: userData?.is_private || stored.privateProfile || false,
       ...stored,
     };
   };
@@ -118,7 +132,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const populateProfileSettings = (settings) => {
     if (settingsNameInput) settingsNameInput.value = settings.name || '';
     if (settingsEmailInput) settingsEmailInput.value = settings.email || '';
-    if (settingsPasswordInput) settingsPasswordInput.value = '';
     if (settingsPersonalInfoInput) settingsPersonalInfoInput.value = settings.personalInfo || '';
     if (settingsYearInput) settingsYearInput.value = settings.year || 1;
     if (settingsInstitutionSelect) {
@@ -226,7 +239,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const newSettings = {
         name: settingsNameInput?.value?.trim() || userData?.name || '',
         email: settingsEmailInput?.value?.trim() || userData?.email || '',
-        password: settingsPasswordInput?.value || '',
         personalInfo: settingsPersonalInfoInput?.value?.trim() || '',
         year: settingsYearInput?.value || 1,
         institutionId: settingsInstitutionSelect?.value || '',
@@ -251,6 +263,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             diplomaId: newSettings.diplomaId || null,
             year: parseInt(newSettings.year) || 1,
             profileText: newSettings.personalInfo,
+            theme: newSettings.theme,
+            language: newSettings.language,
+            isPrivate: newSettings.privateProfile,
           }),
         });
 
@@ -295,6 +310,61 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       settingsModal?.hide();
       showFeedback('Profile settings saved.');
+    });
+  }
+
+  if (openPasswordModalBtn && passwordSettingsModal) {
+    openPasswordModalBtn.addEventListener('click', () => {
+      if (passwordSettingsForm) passwordSettingsForm.reset();
+      if (passwordSaveFeedback) passwordSaveFeedback.textContent = '';
+      passwordSettingsModal.show();
+    });
+  }
+
+  if (passwordSettingsForm) {
+    passwordSettingsForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const currentPassword = settingsCurrentPasswordInput?.value || '';
+      const newPassword = settingsNewPasswordInput?.value || '';
+      const confirmPassword = settingsConfirmPasswordInput?.value || '';
+
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        if (passwordSaveFeedback) passwordSaveFeedback.textContent = 'Please fill in all fields.';
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        if (passwordSaveFeedback) passwordSaveFeedback.textContent = 'New passwords do not match.';
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/users/change-password`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...requestHeaders,
+          },
+          body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          if (passwordSaveFeedback) {
+            passwordSaveFeedback.textContent =
+              result.error || result.message || 'Unable to change password.';
+          }
+          return;
+        }
+
+        passwordSettingsForm.reset();
+        passwordSettingsModal?.hide();
+        showFeedback('Password changed.');
+      } catch (error) {
+        console.error('Error changing password:', error);
+        if (passwordSaveFeedback) passwordSaveFeedback.textContent = 'Network error.';
+      }
     });
   }
 
@@ -413,6 +483,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (profileTitleEl) {
     profileTitleEl.textContent = isOwnProfile ? 'My Profile' : 'Friend Profile';
+  }
+
+  if (isViewProfilePage && pageUserData?.is_private && !isOwnProfile) {
+    if (profileVisibleContent) profileVisibleContent.classList.add('profile-private-blur');
+    if (profileActions) profileActions.style.display = 'none';
+    if (profileFriendsList) profileFriendsList.innerHTML = 'Profile hidden.';
+    privateProfileModal?.show();
+    return;
   }
 
   const profilePicUrl = pageUserData?.profile_pic;

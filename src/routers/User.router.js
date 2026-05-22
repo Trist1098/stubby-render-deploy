@@ -30,8 +30,11 @@ router.post(
   upload.single('profilePic'),
   userController.uploadProfilePicture,
 );
+router.get('/me', jwtMiddleware.verifyToken, userController.getMe);
+router.get('/public/:userId', jwtMiddleware.verifyToken, userController.getPublicUser);
 router.get('/search', jwtMiddleware.verifyToken, userController.searchStudents);
 router.get('/viewProfile/:friendId', jwtMiddleware.verifyToken, userController.viewProfile);
 router.put('/update-profile', jwtMiddleware.verifyToken, userController.updateProfile);
+router.put('/change-password', jwtMiddleware.verifyToken, userController.changePassword);
 
 module.exports = router;

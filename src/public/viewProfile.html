@@ -86,7 +86,7 @@
       ></div>
 
       <h2 id="profile-title" class="fw-bold mb-4">Friend Profile</h2>
-      <div class="row g-4">
+      <div id="profile-visible-content" class="row g-4">
         <!-- LEFT -->
         <div class="col-lg-8">
           <!-- PROFILE CARD -->
@@ -195,6 +195,30 @@
         </div>
       </div>
     </main>
+
+    <div
+      class="modal fade"
+      id="privateProfileModal"
+      tabindex="-1"
+      aria-labelledby="privateProfileModalLabel"
+      aria-hidden="true"
+      data-bs-backdrop="static"
+      data-bs-keyboard="false"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="privateProfileModalLabel">Private Profile</h5>
+          </div>
+          <div class="modal-body">
+            <p class="text-secondary mb-0">This user has hidden their profile details.</p>
+          </div>
+          <div class="modal-footer">
+            <a href="profile.html" class="btn btn-primary">Return to My Profile</a>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div
       class="modal fade"

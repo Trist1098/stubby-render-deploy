@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stubby Settings</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/profileStyle.css" />
+  </head>
+
+  <body>
+    <header>
+      <div class="container">
+        <nav id="navbar" class="navbar navbar-expand-lg py-3">
+          <div class="container-fluid p-0">
+            <a href="index.html" class="d-flex align-items-center gap-2 text-decoration-none">
+              <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
+            </a>
+
+            <button
+              class="navbar-toggler border-0"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#navContent"
+            >
+              <i class="fas fa-bars"></i>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navContent">
+              <ul class="navbar-nav mx-auto gap-2" id="nav-links">
+                <li class="nav-item"><a href="index.html" class="nav-link">Dashboard</a></li>
+                <li class="nav-item">
+                  <a href="matchmaking.html" class="nav-link">Matchmaking</a>
+                </li>
+                <li class="nav-item"><a href="sessions.html" class="nav-link">Sessions</a></li>
+                <li class="nav-item"><a href="chat.html" class="nav-link">Chat</a></li>
+              </ul>
+
+              <ul class="navbar-nav">
+                <li class="nav-item" id="auth-link"></li>
+              </ul>
+            </div>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container py-4">
+      <div id="settings-feedback" class="profile-feedback-alert" role="status"></div>
+
+      <div class="d-flex align-items-center justify-content-between gap-3 mb-4 flex-wrap">
+        <div>
+          <h2 class="fw-bold mb-1">Settings</h2>
+          <p class="text-secondary mb-0">Manage your profile, display, preferences, and privacy.</p>
+        </div>
+        <a href="profile.html" class="btn btn-white">
+          <i class="fas fa-user me-2"></i>
+          Back to Profile
+        </a>
+      </div>
+
+      <form id="settings-form" class="settings-page-grid">
+        <section class="premium-card settings-page-section">
+          <h4 class="fw-bold mb-3">Profile Information</h4>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="settings-name" class="form-label">Name</label>
+              <input id="settings-name" class="form-control" type="text" required />
+            </div>
+            <div class="col-md-6">
+              <label for="settings-email" class="form-label">Email</label>
+              <input id="settings-email" class="form-control" type="email" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Password</label>
+              <button
+                id="open-password-modal-btn"
+                class="btn btn-white w-100 text-start"
+                type="button"
+              >
+                Change password
+              </button>
+            </div>
+            <div class="col-md-6">
+              <label for="settings-year" class="form-label">Year of Study</label>
+              <input id="settings-year" class="form-control" type="number" min="1" max="10" />
+            </div>
+            <div class="col-md-6">
+              <label for="settings-institution" class="form-label">Institution</label>
+              <select id="settings-institution" class="form-select">
+                <option value="">Select Institution</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="settings-diploma" class="form-label">Diploma</label>
+              <select id="settings-diploma" class="form-select">
+                <option value="">Select Diploma</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label for="settings-personal-info" class="form-label">About Me</label>
+              <textarea id="settings-personal-info" class="form-control" rows="4"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="premium-card settings-page-section">
+          <h4 class="fw-bold mb-3">Display Mode</h4>
+          <div class="settings-choice-row">
+            <span>Light mode</span>
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" id="settings-theme-toggle" />
+              <label class="form-check-label" for="settings-theme-toggle">Dark mode</label>
+            </div>
+          </div>
+        </section>
+
+        <section class="premium-card settings-page-section">
+          <h4 class="fw-bold mb-3">General Preferences</h4>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="settings-language" class="form-label">Language</label>
+              <select id="settings-language" class="form-select">
+                <option>English</option>
+                <option>Japanese</option>
+                <option>Chinese</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="settings-default-page" class="form-label">Default Landing Page</label>
+              <select id="settings-default-page" class="form-select">
+                <option>Dashboard</option>
+                <option>Profile</option>
+                <option>Chat</option>
+                <option>Matchmaking</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="settings-notifications" />
+                <label class="form-check-label" for="settings-notifications">
+                  Enable simple notifications
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="premium-card settings-page-section">
+          <h4 class="fw-bold mb-3">Privacy</h4>
+          <div class="settings-switch-list">
+            <div class="settings-choice-row">
+              <div>
+                <strong>Private profile</strong>
+                <p class="text-secondary mb-0">Hide profile details from other users.</p>
+              </div>
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="settings-private-profile" />
+              </div>
+            </div>
+            <div class="settings-choice-row">
+              <div>
+                <strong>Friend request private</strong>
+                <p class="text-secondary mb-0">Block new friend requests from other users.</p>
+              </div>
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="settings-friend-private" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="settings-save-bar">
+          <span id="settings-inline-feedback" class="text-secondary"></span>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-2"></i>
+            Save Settings
+          </button>
+        </div>
+      </form>
+    </main>
+
+    <div
+      class="modal fade"
+      id="passwordSettingsModal"
+      tabindex="-1"
+      aria-labelledby="passwordSettingsModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="passwordSettingsModalLabel">Change Password</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <form id="password-settings-form">
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="settings-current-password" class="form-label">Current Password</label>
+                <input id="settings-current-password" class="form-control" type="password" />
+              </div>
+              <div class="mb-3">
+                <label for="settings-new-password" class="form-label">New Password</label>
+                <input id="settings-new-password" class="form-control" type="password" />
+              </div>
+              <div class="mb-0">
+                <label for="settings-confirm-password" class="form-label"
+                  >Confirm New Password</label
+                >
+                <input id="settings-confirm-password" class="form-control" type="password" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <span id="password-save-feedback" class="text-secondary me-auto"></span>
+              <button type="button" class="btn btn-white" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Password</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/navbar.js"></script>
+    <script src="js/settings/settings.js"></script>
+  </body>
+</html>

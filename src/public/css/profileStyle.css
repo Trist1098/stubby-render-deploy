@@ -167,6 +167,58 @@ header {
   margin-bottom: 1.5rem;
 }
 
+.settings-page-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.settings-page-section {
+  padding: 1.4rem;
+}
+
+.settings-choice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+}
+
+.settings-switch-list .settings-choice-row + .settings-choice-row {
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.settings-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1rem 0;
+  background: rgba(248, 250, 252, 0.9);
+  backdrop-filter: blur(12px);
+}
+
+.settings-page-section .form-label {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.settings-page-section .form-control,
+.settings-page-section .form-select {
+  border-color: var(--border);
+  border-radius: 0.55rem;
+  min-height: 44px;
+}
+
+.profile-private-blur {
+  filter: blur(7px);
+  pointer-events: none;
+  user-select: none;
+}
+
 .connection-item {
   display: flex;
   align-items: center;
@@ -955,6 +1007,10 @@ header {
   color: #e2e8f0;
 }
 
+.theme-dark .settings-save-bar {
+  background: rgba(15, 23, 42, 0.9);
+}
+
 .theme-dark .nav-link,
 .theme-dark .btn-white,
 .theme-dark .profile-subtitle,
@@ -972,6 +1028,17 @@ header {
   background: #111827;
   border-color: #334155;
   color: #e2e8f0;
+}
+
+.theme-dark .settings-page-section .form-control,
+.theme-dark .settings-page-section .form-select {
+  background: #111827;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+.theme-dark .settings-page-section .form-label {
+  color: #cbd5e1;
 }
 
 .profile-settings-section + .profile-settings-section {

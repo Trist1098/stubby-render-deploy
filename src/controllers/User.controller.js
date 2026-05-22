@@ -3,10 +3,24 @@ const {
   create,
   updateProfile,
   updateProfilePicture,
+  updatePassword,
   enrollModules,
   selectByUserId,
+  selectPublicUserById,
   searchStudents,
 } = require('../models/User.model');
+const bcrypt = require('bcrypt');
+const institutionModel = require('../models/Institution.model');
+const diplomaModel = require('../models/Diploma.model');
+
+const safeUser = (user) => {
+  if (!user) return user;
+  const userCopy = { ...user };
+  delete userCopy.password;
+  return userCopy;
+};
+
+const isValidChoice = (value, allowedValues) => allowedValues.includes(value);
 
 module.exports.login = async (req, res, next) => {
   const identifier = req.body.username || req.body.identifier;
@@ -67,7 +81,9 @@ module.exports.completeOnboarding = async (req, res, next) => {
   }
 
   try {
+    const currentUser = await selectByUserId({ userId });
     const updatedUser = await updateProfile({
+      ...currentUser,
       institution_id,
       diploma_id,
       year,
@@ -81,7 +97,7 @@ module.exports.completeOnboarding = async (req, res, next) => {
 
     res.status(200).json({
       message: 'Onboarding complete',
-      user: updatedUser,
+      user: safeUser(updatedUser),
     });
   } catch (error) {
     next(error);
@@ -107,14 +123,10 @@ module.exports.uploadProfilePicture = async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (updatedUser.password) {
-      delete updatedUser.password;
-    }
-
     res.status(200).json({
       message: 'Profile picture uploaded successfully',
       profile_pic: profilePicPath,
-      user: updatedUser,
+      user: safeUser(updatedUser),
     });
   } catch (error) {
     next(error);
@@ -132,10 +144,16 @@ module.exports.viewProfile = async (req, res, next) => {
     if (!friendData) {
       return res.status(404).json({ error: 'Friend profile not found' });
     }
-    if (friendData.password) {
-      delete friendData.password;
+
+    if (friendData.is_private && Number(friendId) !== Number(res.locals.userId)) {
+      return res.status(200).json({
+        user_id: friendData.user_id,
+        is_private: true,
+        message: 'This profile is private.',
+      });
     }
-    res.status(200).json(friendData);
+
+    res.status(200).json(safeUser(friendData));
   } catch (error) {
     next(error);
   }
@@ -143,44 +161,178 @@ module.exports.viewProfile = async (req, res, next) => {
 
 module.exports.updateProfile = async (req, res, next) => {
   const userId = res.locals.userId;
-  const { name, email, institutionId, diplomaId, year, profileText } = req.body;
+  const {
+    name,
+    email,
+    institutionId,
+    diplomaId,
+    year,
+    profileText,
+    theme,
+    language,
+    isPrivate,
+    friendRequestPrivate,
+    pushNotif,
+    defaultLandingPage,
+  } = req.body;
 
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (!name || !email) {
+  if (!name?.trim() || !email?.trim()) {
     return res.status(400).json({ error: 'Name and email are required' });
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return res.status(400).json({ error: 'Please enter a valid email address' });
+  }
+
+  if (year && (Number.isNaN(Number(year)) || Number(year) < 1 || Number(year) > 10)) {
+    return res.status(400).json({ error: 'Year must be between 1 and 10' });
+  }
+
   try {
+    const currentUser = await selectByUserId({ userId });
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const finalTheme = theme || currentUser.theme || 'Light';
+    const finalLanguage = language || currentUser.language || 'English';
+    const finalDefaultLandingPage =
+      defaultLandingPage || currentUser.default_landing_page || 'Dashboard';
+    const finalIsPrivate = isPrivate ?? currentUser.is_private;
+    const finalFriendRequestPrivate = friendRequestPrivate ?? currentUser.friend_request_private;
+    const finalPushNotif = pushNotif ?? currentUser.push_notif;
+
+    if (!isValidChoice(finalTheme, ['Light', 'Dark'])) {
+      return res.status(400).json({ error: 'Theme must be Light or Dark' });
+    }
+
+    if (!isValidChoice(finalLanguage, ['English', 'Japanese', 'Chinese'])) {
+      return res.status(400).json({ error: 'Language must be English, Japanese, or Chinese' });
+    }
+
+    if (!isValidChoice(finalDefaultLandingPage, ['Dashboard', 'Profile', 'Chat', 'Matchmaking'])) {
+      return res.status(400).json({ error: 'Please choose a valid landing page' });
+    }
+
+    if (institutionId) {
+      const institution = await institutionModel.getInstitutionByInstitutionId(institutionId);
+      if (!institution || institution.length === 0) {
+        return res.status(400).json({ error: 'Selected institution does not exist' });
+      }
+    }
+
+    if (diplomaId) {
+      const diploma = await diplomaModel.getDiplomaByDiplomaId(diplomaId);
+      if (!diploma || diploma.length === 0) {
+        return res.status(400).json({ error: 'Selected diploma does not exist' });
+      }
+    }
+
     const updatedUser = await updateProfile({
       userId,
-      name,
-      email,
+      name: name.trim(),
+      email: email.trim(),
       institutionId,
       diplomaId,
       year,
       profileText,
+      theme: finalTheme,
+      language: finalLanguage,
+      isPrivate: finalIsPrivate,
+      friendRequestPrivate: finalFriendRequestPrivate,
+      pushNotif: finalPushNotif,
+      defaultLandingPage: finalDefaultLandingPage,
     });
 
     if (!updatedUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (updatedUser.password) {
-      delete updatedUser.password;
-    }
-
     res.status(200).json({
       message: 'Profile updated successfully',
-      user: updatedUser,
+      user: safeUser(updatedUser),
     });
   } catch (error) {
     if (error.code === '23505') {
       // PostgreSQL unique violation error code
-      return res.status(400).json({ error: 'Email is already taken' });
+      return res.status(409).json({ error: 'Username or email is already taken' });
     }
+    next(error);
+  }
+};
+
+module.exports.changePassword = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res.status(400).json({ error: 'All password fields are required' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ error: 'New passwords do not match' });
+  }
+
+  try {
+    const user = await selectByUserId({ userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentPasswordMatches = await bcrypt.compare(currentPassword, user.password);
+    if (!currentPasswordMatches) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const updatedUser = await updatePassword({ userId, password: hashedPassword });
+
+    res.status(200).json({
+      message: 'Password changed successfully',
+      user: safeUser(updatedUser),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getMe = async (req, res, next) => {
+  const userId = res.locals.userId;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const user = await selectByUserId({ userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json(safeUser(user));
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getPublicUser = async (req, res, next) => {
+  try {
+    const user = await selectPublicUserById({ userId: req.params.userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json(user);
+  } catch (error) {
     next(error);
   }
 };

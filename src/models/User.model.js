@@ -23,22 +23,55 @@ module.exports.create = async function create(data) {
 };
 
 module.exports.updateProfile = async function updateProfile(data) {
-  const SQLSTATEMENT = `
-        UPDATE "User"
-        SET name = $1, email = $2, institution_id = $3, diploma_id = $4, year = $5, profile_text = $6
-        WHERE user_id = $7
-        RETURNING *
-    `;
-  const VALUES = [
+  const institutionId = data.institutionId ?? data.institution_id;
+  const diplomaId = data.diplomaId ?? data.diploma_id;
+  const isPrivate = data.isPrivate ?? data.is_private ?? false;
+  const friendRequestPrivate = data.friendRequestPrivate ?? data.friend_request_private ?? false;
+  const pushNotif = data.pushNotif ?? data.push_notif ?? true;
+  const defaultLandingPage = data.defaultLandingPage ?? data.default_landing_page ?? 'Dashboard';
+  const profileText = data.profileText ?? data.profile_text ?? null;
+  const fields = [
+    'name = $1',
+    'email = $2',
+    'institution_id = $3',
+    'diploma_id = $4',
+    'year = $5',
+    'profile_text = $6',
+    'is_private = $7',
+    'friend_request_private = $8',
+    'theme = $9',
+    'language = $10',
+    'push_notif = $11',
+    'default_landing_page = $12',
+  ];
+  const values = [
     data.name,
     data.email,
-    data.institutionId ? parseInt(data.institutionId) : null,
-    data.diplomaId ? parseInt(data.diplomaId) : null,
+    institutionId ? parseInt(institutionId) : null,
+    diplomaId ? parseInt(diplomaId) : null,
     data.year ? parseInt(data.year) : 1,
-    data.profileText || null,
-    data.userId,
+    profileText,
+    isPrivate === true,
+    friendRequestPrivate === true,
+    data.theme || 'Light',
+    data.language || 'English',
+    pushNotif !== false,
+    defaultLandingPage,
   ];
-  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+
+  if (data.password) {
+    fields.push(`password = $${fields.length + 1}`);
+    values.push(data.password);
+  }
+
+  values.push(data.userId ?? data.user_id);
+  const SQLSTATEMENT = `
+        UPDATE "User"
+        SET ${fields.join(', ')}
+        WHERE user_id = $${values.length}
+        RETURNING *
+    `;
+  const { rows } = await pool.query(SQLSTATEMENT, values);
   return rows[0];
 };
 
@@ -69,9 +102,37 @@ module.exports.updateProfilePicture = async function updateProfilePicture(data) 
   return rows[0];
 };
 
+module.exports.updatePassword = async function updatePassword(data) {
+  const SQLSTATEMENT = `
+        UPDATE "User"
+        SET password = $1
+        WHERE user_id = $2
+        RETURNING *
+    `;
+  const VALUES = [data.password, data.userId];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows[0];
+};
+
 module.exports.selectByUserId = async function selectByUserId(data) {
   const SQLSTATEMENT = `
         SELECT *
+        FROM "User"
+        WHERE user_id = $1
+    `;
+  const VALUES = [data.userId];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows[0];
+};
+
+module.exports.selectPublicUserById = async function selectPublicUserById(data) {
+  const SQLSTATEMENT = `
+        SELECT user_id,
+               username,
+               name,
+               profile_pic,
+               is_private,
+               friend_request_private
         FROM "User"
         WHERE user_id = $1
     `;
