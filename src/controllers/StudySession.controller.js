@@ -8,6 +8,22 @@ const parseId = (value) => {
   return Number.isInteger(id) && id > 0 ? id : null;
 };
 
+const getSessionUserIds = (req, res) => {
+  const sessionId = parseId(req.params.sessionId);
+  const userId = parseId(req.body.user_id);
+
+  if (!sessionId) {
+    badReq(res, 'Valid session id is required');
+    return null;
+  }
+  if (!userId) {
+    badReq(res, 'Valid user id is required');
+    return null;
+  }
+
+  return { sessionId, userId };
+};
+
 const getTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '');
 const docxMimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
@@ -87,6 +103,7 @@ module.exports.getSession = async function getSession(req, res, next) {
   if (!sessionId) return badReq(res, 'Valid session id is required');
 
   try {
+    await model.expireSessionIfTimeElapsed(sessionId);
     const session = await model.selectSessionById(sessionId);
     if (!session) return notFound(res, 'Study session not found');
 
@@ -257,6 +274,7 @@ module.exports.getFocusStatusMix = async function getFocusStatusMix(req, res, ne
   if (!sessionId) return badReq(res, 'Valid session id is required');
 
   try {
+    await model.expireSessionIfTimeElapsed(sessionId);
     const statusMix = await model.selectFocusStatusMix(sessionId);
     return ok(res, statusMix);
   } catch (error) {
@@ -462,6 +480,64 @@ module.exports.exitSession = async function exitSession(req, res, next) {
     if (!session) return notFound(res, 'Study session not found');
 
     return ok(res, session);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.extendExpiredSession = async function extendExpiredSession(req, res, next) {
+  const ids = getSessionUserIds(req, res);
+  const extensionSeconds = Number(req.body.extension_seconds);
+
+  if (!ids) return null;
+  if (!Number.isFinite(extensionSeconds) || extensionSeconds < 60) {
+    return badReq(res, 'Extension must be at least 1 minute');
+  }
+
+  try {
+    await model.expireSessionIfTimeElapsed(ids.sessionId);
+    const result = await model.extendExpiredSession({
+      study_session_id: ids.sessionId,
+      user_id: ids.userId,
+      extension_seconds: extensionSeconds,
+    });
+
+    if (!result) return notFound(res, 'Expired session or active member not found');
+    return ok(res, result);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.stayInExtendedSession = async function stayInExtendedSession(req, res, next) {
+  const ids = getSessionUserIds(req, res);
+  if (!ids) return null;
+
+  try {
+    const member = await model.stayInExtendedSession({
+      study_session_id: ids.sessionId,
+      user_id: ids.userId,
+    });
+
+    if (!member) return notFound(res, 'Active session or member not found');
+    return ok(res, member);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.leaveSessionMember = async function leaveSessionMember(req, res, next) {
+  const ids = getSessionUserIds(req, res);
+  if (!ids) return null;
+
+  try {
+    const member = await model.leaveSessionMember({
+      study_session_id: ids.sessionId,
+      user_id: ids.userId,
+    });
+
+    if (!member) return notFound(res, 'Active session member not found');
+    return ok(res, member);
   } catch (error) {
     return next(error);
   }

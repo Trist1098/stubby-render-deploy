@@ -38,7 +38,7 @@
   color: #203047;
 }
 
-.mission-strip > div {
+.mission-strip>div {
   display: grid;
   gap: 2px;
   min-width: 0;

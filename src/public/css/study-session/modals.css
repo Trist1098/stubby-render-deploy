@@ -70,6 +70,42 @@
   width: min(440px, calc(100vw - 32px));
 }
 
+.time-expiry-card {
+  width: min(430px, calc(100vw - 32px));
+}
+
+.time-expiry-kicker {
+  display: block;
+  margin-bottom: 6px;
+  color: #6366f1;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.time-expiry-extend-panel,
+.time-expiry-stay-panel {
+  margin-top: 18px;
+}
+
+.time-expiry-extend-panel label {
+  display: grid;
+  gap: 7px;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.time-expiry-extend-panel select {
+  min-height: 42px;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #1f2937;
+  font: inherit;
+  font-weight: 700;
+}
+
 .intention-form {
   display: grid;
   gap: 14px;

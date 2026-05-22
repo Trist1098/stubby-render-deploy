@@ -42,6 +42,9 @@ router.patch(
   studySessionController.updateMicroGoalProgress,
 );
 router.patch('/:sessionId/members/status', studySessionController.updateMemberStatus);
+router.patch('/:sessionId/time-expiry/extend', studySessionController.extendExpiredSession);
+router.patch('/:sessionId/time-expiry/stay', studySessionController.stayInExtendedSession);
+router.patch('/:sessionId/time-expiry/leave', studySessionController.leaveSessionMember);
 router.patch('/:sessionId/exit', studySessionController.exitSession);
 
 module.exports = router;

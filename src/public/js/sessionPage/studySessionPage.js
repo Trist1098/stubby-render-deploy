@@ -7,6 +7,7 @@ const apiBase = `/api/sessions/${sessionId}`;
 const MEMBER_PREVIEW_LIMIT = 3;
 const CHECKLIST_STORAGE_PREFIX = 'workCheckChecklist:';
 const INTENTION_STORAGE_PREFIX = 'sessionIntention:';
+const SESSION_REFRESH_INTERVAL_MS = 5000;
 const STATUS_BREAKDOWN_ORDER = ['focus', 'break', 'need_help', 'in_consultation'];
 const STATUS_BREAKDOWN_META = {
   focus: { label: 'Focusing', color: '#16a34a' },
@@ -28,12 +29,16 @@ let sessionData = {
 let timerStartedAt = Date.now();
 let timerInterval = null;
 let statusTimerInterval = null;
+let sessionPollInterval = null;
 let focusStatusMixPollInterval = null;
 let focusStatusMixRenderInterval = null;
 let focusStatusMixData = null;
 let focusStatusMixRequestVersion = 0;
 let statusUpdateInFlight = false;
 let pendingStatusUpdate = null;
+let sessionLoadInFlight = false;
+let expiryRefreshInFlight = false;
+let pausedRemainingSeconds = null;
 const focusStatusLiveAnchors = new Map();
 const focusStatusLocalTotalMs = new Map();
 const focusStatusMemberTotalAnchors = new Map();
@@ -56,7 +61,11 @@ const page = {};
 
 function bindPage() {
   page.editMissionButton = byId('editMissionButton');
+  page.endExpiredSessionButton = byId('endExpiredSessionButton');
+  page.exitExtendedSessionButton = byId('exitExtendedSessionButton');
   page.exitModal = byId('exitModal');
+  page.extendMinutesSelect = byId('extendMinutesSelect');
+  page.extendSessionForm = byId('extendSessionForm');
   page.intentionForm = byId('intentionForm');
   page.intentionInput = byId('intentionInput');
   page.intentionModal = byId('intentionModal');
@@ -103,6 +112,11 @@ function bindPage() {
   page.statusProgressFill = byId('statusProgressFill');
   page.statusProgressHint = byId('statusProgressHint');
   page.statusProgressText = byId('statusProgressText');
+  page.stayExitPanel = byId('stayExitPanel');
+  page.stayExtendedSessionButton = byId('stayExtendedSessionButton');
+  page.timeExpiryModal = byId('timeExpiryModal');
+  page.timeExpiryText = byId('timeExpiryText');
+  page.timeExpiryTitle = byId('timeExpiryTitle');
   page.workspacePanels = Array.from(document.querySelectorAll('[data-workspace-panel]'));
   page.workspaceTabButtons = Array.from(document.querySelectorAll('[data-workspace-tab]'));
   page.statusMixChart = byId('statusMixChart');
@@ -172,7 +186,76 @@ function clearMessage() {
 }
 
 function showModal(modal, shouldShow) {
+  if (!modal) return;
   modal.classList.toggle('d-none', !shouldShow);
+}
+
+function setButtonsDisabled(buttons, disabled) {
+  buttons.filter(Boolean).forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+function isSessionExpired() {
+  return sessionData.status === 'expired';
+}
+
+function isCurrentMemberTimerPaused() {
+  return Boolean(getCurrentMember()?.is_timer_paused);
+}
+
+function timersPausedForViewer() {
+  return isSessionExpired() || isCurrentMemberTimerPaused() || sessionData.status === 'completed';
+}
+
+function statusMixMemberIsPaused(member) {
+  if (sessionData.status === 'expired' || sessionData.status === 'completed') return true;
+  if (
+    Number(member?.user_id) === CURRENT_USER_ID &&
+    (statusUpdateInFlight || Boolean(pendingStatusUpdate))
+  ) {
+    return false;
+  }
+
+  return Boolean(member?.is_timer_paused);
+}
+
+function updatePausedRemainingSeconds() {
+  if (timersPausedForViewer()) {
+    if (pausedRemainingSeconds === null) {
+      pausedRemainingSeconds = Math.max(0, Number(sessionData.remaining_seconds) || 0);
+    }
+    return;
+  }
+
+  pausedRemainingSeconds = null;
+}
+
+function renderTimeExpiryModal() {
+  if (!page.timeExpiryModal) return;
+
+  const showExtendChoice = isSessionExpired();
+  const showStayChoice = !showExtendChoice && isCurrentMemberTimerPaused();
+
+  if (!showExtendChoice && !showStayChoice) {
+    showModal(page.timeExpiryModal, false);
+    return;
+  }
+
+  page.extendSessionForm.classList.toggle('d-none', !showExtendChoice);
+  page.stayExitPanel.classList.toggle('d-none', !showStayChoice);
+
+  if (showExtendChoice) {
+    page.timeExpiryTitle.textContent = 'Time is up';
+    page.timeExpiryText.textContent =
+      'All study timers are paused. End the session or extend the timer to keep working.';
+  } else {
+    page.timeExpiryTitle.textContent = 'Session extended';
+    page.timeExpiryText.textContent =
+      'Another member extended the session. Your timers are still paused until you stay or exit.';
+  }
+
+  showModal(page.timeExpiryModal, true);
 }
 
 function sessionIntentionKey() {
@@ -310,13 +393,16 @@ function consultationWorkspaceUrl(consultationId) {
 
 function renderPage() {
   page.title.textContent = sessionData.title || 'Software Engineering Practice';
+  updatePausedRemainingSeconds();
   renderCurrentGoal();
   renderMembers();
   renderStatusControls();
   renderStatusProgress();
   updateRejoinButton();
+  renderTimeExpiryModal();
   startTimer();
   startStatusTimer();
+  startSessionPolling();
   startFocusStatusMixTicker();
   startFocusStatusPolling();
 }
@@ -413,11 +499,17 @@ function localStatusTotalMs(anchorKey) {
   return STATUS_BREAKDOWN_ORDER.reduce((sum, status) => sum + (totals[status] || 0), 0);
 }
 
-function liveMemberTotalSeconds(member, segmentTotalMs) {
+function liveMemberTotalSeconds(member, segmentTotalMs, isPaused = false) {
   const anchorKey = focusStatusAnchorKey(member);
   const serverTotalMs = Math.max(serverStatusTotalMs(member), Math.max(0, segmentTotalMs || 0));
   const now = Date.now();
   let anchor = focusStatusMemberTotalAnchors.get(anchorKey);
+
+  if (isPaused) {
+    const pausedTotalMs = Math.max(serverTotalMs, localStatusTotalMs(anchorKey), anchor?.baseMs || 0);
+    focusStatusMemberTotalAnchors.set(anchorKey, { baseMs: pausedTotalMs, startedAtMs: now });
+    return Math.floor(pausedTotalMs / 1000);
+  }
 
   if (!anchor) {
     anchor = {
@@ -447,6 +539,7 @@ function updateStatusMixMemberStatus(userId, status) {
   const anchorKey = focusStatusAnchorKey(member);
   const existingAnchor = focusStatusLiveAnchors.get(anchorKey);
   const currentStatus = normalizeStatusForApi(member.current_status_key || member.current_status);
+  member.is_timer_paused = false;
   if (currentStatus === activeStatus && existingAnchor?.status === activeStatus) return;
 
   commitLiveStatusAnchor(anchorKey, focusStatusLiveAnchors.get(anchorKey));
@@ -511,6 +604,7 @@ function buildLiveStatusSegments(member) {
     return totals;
   }, {});
   const activeStatus = normalizeStatusForApi(member.current_status_key || member.current_status);
+  const isPaused = statusMixMemberIsPaused(member);
 
   (member.segments || []).forEach((segment) => {
     const status = normalizeStatusForApi(segment.status);
@@ -522,19 +616,21 @@ function buildLiveStatusSegments(member) {
     if (status === activeStatus) return;
     msByStatus[status] = Math.max(msByStatus[status], localTotals[status] || 0);
   });
-  if (Object.prototype.hasOwnProperty.call(msByStatus, activeStatus)) {
+  if (Object.prototype.hasOwnProperty.call(msByStatus, activeStatus) && !isPaused) {
     msByStatus[activeStatus] = liveStatusSeconds(
       member,
       activeStatus,
       msByStatus[activeStatus] / 1000,
     ) * 1000;
+  } else if (Object.prototype.hasOwnProperty.call(msByStatus, activeStatus)) {
+    msByStatus[activeStatus] = Math.max(msByStatus[activeStatus], localTotals[activeStatus] || 0);
   }
 
   const segmentTotalMs = STATUS_BREAKDOWN_ORDER.reduce(
     (sum, status) => sum + msByStatus[status],
     0,
   );
-  const totalSeconds = liveMemberTotalSeconds(member, segmentTotalMs);
+  const totalSeconds = liveMemberTotalSeconds(member, segmentTotalMs, isPaused);
 
   return STATUS_BREAKDOWN_ORDER.map((status) => ({
     status,
@@ -701,6 +797,8 @@ async function loadFocusStatusMix(options = {}) {
   try {
     const statusMix = await getJson(focusStatusMixUrl());
     if (requestVersion !== focusStatusMixRequestVersion) return;
+    if ((statusUpdateInFlight || pendingStatusUpdate) && focusStatusMixData) return;
+    if (timersPausedForViewer() && focusStatusMixData) return;
 
     focusStatusMixData = statusMix;
     if (page.statusMixChart?.querySelector('[data-status-mix-member]')) {
@@ -742,6 +840,7 @@ function renderStatusControls() {
     const isActive = button.dataset.status === currentStatus;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-pressed', String(isActive));
+    button.disabled = timersPausedForViewer();
   });
 }
 
@@ -749,12 +848,14 @@ function renderStatusProgress() {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
   const progress = asPercent(currentMember?.progress_percent);
-  const isLocked = Boolean(currentGoal?.is_completed || progress >= 100);
+  const isLocked = Boolean(currentGoal?.is_completed || progress >= 100 || timersPausedForViewer());
 
   paintProgress(progress);
   page.statusProgressBar.classList.toggle('is-locked', isLocked);
   page.statusProgressBar.setAttribute('aria-disabled', String(isLocked));
-  page.statusProgressHint.textContent = isLocked
+  page.statusProgressHint.textContent = timersPausedForViewer()
+    ? 'Session timers are paused until you choose how to continue.'
+    : isLocked
     ? 'Progress is locked at 100% for this micro-goal.'
     : 'Drag or click the bar to update progress. 100% requires workings, a .txt file, or a Word .docx file.';
 }
@@ -767,6 +868,8 @@ function renderStatusTimers() {
 
 function currentStatusSeconds(timer) {
   const baseSeconds = Number(timer.dataset.statusSeconds) || 0;
+  if (timersPausedForViewer() || timer.dataset.timerPaused === 'true') return baseSeconds;
+
   const renderedAt = Number(timer.dataset.statusRenderedAt) || Date.now();
   const elapsedSeconds = Math.floor((Date.now() - renderedAt) / 1000);
   return baseSeconds + elapsedSeconds;
@@ -857,6 +960,7 @@ function renderMemberCard(memberData) {
               class="member-status-time"
               data-status-seconds="${statusSeconds}"
               data-status-rendered-at="${Date.now()}"
+              data-timer-paused="${memberData.is_timer_paused ? 'true' : 'false'}"
             >${statusTime(statusSeconds)} in status</span>
             <span class="member-progress-value">${progress}%</span>
           </div>
@@ -1024,6 +1128,13 @@ function startStatusTimer() {
   statusTimerInterval = setInterval(renderStatusTimers, 1000);
 }
 
+function startSessionPolling() {
+  clearInterval(sessionPollInterval);
+  sessionPollInterval = setInterval(() => {
+    loadSession({ silent: true, promptForMission: false, refreshStatusMix: false });
+  }, SESSION_REFRESH_INTERVAL_MS);
+}
+
 function startFocusStatusMixTicker() {
   clearInterval(focusStatusMixRenderInterval);
   refreshFocusStatusMixDom();
@@ -1038,8 +1149,12 @@ function startFocusStatusPolling() {
 }
 
 function renderTimer() {
-  const elapsedSeconds = Math.floor((Date.now() - timerStartedAt) / 1000);
-  const remainingSeconds = Math.max(0, Number(sessionData.remaining_seconds || 0) - elapsedSeconds);
+  const elapsedSeconds = timersPausedForViewer() ? 0 : Math.floor((Date.now() - timerStartedAt) / 1000);
+  const baseRemainingSeconds =
+    pausedRemainingSeconds !== null
+      ? pausedRemainingSeconds
+      : Number(sessionData.remaining_seconds || 0);
+  const remainingSeconds = Math.max(0, baseRemainingSeconds - elapsedSeconds);
   const totalSeconds = Math.max(
     remainingSeconds,
     Number(sessionData.planned_duration_seconds || 0),
@@ -1050,22 +1165,48 @@ function renderTimer() {
     '--timer-progress',
     totalSeconds ? `${(remainingSeconds / totalSeconds) * 100}%` : '0%',
   );
+
+  if (
+    remainingSeconds <= 0 &&
+    sessionData.status === 'active' &&
+    Number(sessionData.planned_duration_seconds || 0) > 0
+  ) {
+    refreshExpiredSessionState();
+  }
 }
 
-async function loadSession() {
-  clearMessage();
+async function refreshExpiredSessionState() {
+  if (expiryRefreshInFlight) return;
+
+  expiryRefreshInFlight = true;
+  try {
+    await loadSession({ silent: true, promptForMission: false });
+  } finally {
+    expiryRefreshInFlight = false;
+  }
+}
+
+async function loadSession(options = {}) {
+  if (sessionLoadInFlight) return;
+  sessionLoadInFlight = true;
+  if (!options.silent) clearMessage();
 
   try {
     sessionData = await getJson(apiBase);
   } catch (error) {
-    showMessage(error.message || 'Could not load the live study session.', 'danger');
+    if (!options.silent) {
+      showMessage(error.message || 'Could not load the live study session.', 'danger');
+    }
+    sessionLoadInFlight = false;
+    return;
   }
 
   timerStartedAt = Date.now();
   localStorage.setItem('currentStudySessionId', String(sessionId));
   renderPage();
-  promptForSessionIntention();
-  loadFocusStatusMix();
+  if (options.promptForMission !== false) promptForSessionIntention();
+  if (options.refreshStatusMix !== false) loadFocusStatusMix({ showLoading: !options.silent });
+  sessionLoadInFlight = false;
 }
 
 async function addMicroGoal(event) {
@@ -1396,6 +1537,8 @@ async function submitMemberGoalEvidence(form) {
 function progressFromPointer(event) {
   const rect = page.statusProgressBar.getBoundingClientRect();
   const offset = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+  const completionSnapDistance = Math.min(Math.max(rect.width * 0.01, 6), 12);
+  if (rect.width - offset <= completionSnapDistance) return 100;
   return Math.round((offset / rect.width) * 100);
 }
 
@@ -1420,7 +1563,11 @@ function paintProgress(progress) {
 function isProgressLocked() {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
-  return Boolean(currentGoal?.is_completed || asPercent(currentMember?.progress_percent) >= 100);
+  return Boolean(
+    currentGoal?.is_completed ||
+      asPercent(currentMember?.progress_percent) >= 100 ||
+      timersPausedForViewer(),
+  );
 }
 
 function startProgressDrag(event) {
@@ -1626,6 +1773,7 @@ function applyOptimisticCurrentStatus(status) {
     );
     currentMember.current_status = focusStatusMeta(normalizedStatus).label;
     currentMember.status_class = statusClassForApiStatus(normalizedStatus);
+    currentMember.is_timer_paused = false;
     if (previousStatus !== normalizedStatus) currentMember.status_timer = 0;
   }
 
@@ -1678,6 +1826,11 @@ function updateCurrentStatus(event) {
   const button = event.currentTarget;
   const rawStatus = button.dataset.status;
   if (!rawStatus) return;
+  if (timersPausedForViewer()) {
+    showMessage('Choose how to continue before changing status.', 'info');
+    renderTimeExpiryModal();
+    return;
+  }
   const status = normalizeStatusForApi(rawStatus);
 
   syncRenderedStatusTimers();
@@ -2267,14 +2420,100 @@ async function exitSession() {
   window.location.href = 'personal-summary.html';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  bindPage();
+async function extendExpiredSession(event) {
+  event.preventDefault();
 
-  byId('showGoalFormButton').addEventListener('click', () => {
-    page.goalForm.classList.toggle('d-none');
-    if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
+  const extensionSeconds = Number(page.extendMinutesSelect.value) || 600;
+  const submitButton = page.extendSessionForm.querySelector('button[type="submit"]');
+  setButtonsDisabled([submitButton, page.endExpiredSessionButton], true);
+
+  try {
+    await getJson(`${apiBase}/time-expiry/extend`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        user_id: CURRENT_USER_ID,
+        extension_seconds: extensionSeconds,
+      }),
+    });
+    pausedRemainingSeconds = null;
+    showModal(page.timeExpiryModal, false);
+    await loadSession({ silent: true, promptForMission: false });
+    await loadFocusStatusMix({ showLoading: false });
+    showMessage(`Session extended by ${Math.round(extensionSeconds / 60)} minutes.`, 'info');
+  } catch (error) {
+    showMessage(error.message, 'danger');
+  } finally {
+    setButtonsDisabled([submitButton, page.endExpiredSessionButton], false);
+  }
+}
+
+async function stayInExtendedSession() {
+  setButtonsDisabled([page.stayExtendedSessionButton, page.exitExtendedSessionButton], true);
+
+  try {
+    await getJson(`${apiBase}/time-expiry/stay`, {
+      method: 'PATCH',
+      body: JSON.stringify({ user_id: CURRENT_USER_ID }),
+    });
+    pausedRemainingSeconds = null;
+    showModal(page.timeExpiryModal, false);
+    await loadSession({ silent: true, promptForMission: false });
+    await loadFocusStatusMix({ showLoading: false });
+  } catch (error) {
+    showMessage(error.message, 'danger');
+  } finally {
+    setButtonsDisabled([page.stayExtendedSessionButton, page.exitExtendedSessionButton], false);
+  }
+}
+
+async function leaveExtendedSession() {
+  setButtonsDisabled([page.exitExtendedSessionButton, page.stayExtendedSessionButton], true);
+
+  try {
+    await getJson(`${apiBase}/time-expiry/leave`, {
+      method: 'PATCH',
+      body: JSON.stringify({ user_id: CURRENT_USER_ID }),
+    });
+  } catch (error) {
+    console.info('Could not mark member as left:', error.message);
+  }
+
+  window.location.href = 'index.html';
+}
+
+function bindClick(id, handler) {
+  byId(id).addEventListener('click', handler);
+}
+
+function bindBackdropClose(modal, handler) {
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) handler();
   });
+}
 
+function toggleGoalForm() {
+  page.goalForm.classList.toggle('d-none');
+  if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
+}
+
+function toggleMembersExpanded() {
+  membersExpanded = !membersExpanded;
+  renderMembers();
+}
+
+function markScratchpadChanged() {
+  markWorkspaceDirty();
+  scheduleConsultationWorkspaceSave();
+}
+
+function resizeWorkspaceIfOpen() {
+  if (!page.consultationWorkspaceModal.classList.contains('d-none')) {
+    resizeWhiteboardCanvas();
+  }
+}
+
+function bindGoalAndMemberEvents() {
+  bindClick('showGoalFormButton', toggleGoalForm);
   page.goalForm.addEventListener('submit', addMicroGoal);
   page.intentionForm.addEventListener('submit', saveSessionIntention);
   page.editMissionButton.addEventListener('click', openIntentionModal);
@@ -2282,10 +2521,10 @@ document.addEventListener('DOMContentLoaded', () => {
   page.membersList.addEventListener('click', handleMemberGoalsButton);
   page.memberGoalsModal.addEventListener('submit', handleEvidenceFormSubmit);
   page.memberGoalsModal.addEventListener('change', handleWorkCheckChecklistChange);
-  page.membersToggle.addEventListener('click', () => {
-    membersExpanded = !membersExpanded;
-    renderMembers();
-  });
+  page.membersToggle.addEventListener('click', toggleMembersExpanded);
+}
+
+function bindStatusAndTimerEvents() {
   page.statusControls.forEach((button) => {
     button.addEventListener('click', updateCurrentStatus);
   });
@@ -2295,18 +2534,21 @@ document.addEventListener('DOMContentLoaded', () => {
   page.statusProgressBar.addEventListener('pointercancel', cancelProgressDrag);
   page.completionForm.addEventListener('submit', submitCompletionEvidence);
 
-  byId('exitSessionButton').addEventListener('click', () => showModal(page.exitModal, true));
-  byId('cancelExitButton').addEventListener('click', () => showModal(page.exitModal, false));
-  byId('confirmExitButton').addEventListener('click', exitSession);
-  byId('cancelCompletionButton').addEventListener('click', () =>
-    showModal(page.completionModal, false),
-  );
-  byId('cancelConsultationButton').addEventListener('click', () =>
-    showModal(page.consultationModal, false),
-  );
-  byId('confirmConsultationButton').addEventListener('click', startConsultation);
-  byId('closeConsultationWorkspaceButton').addEventListener('click', closeConsultationWorkspace);
-  byId('finishConsultationButton').addEventListener('click', finishConsultation);
+  bindClick('exitSessionButton', () => showModal(page.exitModal, true));
+  bindClick('cancelExitButton', () => showModal(page.exitModal, false));
+  bindClick('confirmExitButton', exitSession);
+  page.extendSessionForm.addEventListener('submit', extendExpiredSession);
+  page.endExpiredSessionButton.addEventListener('click', exitSession);
+  page.stayExtendedSessionButton.addEventListener('click', stayInExtendedSession);
+  page.exitExtendedSessionButton.addEventListener('click', leaveExtendedSession);
+  bindClick('cancelCompletionButton', () => showModal(page.completionModal, false));
+}
+
+function bindConsultationEvents() {
+  bindClick('cancelConsultationButton', () => showModal(page.consultationModal, false));
+  bindClick('confirmConsultationButton', startConsultation);
+  bindClick('closeConsultationWorkspaceButton', closeConsultationWorkspace);
+  bindClick('finishConsultationButton', finishConsultation);
   page.workspaceTabButtons.forEach((button) => {
     button.addEventListener('click', () => switchWorkspaceTab(button.dataset.workspaceTab));
   });
@@ -2314,71 +2556,55 @@ document.addEventListener('DOMContentLoaded', () => {
   page.consultationWhiteboard.addEventListener('pointermove', moveWhiteboardStroke);
   page.consultationWhiteboard.addEventListener('pointerup', finishWhiteboardStroke);
   page.consultationWhiteboard.addEventListener('pointercancel', finishWhiteboardStroke);
-  page.consultationScratchpad.addEventListener('input', () => {
-    markWorkspaceDirty();
-    scheduleConsultationWorkspaceSave();
-  });
+  page.consultationScratchpad.addEventListener('input', markScratchpadChanged);
   page.clearWhiteboardButton.addEventListener('click', clearWhiteboard);
-  window.addEventListener('resize', () => {
-    if (!page.consultationWorkspaceModal.classList.contains('d-none')) {
-      resizeWhiteboardCanvas();
-    }
-  });
+  window.addEventListener('resize', resizeWorkspaceIfOpen);
   page.rejoinConsultationButton.addEventListener('click', () =>
     openConsultationWorkspace(activeConsultation),
   );
   page.consultationReviewForm.addEventListener('submit', submitConsultationReview);
-  byId('cancelConsultationReviewButton').addEventListener('click', () =>
-    showModal(page.consultationReviewModal, false),
-  );
-  byId('closeConsultationReviewButton').addEventListener('click', () =>
-    showModal(page.consultationReviewModal, false),
-  );
-  byId('closeConsultationDirectionButton').addEventListener('click', () =>
+  bindClick('cancelConsultationReviewButton', () => showModal(page.consultationReviewModal, false));
+  bindClick('closeConsultationReviewButton', () => showModal(page.consultationReviewModal, false));
+  bindClick('closeConsultationDirectionButton', () =>
     showModal(page.consultationDirectionModal, false),
   );
+}
 
-  byId('viewQueueButton').addEventListener('click', () => showModal(page.queueModal, true));
-  byId('closeQueueButton').addEventListener('click', () => showModal(page.queueModal, false));
-  byId('closeMemberGoalsButton').addEventListener('click', () =>
-    showModal(page.memberGoalsModal, false),
+function bindQueueAndModalEvents() {
+  bindClick('viewQueueButton', () => showModal(page.queueModal, true));
+  bindClick('closeQueueButton', () => showModal(page.queueModal, false));
+  bindClick('closeMemberGoalsButton', () => showModal(page.memberGoalsModal, false));
+
+  bindBackdropClose(page.exitModal, () => showModal(page.exitModal, false));
+  bindBackdropClose(page.timeExpiryModal, renderTimeExpiryModal);
+  bindBackdropClose(page.queueModal, () => showModal(page.queueModal, false));
+  bindBackdropClose(page.consultationModal, () => showModal(page.consultationModal, false));
+  bindBackdropClose(page.consultationWorkspaceModal, closeConsultationWorkspace);
+  bindBackdropClose(page.consultationReviewModal, () =>
+    showModal(page.consultationReviewModal, false),
   );
-
-  page.exitModal.addEventListener('click', (event) => {
-    if (event.target === page.exitModal) showModal(page.exitModal, false);
-  });
-  page.queueModal.addEventListener('click', (event) => {
-    if (event.target === page.queueModal) showModal(page.queueModal, false);
-  });
-  page.consultationModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationModal) showModal(page.consultationModal, false);
-  });
-  page.consultationWorkspaceModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationWorkspaceModal) {
-      closeConsultationWorkspace();
-    }
-  });
-  page.consultationReviewModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationReviewModal) {
-      showModal(page.consultationReviewModal, false);
-    }
-  });
-  page.consultationDirectionModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationDirectionModal) {
-      showModal(page.consultationDirectionModal, false);
-    }
-  });
-  page.memberGoalsModal.addEventListener('click', (event) => {
-    if (event.target === page.memberGoalsModal) showModal(page.memberGoalsModal, false);
-  });
-  page.completionModal.addEventListener('click', (event) => {
-    if (event.target === page.completionModal) showModal(page.completionModal, false);
-  });
-  page.intentionModal.addEventListener('click', (event) => {
-    if (event.target === page.intentionModal && readSessionIntention()) {
+  bindBackdropClose(page.consultationDirectionModal, () =>
+    showModal(page.consultationDirectionModal, false),
+  );
+  bindBackdropClose(page.memberGoalsModal, () => showModal(page.memberGoalsModal, false));
+  bindBackdropClose(page.completionModal, () => showModal(page.completionModal, false));
+  bindBackdropClose(page.intentionModal, () => {
+    if (readSessionIntention()) {
       showModal(page.intentionModal, false);
     }
   });
+}
+
+function bindStudySessionEvents() {
+  bindGoalAndMemberEvents();
+  bindStatusAndTimerEvents();
+  bindConsultationEvents();
+  bindQueueAndModalEvents();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  bindPage();
+  bindStudySessionEvents();
 
   loadSession();
 });
