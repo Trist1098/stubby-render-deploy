@@ -121,6 +121,11 @@
   grid-row: 2 / span 2;
 }
 
+.status-mix-dashboard {
+  grid-column: 1 / -1;
+  grid-row: 4;
+}
+
 .timer-ring {
   width: 132px;
   background: conic-gradient(#203047 var(--timer-progress, 100%), #e4eaf2 0);
@@ -230,7 +235,6 @@
 }
 
 .member-status,
-.member-progress-label,
 .member-meta-row {
   font-size: 0.8rem;
 }
