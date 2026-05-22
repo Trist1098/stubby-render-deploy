@@ -334,6 +334,57 @@ module.exports.uploadFile = async (conversationId, senderId, fileUrl, fileType, 
   return { ...message, sender_username: senderResult.rows[0]?.username || 'Unknown user' };
 };
 
+module.exports.searchMessages = async (conversationId, { q, dateFrom, dateTo, senderId, type }) => {
+  const conditions = ['cm.conversation_id = $1', 'cm.is_deleted = FALSE'];
+  const values = [conversationId];
+  let i = 2;
+
+  if (q) {
+    conditions.push(`cm.text ILIKE $${i++}`);
+    values.push(`%${q}%`);
+  }
+  if (dateFrom) {
+    conditions.push(`cm.created_at >= $${i++}::DATE`);
+    values.push(dateFrom);
+  }
+  if (dateTo) {
+    conditions.push(`cm.created_at < $${i++}::DATE + INTERVAL '1 day'`);
+    values.push(dateTo);
+  }
+  if (senderId) {
+    conditions.push(`cm.sender_id = $${i++}`);
+    values.push(Number(senderId));
+  }
+  if (type === 'text') {
+    conditions.push('cm.file_url IS NULL');
+  } else if (type === 'file') {
+    conditions.push(`cm.file_url IS NOT NULL AND COALESCE(cm.file_type, '') NOT LIKE 'audio/%'`);
+  } else if (type === 'voice') {
+    conditions.push(`cm.file_type LIKE 'audio/%'`);
+  }
+
+  const result = await pool.query(
+    `SELECT
+       cm.message_id,
+       cm.conversation_id,
+       cm.sender_id,
+       u.username AS sender_username,
+       cm.text,
+       cm.file_url,
+       cm.file_type,
+       cm.file_name,
+       cm.created_at
+     FROM ChatMessage cm
+     JOIN "User" u ON u.user_id = cm.sender_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY cm.created_at DESC
+     LIMIT 50`,
+    values
+  );
+
+  return result.rows;
+};
+
 module.exports.setTypingStatus = async (userId, conversationId, isTyping) => {
   await pool.query(
     `INSERT INTO UserPresence (user_id, typing_status, conversation_id, last_seen)

@@ -20,6 +20,7 @@ const {
   replyToMessage: replyToMessageModel,
   setTypingStatus: setTypingStatusModel,
   getTypingUsers: getTypingUsersModel,
+  searchMessages: searchMessagesModel,
 } = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
@@ -393,6 +394,26 @@ module.exports.setTypingStatus = async (req, res, next) => {
 
     await setTypingStatusModel(userId, conversationId, isTyping);
     res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.searchMessages = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const { q, dateFrom, dateTo, senderId, type } = req.query;
+
+  if (!Number.isInteger(conversationId)) {
+    return res.status(400).json({ message: 'Invalid conversation id' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+
+    const results = await searchMessagesModel(conversationId, { q, dateFrom, dateTo, senderId, type });
+    res.json(results);
   } catch (error) {
     next(error);
   }

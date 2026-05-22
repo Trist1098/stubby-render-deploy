@@ -22,6 +22,7 @@ const {
   replyToMessage,
   setTypingStatus,
   getTypingUsers,
+  searchMessages,
 } = require('../controllers/Chat.controller');
 
 // Get friends for the new chat modal
@@ -44,6 +45,7 @@ router.post('/:conversationId/messages/:messageId/reactions/:emoji', jwtMiddlewa
 router.delete('/:conversationId/messages/:messageId/reactions/:emoji', jwtMiddleware.verifyToken, removeReaction);
 router.post('/:conversationId/upload', jwtMiddleware.verifyToken, verifyUploadTarget, uploadChatFile, uploadFile);
 router.post('/:conversationId/voice', jwtMiddleware.verifyToken, verifyUploadTarget, uploadChatVoice, uploadVoiceMessage);
+router.get('/:conversationId/search', jwtMiddleware.verifyToken, searchMessages);
 router.get('/:conversationId', jwtMiddleware.verifyToken, getConversationById);
 
 module.exports = router;

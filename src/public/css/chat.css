@@ -588,3 +588,42 @@
   from { opacity: 1; transform: translateY(0) scale(1); }
   to   { opacity: 0; transform: translateY(4px) scale(0.97); }
 }
+
+/* Message search */
+.search-bar {
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.search-filter-select,
+.search-filter-date {
+  max-width: 140px;
+}
+
+.search-results-header {
+  background: #f8f9fa;
+}
+
+.search-result {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.search-result:hover {
+  background: #f0f4ff;
+}
+
+.search-highlight {
+  background: rgba(255, 213, 0, 0.5);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.message-row.message-highlight .message-bubble {
+  animation: messageFlash 0.6s ease 2;
+}
+
+@keyframes messageFlash {
+  0%, 100% { box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08); }
+  50%       { box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.35); }
+}

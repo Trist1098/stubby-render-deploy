@@ -96,3 +96,8 @@ export function sendTypingRequest(conversationId, typing) {
 export function fetchTypingUsers(conversationId) {
   return apiRequest(`/api/chats/${conversationId}/typing`);
 }
+
+export function searchMessagesRequest(conversationId, params) {
+  const qs = new URLSearchParams(params).toString();
+  return apiRequest(`/api/chats/${conversationId}/search?${qs}`);
+}
