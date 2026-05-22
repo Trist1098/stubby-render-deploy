@@ -358,14 +358,6 @@ footer {
     }
 }
 
-.match-hero {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    padding: 60px 0;
-    border-radius: 0 0 40px 40px;
-    color: white;
-    margin-bottom: -40px;
-}
-
 .premium-tab-nav {
     background: #f8fafc;
     padding: 6px;
@@ -537,10 +529,12 @@ footer {
     background: #fff7ed;
     color: #d97706;
 }
+
 .status-accepted {
     background: #ecfdf5;
     color: #059669;
 }
+
 .status-declined {
     background: #fef2f2;
     color: #dc2626;
@@ -665,7 +659,7 @@ footer {
     transition: all var(--transition-smooth);
 }
 
-.custom-option input:checked + label {
+.custom-option input:checked+label {
     border-color: var(--primary) !important;
     background: rgba(99, 102, 241, 0.05) !important;
     color: var(--primary) !important;
@@ -692,9 +686,11 @@ footer {
 .form-range::-webkit-slider-thumb {
     background: var(--primary);
 }
+
 .form-range::-moz-range-thumb {
     background: var(--primary);
 }
+
 .form-range::-ms-thumb {
     background: var(--primary);
 }
@@ -1172,7 +1168,7 @@ footer {
     display: none !important;
 }
 
-.show > .dropdown-toggle .nav-dropdown-icon,
+.show>.dropdown-toggle .nav-dropdown-icon,
 .dropdown:hover .nav-dropdown-icon {
     transform: rotate(180deg);
     opacity: 1;
@@ -1338,7 +1334,7 @@ footer {
         box-shadow 0.3s ease !important;
 }
 
-.header-transparent + .match-hero {
+.header-transparent+.match-hero {
     padding-top: 7.5rem !important;
 }
 
@@ -1449,37 +1445,37 @@ footer {
    Student Detail Modal
    ═══════════════════════════════════ */
 .modal-hero-bg {
-    background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.4), transparent 50%), 
-                radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.3), transparent 50%), 
-                linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.4), transparent 50%),
+        radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.3), transparent 50%),
+        linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
     min-height: 220px;
 }
 
 .modal-hero-grid {
-    top: 0; 
-    left: 0; 
-    right: 0; 
-    bottom: 0; 
-    background-image: radial-gradient(circle, #ffffff 1px, transparent 1px); 
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: radial-gradient(circle, #ffffff 1px, transparent 1px);
     background-size: 20px 20px;
     opacity: 0.1;
 }
 
 .modal-hero-accent-1 {
-    top: -20px; 
-    right: 20%; 
-    width: 150px; 
-    height: 150px; 
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%); 
+    top: -20px;
+    right: 20%;
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
     filter: blur(20px);
 }
 
 .modal-hero-accent-2 {
-    bottom: -30px; 
-    left: 30%; 
-    width: 120px; 
-    height: 120px; 
-    background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, transparent 70%); 
+    bottom: -30px;
+    left: 30%;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, transparent 70%);
     filter: blur(20px);
 }
 
@@ -1493,10 +1489,10 @@ footer {
 }
 
 .modal-profile-avatar-wrapper {
-    width: 120px; 
-    height: 120px; 
+    width: 120px;
+    height: 120px;
     background-color: #ffffff;
-    padding: 0.5rem; 
+    padding: 0.5rem;
     border-radius: 50%;
     z-index: 10;
 }
@@ -1522,7 +1518,7 @@ footer {
 }
 
 .modal-ai-insight-badge {
-    background-color: rgba(99, 102, 241, 0.25) !important; 
+    background-color: rgba(99, 102, 241, 0.25) !important;
     color: #ffffff !important;
     font-size: 9px !important;
     border: 1px solid rgba(99, 102, 241, 0.2) !important;
@@ -1541,8 +1537,8 @@ footer {
 }
 
 .modal-quick-detail-icon-wrap {
-    width: 40px; 
-    height: 40px; 
+    width: 40px;
+    height: 40px;
     min-width: 40px;
 }
 
@@ -1559,13 +1555,13 @@ footer {
 }
 
 .modal-review-card {
-    width: 220px; 
+    width: 220px;
     min-width: 220px;
 }
 
 .modal-review-avatar-wrap {
-    width: 32px; 
-    height: 32px; 
+    width: 32px;
+    height: 32px;
     min-width: 32px;
 }
 
@@ -1625,7 +1621,7 @@ footer {
 .student-card:hover {
     transform: translateY(-6px) scale(1.015);
     border-color: rgba(99, 102, 241, 0.2) !important;
-    box-shadow: 
+    box-shadow:
         0 20px 40px -15px rgba(99, 102, 241, 0.12),
         0 8px 16px -8px rgba(168, 85, 247, 0.08) !important;
 }
@@ -1674,7 +1670,7 @@ footer {
 
 .request-card:hover {
     transform: translateY(-5px);
-    box-shadow: 
+    box-shadow:
         0 15px 30px -10px rgba(15, 23, 42, 0.08),
         0 4px 12px -5px rgba(0, 0, 0, 0.02) !important;
     border-color: rgba(99, 102, 241, 0.25) !important;
@@ -1683,9 +1679,11 @@ footer {
 .request-card-pending {
     border-left: 4px solid #f59e0b !important;
 }
+
 .request-card-accepted {
     border-left: 4px solid #10b981 !important;
 }
+
 .request-card-declined,
 .request-card-rejected,
 .request-card-cancelled {
@@ -1767,7 +1765,7 @@ footer {
     padding: 2.25rem !important;
     position: relative;
     overflow: hidden;
-    box-shadow: 
+    box-shadow:
         0 10px 30px -10px rgba(245, 158, 11, 0.04),
         0 1px 3px rgba(0, 0, 0, 0.01) !important;
     transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
@@ -1788,7 +1786,7 @@ footer {
 .match-hero-card:hover {
     transform: translateY(-6px) scale(1.005);
     border-color: rgba(245, 158, 11, 0.35) !important;
-    box-shadow: 
+    box-shadow:
         0 25px 50px -12px rgba(245, 158, 11, 0.1),
         0 12px 24px -10px rgba(99, 102, 241, 0.05) !important;
 }
@@ -1897,17 +1895,17 @@ footer {
     border-radius: 28px !important;
     border: 1px solid rgba(226, 232, 240, 0.9) !important;
     background: radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.02) 0%, transparent 40%), radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.02) 0%, transparent 40%), #ffffff !important;
-    box-shadow: 
+    box-shadow:
         0 30px 70px -15px rgba(15, 23, 42, 0.12),
         0 10px 30px -5px rgba(99, 102, 241, 0.03) !important;
     overflow: hidden;
 }
 
-.dialog-surface > .row {
+.dialog-surface>.row {
     align-items: stretch !important;
 }
 
-.dialog-surface > .row > [class*="col-"] {
+.dialog-surface>.row>[class*="col-"] {
     display: flex !important;
     flex-direction: column !important;
 }
@@ -2069,11 +2067,11 @@ footer {
     box-shadow: 0 6px 12px rgba(99, 102, 241, 0.05) !important;
 }
 
-.custom-option input:checked + label {
+.custom-option input:checked+label {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%) !important;
     border-color: var(--primary) !important;
     color: var(--primary) !important;
-    box-shadow: 
+    box-shadow:
         0 8px 16px -4px rgba(99, 102, 241, 0.15),
         0 2px 4px -1px rgba(99, 102, 241, 0.05) !important;
 }

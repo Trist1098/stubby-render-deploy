@@ -820,13 +820,13 @@
 
                             <!-- About & Goals -->
                             <div class="row g-3 mb-4">
-                                <div class="col-6">
+                                <div class="col-12">
                                     <div class="p-3 bg-light rounded-4 h-100">
                                         <h6 class="fw-bold text-primary uppercase small mb-2">Goals</h6>
                                         <p class="text-muted small mb-0 italic" id="modalGoals">"Aiming for an A in FOP2 and improving consistency in BED."</p>
                                     </div>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-12">
                                     <div class="p-3 bg-light rounded-4 h-100">
                                         <h6 class="fw-bold text-primary uppercase small mb-2">About</h6>
                                         <p class="text-muted small mb-0" id="modalAbout">"Hi! I'm looking for a serious study partner. I prefer morning sessions at the library."</p>
@@ -834,9 +834,14 @@
                                 </div>
                             </div>
 
-                            <button type="button" id="modalConnectBtn" class="btn btn-accent w-100 py-3 rounded-4 fw-bold uppercase small shadow-soft">
-                                <i class="fas fa-paper-plane me-2"></i>Send Request
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button type="button" id="modalConnectBtn" class="btn btn-accent flex-grow-1 py-3 rounded-4 fw-bold uppercase small shadow-soft">
+                                    <i class="fas fa-paper-plane me-2"></i>Send Request
+                                </button>
+                                <a href="#" id="modalViewFullProfile" target="_blank" class="btn btn-outline-primary py-3 rounded-4 fw-bold uppercase small d-flex align-items-center justify-content-center" style="min-width: 160px;">
+                                    <i class="fas fa-user-circle me-2"></i>Full Profile
+                                </a>
+                            </div>
                         </div>
 
                         <div class="col-lg-7 ps-lg-4">

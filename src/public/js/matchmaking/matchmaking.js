@@ -559,7 +559,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                         <div class="match-hero-avatar rounded-circle overflow-hidden w-100 h-100 bg-light border-0">
                                             ${getAvatarHTML(bestMatch.profile_pic, bestMatch.name)}
                                         </div>
-                                        <span class="online-dot"></span>
+                                        ${bestMatch.is_online ? '<span class="online-dot"></span>' : ''}
                                     </div>
                                     <div class="match-hero-info">
                                         <h3 class="fw-bold mb-1 match-hero-name">${bestMatch.name}</h3>
@@ -624,7 +624,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                             <div class="avatar-wrap rounded-circle overflow-hidden w-100 h-100 bg-light border-0">
                                                 ${getAvatarHTML(s.profile_pic, s.name)}
                                             </div>
-                                            <span class="online-dot"></span>
+                                            ${s.is_online ? '<span class="online-dot"></span>' : ''}
                                         </div>
                                         <div>
                                             <h5 class="fw-bold text-dark mb-1 fs-6">${s.name}</h5>
@@ -1112,7 +1112,7 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             const [res, friendsRes] = await Promise.all([
                 fetch(`/api/matches/shared/${id}`, { headers: { 'Authorization': `Bearer ${auth.getToken()}` } }),
-                fetch(`/api/friend`, { headers: { 'Authorization': `Bearer ${auth.getToken()}` } })
+                fetch(`/api/friends`, { headers: { 'Authorization': `Bearer ${auth.getToken()}` } })
             ]);
             if (res.ok) {
                 const shared = await res.json();
@@ -1334,49 +1334,264 @@ document.addEventListener("DOMContentLoaded", function () {
         const firstModule = studentModules[0] || 'Core';
         const studentFirstWord = student.name.split(' ')[0];
         
-        const locations = ["Library Level 5 & Online", "T11A Study Area & Discord", "FC5 Study Zone", "Makerspace Hall", "Library Level 4 Quiet Zone"];
-        const prefTimes = ["Morning Sessions", "Afternoon Labs", "Weekday Evenings", "Weekend Focus Groups"];
-        const goals = [
-            `"Aiming for an A in ${firstModule} and keeping up consistency in other subjects."`,
-            `"Looking to collaborate on peer coding sessions for upcoming ${firstModule} practicals."`,
-            `"Hoping to find a motivated partner for review classes and exam preparation."`,
-        ];
-        const abouts = [
-            `"Hi! I prefer quiet study rooms or library sessions. Mostly focus on structured Pomodoro sessions."`,
-            `"Looking for a study partner to bounce ideas off and complete review sheets weekly."`,
-            `"Always online and available for quick Discord debug sessions or group labs."`,
-        ];
+        // Parse peer preferences safely
+        const parsePeerJson = (val) => {
+            if (!val) return [];
+            if (typeof val === 'string') {
+                try {
+                    return JSON.parse(val);
+                } catch (e) {
+                    if (val.includes(',')) {
+                        return val.split(',').map(s => s.trim());
+                    }
+                    return [val.trim()];
+                }
+            }
+            return Array.isArray(val) ? val : [val];
+        };
 
-        const location = locations[userId % locations.length];
-        const prefTime = prefTimes[userId % prefTimes.length];
-        const goal = goals[userId % goals.length];
-        const about = abouts[userId % abouts.length];
+        const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+        const peerModes = parsePeerJson(student.selected_modes);
+        const peerTimes = parsePeerJson(student.selected_times);
+        const peerDays = parsePeerJson(student.availability_days);
+        const peerStyles = (student.style || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+        const peerLanguages = parsePeerJson(student.selected_languages);
 
-        document.getElementById('modalLocation').innerText = location;
-        document.getElementById('modalTimePreference').innerText = prefTime;
-        document.getElementById('modalGoals').innerText = goal;
-        document.getElementById('modalAbout').innerText = about;
-        document.getElementById('modalAiInsight').innerText = `Based on your shared interest in ${firstModule}, ${studentFirstWord}'s high schedule compatibility makes them a perfect peer for lab work and test prep.`;
+        let dynamicLocation = 'SP Main Campus';
+        if (peerModes.includes('online') && peerModes.includes('in-person')) {
+            dynamicLocation = 'SP Campus & Online';
+        } else if (peerModes.includes('online')) {
+            dynamicLocation = 'Online (Discord / Teams)';
+        } else if (peerModes.includes('in-person')) {
+            dynamicLocation = 'SP Main Campus';
+        }
 
+        let dynamicPref = 'Flexible Schedule';
+        if (peerTimes.length > 0 && peerStyles.length > 0) {
+            dynamicPref = `${peerTimes.map(cap).join(' & ')} (${peerStyles.map(cap).join('/')})`;
+        } else if (peerTimes.length > 0) {
+            dynamicPref = `${peerTimes.map(cap).join(' & ')} Sessions`;
+        } else if (peerStyles.length > 0) {
+            dynamicPref = `${peerStyles.map(cap).join(' / ')} Study`;
+        }
+
+        let dynamicGoals;
+        if (studentModules.length >= 2) {
+            dynamicGoals = `"Aiming to excel in ${studentModules[0].trim()} while strengthening skills in ${studentModules[1].trim()} through collaborative study."`;
+        } else if (studentModules.length === 1) {
+            dynamicGoals = `"Focused on mastering ${studentModules[0].trim()} concepts and preparing for upcoming assessments."`;
+        } else {
+            dynamicGoals = `"Seeking a reliable study partner to tackle coursework and build academic consistency."`;
+        }
+
+        let dynamicAbout;
+        if (student.profile_text && student.profile_text.trim().length > 0) {
+            dynamicAbout = `"${student.profile_text.trim()}"`;
+        } else {
+            const langStr = peerLanguages.length > 0 ? peerLanguages.join(' & ') : 'English';
+            const styleStr = peerStyles.length > 0 ? peerStyles.map(cap).join('/').toLowerCase() : 'collaborative';
+            const modeStr = peerModes.length > 0 ? peerModes.map(cap).join('/').toLowerCase() : 'flexible';
+            dynamicAbout = `"A motivated ${student.diploma_code || 'IT'} student who thrives in ${styleStr} study environments. Prefers ${modeStr} sessions and communicates in ${langStr}."`;
+        }
+
+        document.getElementById('modalLocation').innerText = dynamicLocation;
+        document.getElementById('modalTimePreference').innerText = dynamicPref;
+        document.getElementById('modalGoals').innerText = dynamicGoals;
+        document.getElementById('modalAbout').innerText = dynamicAbout;
+
+        const myModuleCodes = Array.isArray(masterModules) ? masterModules.map(m => m.code.trim().toUpperCase()) : [];
+        const peerModuleCodes = (student.modules || '').split(',').map(m => m.trim().toUpperCase()).filter(Boolean);
+        const sharedModules = peerModuleCodes.filter(code => myModuleCodes.includes(code));
+
+        const myDays = Array.isArray(userPreferences.availability_days) ? userPreferences.availability_days : [];
+        const sharedDays = myDays.filter(d => peerDays.includes(d));
+        const myStyles = (userPreferences.style || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+        const sharedStyles = myStyles.filter(s => peerStyles.includes(s));
+        const myTimes = Array.isArray(userPreferences.selected_times) ? userPreferences.selected_times : [];
+        const sharedTimes = myTimes.filter(t => peerTimes.includes(t));
+        const myModes = Array.isArray(userPreferences.selected_modes) ? userPreferences.selected_modes : [];
+        const sharedModes = myModes.filter(m => peerModes.includes(m));
+        const myLanguages = Array.isArray(userPreferences.selected_languages) ? userPreferences.selected_languages.map(l => l.toLowerCase()) : [];
+        const peerLangsLower = peerLanguages.map(l => l.toLowerCase());
+        const sharedLanguages = myLanguages.filter(l => peerLangsLower.includes(l));
+        const compatibilityItems = [];
+
+        // Modules Compatibility
+        if (sharedModules.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-book-open',
+                color: 'text-accent-indigo',
+                text: `Shared Module${sharedModules.length > 1 ? 's' : ''}: ${sharedModules.join(', ')}`
+            });
+        } else if (peerModuleCodes.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-book',
+                color: 'text-muted',
+                text: `Studies ${peerModuleCodes.slice(0, 2).join(', ')}`
+            });
+        }
+
+        // Days Compatibility
+        if (sharedDays.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-calendar-check',
+                color: 'text-success',
+                text: `Common Days: ${sharedDays.map(cap).join(', ')}`
+            });
+        } else if (peerDays.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-calendar',
+                color: 'text-muted',
+                text: `Available: ${peerDays.map(cap).join(', ')}`
+            });
+        }
+
+        // Times Compatibility
+        if (sharedTimes.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-clock',
+                color: 'text-warning',
+                text: `Overlapping Hours: ${sharedTimes.map(cap).join(' / ')}`
+            });
+        } else if (peerTimes.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-clock',
+                color: 'text-muted',
+                text: `Prefers ${peerTimes.map(cap).join(' / ')} sessions`
+            });
+        }
+
+        // Modes Compatibility
+        if (sharedModes.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-house-laptop',
+                color: 'text-danger',
+                text: `Matching Mode: ${sharedModes.map(cap).join(' / ')}`
+            });
+        } else if (peerModes.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-laptop',
+                color: 'text-muted',
+                text: `Prefers ${peerModes.map(cap).join(' / ')} sessions`
+            });
+        }
+
+        // Study Style Compatibility
+        if (sharedStyles.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-brain',
+                color: 'text-secondary',
+                text: `Shared Style: ${sharedStyles.map(cap).join(' / ')}`
+            });
+        } else if (peerStyles.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-graduation-cap',
+                color: 'text-muted',
+                text: `Style: ${peerStyles.map(cap).join(' / ')}`
+            });
+        }
+
+        // Language Compatibility
+        if (sharedLanguages.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-language',
+                color: 'text-info',
+                text: `Common Language${sharedLanguages.length > 1 ? 's' : ''}: ${sharedLanguages.map(cap).join(', ')}`
+            });
+        } else if (peerLanguages.length > 0) {
+            compatibilityItems.push({
+                icon: 'fa-language',
+                color: 'text-muted',
+                text: `Speaks ${peerLanguages.join(', ')}`
+            });
+        }
+
+        // Course Alignment
+        const localUser = auth.getUser();
+        if (student.diploma_name) {
+            const isSameDiploma = student.diploma_id && localUser && localUser.diploma_id === student.diploma_id;
+            compatibilityItems.push({
+                icon: 'fa-award',
+                color: isSameDiploma ? 'text-success' : 'text-muted',
+                text: isSameDiploma ? `Same Course: ${student.diploma_code || 'IT'}` : `${student.diploma_code || 'IT'} Student`
+            });
+        }
+
+        // Show up to 4 most relevant compatibility badges
+        const finalItems = compatibilityItems.slice(0, 4);
         const compatList = document.getElementById('modalCompatibilityList');
-        compatList.innerHTML = `
+        compatList.innerHTML = finalItems.map(item => `
             <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
-                <i class="fas fa-check-circle text-success"></i>
-                <span class="small fw-bold">Focus on ${firstModule}</span>
+                <i class="fas ${item.icon} ${item.color || 'text-success'}"></i>
+                <span class="small fw-bold">${item.text}</span>
             </div>
-            <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
-                <i class="fas fa-check-circle text-success"></i>
-                <span class="small fw-bold">Matching Schedule Windows</span>
-            </div>
-            <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
-                <i class="fas fa-check-circle text-success"></i>
-                <span class="small fw-bold">High Collaboration Score</span>
-            </div>
-            <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
-                <i class="fas fa-check-circle text-success"></i>
-                <span class="small fw-bold">Course Path Alignment</span>
-            </div>
-        `;
+        `).join('');
+
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        let insightText = '';
+
+        if (sharedModules.length > 1) {
+            insightText += pick([
+                `With <strong>${sharedModules.length}</strong> shared modules (<strong>${sharedModules.join(', ')}</strong>), <strong>${studentFirstWord}</strong> is a natural study partner for tackling assignments and revision together.`,
+                `You and <strong>${studentFirstWord}</strong> share <strong>${sharedModules.join(' & ')}</strong> — a strong academic foundation for collaborative learning and exam prep.`,
+                `<strong>${studentFirstWord}</strong> is studying the same modules as you (<strong>${sharedModules.join(', ')}</strong>), making them an excellent candidate for peer tutoring and group reviews.`
+            ]);
+        } else if (sharedModules.length === 1) {
+            insightText += pick([
+                `Your shared focus in <strong>${sharedModules[0]}</strong> makes <strong>${studentFirstWord}</strong> an ideal partner for targeted revision sessions and concept discussions.`,
+                `Both of you are studying <strong>${sharedModules[0]}</strong> — collaborating on practice problems and code reviews could boost both your grades.`,
+                `<strong>${studentFirstWord}</strong> shares your <strong>${sharedModules[0]}</strong> module, opening up opportunities for joint study sprints and knowledge sharing.`
+            ]);
+        } else if (peerModuleCodes.length > 0) {
+            insightText += pick([
+                `While <strong>${studentFirstWord}</strong> focuses on <strong>${peerModuleCodes[0]}</strong>, cross-module study partnerships often bring fresh perspectives to problem-solving.`,
+                `<strong>${studentFirstWord}</strong> is studying <strong>${peerModuleCodes.slice(0, 2).join(' & ')}</strong> — connecting across modules can spark creative approaches to common challenges.`
+            ]);
+        } else {
+            insightText += pick([
+                `As a dedicated <strong>${student.diploma_code || 'IT'}</strong> student, <strong>${studentFirstWord}</strong> brings focus and motivation to any study partnership.`,
+                `<strong>${studentFirstWord}</strong> is an engaged <strong>${student.diploma_code || 'IT'}</strong> learner ready to team up on academic goals.`
+            ]);
+        }
+
+        if (sharedDays.length > 0 && sharedTimes.length > 0) {
+            insightText += ' ' + pick([
+                `Your schedules align on <strong>${sharedDays.map(cap).join(' & ')}</strong> during <strong>${sharedTimes.map(cap).join(' / ')}</strong> hours — setting up regular sessions will be effortless.`,
+                `With both of you free on <strong>${sharedDays.map(cap).join(', ')}</strong> (${sharedTimes.map(cap).join('/')}) , coordinating weekly meetups is seamless.`
+            ]);
+        } else if (sharedDays.length > 0) {
+            insightText += ' ' + pick([
+                `You share availability on <strong>${sharedDays.map(cap).join(' & ')}</strong>, making it easy to lock in consistent study slots.`,
+                `Both of you are free on <strong>${sharedDays.map(cap).join(', ')}</strong> — perfect for building a recurring study routine.`
+            ]);
+        } else if (sharedModes.length > 0) {
+            insightText += ' ' + pick([
+                `You both prefer <strong>${sharedModes.map(cap).join(' / ')}</strong> sessions, removing friction when planning how to meet.`,
+                `Since you both enjoy <strong>${sharedModes.map(cap).join('/')}</strong> study formats, collaboration logistics are already sorted.`
+            ]);
+        } else if (sharedStyles.length > 0) {
+            insightText += ' ' + pick([
+                `Your shared preference for <strong>${sharedStyles.map(cap).join(' / ')}</strong> study means productive sessions from day one.`,
+                `Both of you thrive in a <strong>${sharedStyles.map(cap).join('/')}</strong> environment — a recipe for effective collaboration.`
+            ]);
+        } else if (sharedLanguages.length > 0) {
+            insightText += ' ' + pick([
+                `You both communicate in <strong>${sharedLanguages.map(cap).join(' & ')}</strong>, ensuring smooth and comfortable discussions.`,
+                `Sharing <strong>${sharedLanguages.map(cap).join(' & ')}</strong> as a common language removes any communication barriers.`
+            ]);
+        } else {
+            insightText += ' ' + pick([
+                `Reach out to align study schedules and discover shared learning goals!`,
+                `Connect to explore mutual academic interests and coordinate study sessions!`
+            ]);
+        }
+
+        document.getElementById('modalAiInsight').innerHTML = insightText;
+
+        const viewFullProfileBtn = document.getElementById('modalViewFullProfile');
+        if (viewFullProfileBtn) {
+            viewFullProfileBtn.href = `viewProfile.html?friendId=${student.user_id}`;
+        }
 
         const featuredReviews = [
             { comment: `"One of the best partners I've worked with. Very meticulous with ${firstModule}!"`, author: "- Jason Lee (Peer Tutor)" },
@@ -1413,16 +1628,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const connectBtn = document.getElementById('modalConnectBtn');
         if (student.request_status === 'Pending') {
-            connectBtn.className = 'btn btn-secondary w-100 py-3 rounded-4 fw-bold uppercase small';
+            connectBtn.className = 'btn btn-secondary flex-grow-1 py-3 rounded-4 fw-bold uppercase small';
             connectBtn.innerHTML = `<i class="fas fa-check-circle me-2"></i>Request Sent`;
             connectBtn.disabled = true;
         } else if (student.request_status === 'Accepted') {
-            connectBtn.className = 'btn btn-success w-100 py-3 rounded-4 fw-bold uppercase small';
+            connectBtn.className = 'btn btn-success flex-grow-1 py-3 rounded-4 fw-bold uppercase small';
             connectBtn.innerHTML = `<i class="fas fa-handshake me-2"></i>Matched`;
             connectBtn.disabled = true;
         } else {
             connectBtn.className =
-                'btn btn-accent w-100 py-3 rounded-4 fw-bold uppercase small shadow-soft';
+                'btn btn-accent flex-grow-1 py-3 rounded-4 fw-bold uppercase small shadow-soft';
             connectBtn.innerHTML = `<i class="fas fa-paper-plane me-2"></i>Send Request`;
             connectBtn.disabled = false;
             connectBtn.onclick = function() {
