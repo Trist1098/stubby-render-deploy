@@ -754,18 +754,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       studentSearchResults.innerHTML = students
         .map((student) => {
           const initials = student.name ? student.name.charAt(0).toUpperCase() : 'U';
-          const subtitle =
+          const role =
             [student.diploma_name, student.institution_name].filter(Boolean).join(' • ') ||
             'Profile details not set';
+          const avatar = student.profile_pic
+            ? `<img src="${escapeHtml(student.profile_pic)}" alt="${escapeHtml(student.name || 'Student')} profile picture">`
+            : `<span>${initials}</span>`;
           return `
                     <div class="student-result-item">
-                        <div class="connection-user">
-                            <div class="avatar-sm d-flex align-items-center justify-content-center bg-secondary text-white fw-bold">${initials}</div>
-                            <div>
-                                <div class="fw-semibold">${escapeHtml(student.name || 'Student')}</div>
-                                <small class="text-secondary">@${escapeHtml(student.username || 'unknown')}</small>
-                                <div class="student-result-meta">${escapeHtml(subtitle)}</div>
-                            </div>
+                        <div class="student-result-avatar">${avatar}</div>
+                        <div class="student-result-details">
+                            <div class="student-result-name">${escapeHtml(student.name || 'Student')}</div>
+                            <div class="student-result-username">@${escapeHtml(student.username || 'unknown')}</div>
+                            <div class="student-result-meta">${escapeHtml(role)}</div>
                         </div>
                         <div class="student-result-actions">
                             <a href="viewProfile.html?friendId=${student.user_id}" class="btn btn-sm btn-white">View</a>
