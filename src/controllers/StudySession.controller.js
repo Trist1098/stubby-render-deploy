@@ -125,6 +125,33 @@ module.exports.getSession = async function getSession(req, res, next) {
   }
 };
 
+module.exports.listSessions = async function listSessions(req, res, next) {
+  const userId = getLoggedInUserId(res);
+  if (!userId) return badReq(res, 'Valid user id is required');
+
+  try {
+    const sessionsBeforeSync = await model.selectSessionsForUser(userId);
+    const activeSessionIds = sessionsBeforeSync
+      .filter((session) => session.status === 'active')
+      .map((session) => session.id);
+
+    await Promise.all(
+      activeSessionIds.map((sessionId) => model.expireSessionIfTimeElapsed(sessionId)),
+    );
+    const sessionsAfterExpiry = await model.selectSessionsForUser(userId);
+    await Promise.all(
+      sessionsAfterExpiry
+        .filter((session) => session.status === 'active')
+        .map((session) => model.ensureActiveSessionTimers(session.id)),
+    );
+
+    const sessions = await model.selectSessionsForUser(userId);
+    return ok(res, sessions);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports.addMicroGoal = async function addMicroGoal(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
   const title = getTrimmedString(req.body.title);

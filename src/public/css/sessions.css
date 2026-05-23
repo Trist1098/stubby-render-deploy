@@ -1,0 +1,219 @@
+.sessions-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.sessions-kicker {
+    color: var(--primary);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.sessions-live-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-color: rgba(99, 102, 241, 0.28);
+    background:
+        linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(255, 255, 255, 0.96)),
+        #ffffff;
+}
+
+.sessions-live-copy {
+    min-width: 0;
+}
+
+#liveSessionMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.9rem;
+}
+
+#liveSessionMeta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.sessions-status-pill {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin-bottom: 0.75rem;
+    border-radius: 999px;
+    padding: 0.35rem 0.72rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.status-active {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.status-expired {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.status-completed {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.sessions-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem;
+}
+
+.sessions-filter {
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    padding: 0.55rem 0.95rem;
+    background: #ffffff;
+    color: var(--text-muted);
+    font-weight: 800;
+}
+
+.sessions-filter:hover,
+.sessions-filter.active {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+    color: var(--primary);
+}
+
+.sessions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.session-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 260px;
+}
+
+.session-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.session-card-header > div {
+    min-width: 0;
+}
+
+.session-card-date {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.session-card h2 {
+    overflow-wrap: anywhere;
+}
+
+.session-live-meter {
+    overflow: hidden;
+    width: 100%;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+}
+
+.session-live-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #22c55e, #2563eb);
+    transition: width 0.35s ease;
+}
+
+.session-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.session-meta-item {
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+}
+
+.session-meta-item span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.session-meta-item strong {
+    display: block;
+    margin-top: 0.15rem;
+    color: var(--text-dark);
+    font-size: 0.95rem;
+}
+
+.session-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: auto;
+}
+
+.sessions-empty {
+    display: grid;
+    justify-items: center;
+    gap: 0.7rem;
+    padding: 3rem 1.5rem;
+    text-align: center;
+}
+
+.sessions-empty-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-size: 1.4rem;
+}
+
+@media (max-width: 768px) {
+    .sessions-heading,
+    .sessions-live-panel {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .sessions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .session-meta-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .session-card-date {
+        white-space: normal;
+        text-align: right;
+    }
+}

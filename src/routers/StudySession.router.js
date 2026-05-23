@@ -6,6 +6,7 @@ const upload = require('../middlewares/upload');
 
 router.use(jwtMiddleware.verifyToken);
 
+router.get('/', studySessionController.listSessions);
 router.get('/:sessionId', studySessionController.getSession);
 router.get('/:sessionId/focus-status-mix', studySessionController.getFocusStatusMix);
 router.post('/:sessionId/consultations', studySessionController.startConsultation);

@@ -1295,6 +1295,77 @@ module.exports.selectSessionById = async function selectSessionById(sessionId) {
   return rows[0] || null;
 };
 
+module.exports.selectSessionsForUser = async function selectSessionsForUser(userId) {
+  const SQLSTATEMENT = `
+    SELECT
+      ss.session_id AS id,
+      ss.title,
+      ss.micro_goal,
+      ss.host_id AS created_by_user_id,
+      host.name AS host_name,
+      COALESCE(ss.planned_duration_seconds, ss.duration, 0)::INT AS planned_duration_seconds,
+      ss.status,
+      ss.started_at,
+      COALESCE(ss.ended_at, ss.completed_at) AS ended_at,
+      CASE
+        WHEN ss.started_at IS NULL THEN 0
+        WHEN ss.status IN ('expired', 'completed') THEN GREATEST(
+          FLOOR(
+            EXTRACT(
+              EPOCH FROM (COALESCE(ss.ended_at, ss.completed_at, CURRENT_TIMESTAMP) - ss.started_at)
+            )
+          )::INT,
+          0
+        )
+        ELSE GREATEST(
+          FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ss.started_at)))::INT,
+          0
+        )
+      END AS elapsed_seconds,
+      COUNT(DISTINCT sm.member_id)::INT AS member_count,
+      EXISTS (
+        SELECT 1
+        FROM SessionMember viewer_member
+        WHERE viewer_member.session_id = ss.session_id
+          AND viewer_member.user_id = $1
+          AND viewer_member.left_at IS NULL
+      ) AS is_member,
+      CASE
+        WHEN ss.status IN ('expired', 'completed') THEN 0
+        ELSE GREATEST(
+          COALESCE(ss.planned_duration_seconds, ss.duration, 0)
+          - FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(ss.started_at, CURRENT_TIMESTAMP))))::INT,
+          0
+        )
+      END AS remaining_seconds,
+      CURRENT_TIMESTAMP AS captured_at
+    FROM StudySession ss
+    INNER JOIN "User" host ON host.user_id = ss.host_id
+    LEFT JOIN SessionMember sm
+      ON sm.session_id = ss.session_id
+      AND sm.left_at IS NULL
+    WHERE ss.host_id = $1
+      OR EXISTS (
+        SELECT 1
+        FROM SessionMember own_member
+        WHERE own_member.session_id = ss.session_id
+          AND own_member.user_id = $1
+      )
+    GROUP BY ss.session_id, host.name
+    ORDER BY
+      CASE ss.status
+        WHEN 'active' THEN 0
+        WHEN 'expired' THEN 1
+        WHEN 'completed' THEN 2
+        ELSE 3
+      END,
+      ss.started_at DESC NULLS LAST,
+      ss.created_at DESC
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [userId]);
+  return rows;
+};
+
 module.exports.ensureActiveSessionTimers = async function ensureActiveSessionTimers(sessionId) {
   return withTransaction((client) => ensureInitialStatusEvents(client, sessionId));
 };

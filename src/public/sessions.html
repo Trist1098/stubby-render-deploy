@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stubby - Sessions</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/sessions.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="d-flex flex-column min-vh-100">
+    <header>
+        <div class="container">
+            <nav id="navbar" class="navbar navbar-expand-lg py-3">
+                <div class="container-fluid p-0">
+                    <a href="index.html" class="d-flex align-items-center gap-2 text-decoration-none">
+                        <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
+                    </a>
+
+                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+                        <i class="fas fa-bars"></i>
+                    </button>
+
+                    <div class="collapse navbar-collapse" id="navContent">
+                        <ul class="navbar-nav mx-auto gap-2" id="nav-links">
+                            <li class="nav-item">
+                                <a href="index.html" class="nav-link">Dashboard</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="matchmaking.html" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Matchmaking</a>
+                                <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
+                                    <li><a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">Browse Matches</a></li>
+                                    <li><a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">My Requests</a></li>
+                                </ul>
+                            </li>
+                            <li class="nav-item">
+                                <a href="sessions.html" class="nav-link active">Sessions</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="chat.html" class="nav-link">Chat</a>
+                            </li>
+                        </ul>
+                        <ul class="navbar-nav">
+                            <li class="nav-item" id="auth-link"></li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-5 flex-grow-1">
+        <section class="sessions-heading mb-4">
+            <div>
+                <span class="sessions-kicker">Study Sessions</span>
+                <h1 class="fw-bold mb-2">Your sessions</h1>
+                <p class="text-muted mb-0">Open your live room, review past work, or start from matchmaking.</p>
+            </div>
+            <a href="matchmaking.html" class="btn btn-primary">
+                <i class="fas fa-user-plus me-2" aria-hidden="true"></i>
+                Find partners
+            </a>
+        </section>
+
+        <div id="sessionsAlert" class="alert d-none" role="status"></div>
+
+        <section id="liveSessionPanel" class="premium-card sessions-live-panel d-none mb-4" aria-labelledby="liveSessionTitle">
+            <div class="sessions-live-copy">
+                <span class="sessions-status-pill status-active">Live now</span>
+                <h2 id="liveSessionTitle" class="fw-bold mb-2">Current study session</h2>
+                <p id="liveSessionMeta" class="text-muted mb-0" aria-live="polite">Loading details...</p>
+            </div>
+            <a id="openLiveSessionButton" class="btn btn-primary" href="#">
+                <i class="fas fa-play me-2" aria-hidden="true"></i>
+                Open live session
+            </a>
+        </section>
+
+        <section class="sessions-toolbar premium-card mb-4" aria-label="Session filters">
+            <button class="sessions-filter active" type="button" data-filter="all">All</button>
+            <button class="sessions-filter" type="button" data-filter="active">Live</button>
+            <button class="sessions-filter" type="button" data-filter="expired">Needs action</button>
+            <button class="sessions-filter" type="button" data-filter="completed">Completed</button>
+        </section>
+
+        <section id="sessionsList" class="sessions-grid" aria-live="polite"></section>
+
+        <section id="emptySessions" class="premium-card sessions-empty d-none">
+            <div class="sessions-empty-icon">
+                <i class="fas fa-calendar-plus" aria-hidden="true"></i>
+            </div>
+            <h2 class="fw-bold">No sessions yet</h2>
+            <p class="text-muted">When you start or join a study session, it will appear here.</p>
+            <a href="matchmaking.html" class="btn btn-primary">Find study partners</a>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/navbar.js"></script>
+    <script src="js/sessionPage/sessionsPage.js"></script>
+</body>
+</html>
