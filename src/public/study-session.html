@@ -1,0 +1,686 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stubby - Study Session</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/study-session.css?v=session-ui-polish" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+  </head>
+  <body class="study-session-body">
+    <header>
+      <div class="container">
+        <nav id="navbar" class="navbar navbar-expand-lg py-3">
+          <div class="container-fluid p-0">
+            <a href="home.html" class="d-flex align-items-center gap-2 text-decoration-none">
+              <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
+            </a>
+
+            <button
+              class="navbar-toggler border-0"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#navContent"
+            >
+              <i class="fas fa-bars"></i>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navContent">
+              <ul class="navbar-nav mx-auto gap-2" id="nav-links">
+                <li class="nav-item">
+                  <a href="home.html" class="nav-link study-nav-link">
+                    <i class="fas fa-home"></i>
+                    <span>Home</span>
+                  </a>
+                </li>
+                <li class="nav-item dropdown">
+                  <a
+                    href="matchmaking.html"
+                    class="nav-link dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                  >
+                    Matchmaking
+                  </a>
+                  <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
+                    <li>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">
+                        Browse Matches
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">
+                        My Requests
+                      </a>
+                    </li>
+                  </ul>
+                </li>
+                <li class="nav-item">
+                  <a href="study-session.html" class="nav-link active">Sessions</a>
+                </li>
+                <li class="nav-item">
+                  <a href="chat.html" class="nav-link">Chat</a>
+                </li>
+              </ul>
+              <ul class="navbar-nav">
+                <li class="nav-item" id="auth-link"></li>
+              </ul>
+            </div>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <main class="session-web-shell">
+      <section class="session-screen" aria-labelledby="sessionTitle">
+        <div class="session-topbar">
+          <div>
+            <span class="session-kicker">Study Session</span>
+            <h1 id="sessionTitle">Software Engineering Practice</h1>
+          </div>
+          <button
+            id="exitSessionButton"
+            class="session-icon-btn"
+            type="button"
+            aria-label="Exit session"
+          >
+            <i class="fas fa-right-from-bracket" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div id="sessionMessage" class="session-alert d-none"></div>
+
+        <section class="session-focus-card">
+          <div id="sessionMissionStrip" class="mission-strip d-none">
+            <div>
+              <span>Mission</span>
+              <strong id="sessionMissionText"></strong>
+            </div>
+            <button
+              id="editMissionButton"
+              class="mission-edit-button"
+              type="button"
+              aria-label="Edit session mission"
+            >
+              <i class="fas fa-pen"></i>
+            </button>
+          </div>
+
+          <div class="timer-ring" aria-label="Session countdown timer">
+            <span id="countdownTimer">37:50</span>
+          </div>
+
+          <div class="micro-goal-area">
+            <span class="session-label">Micro-goal</span>
+            <div class="micro-goal-heading-row">
+              <h2 id="currentGoalTitle">Finish Tutorial Q1-Q3</h2>
+              <div class="micro-goal-actions">
+                <button
+                  id="viewQueueButton"
+                  class="queue-goal-btn"
+                  type="button"
+                  aria-label="View queued micro-goals"
+                >
+                  <i class="fas fa-list-ul"></i>
+                  <span id="queuedGoalCount">0</span>
+                </button>
+                <button
+                  id="showGoalFormButton"
+                  class="add-goal-btn"
+                  type="button"
+                  aria-label="Add micro-goal"
+                >
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
+            </div>
+            <div id="nextQueuedGoal" class="queued-goal-preview d-none"></div>
+            <p id="currentGoalDescription">Current task for this study session.</p>
+
+            <form id="microGoalForm" class="micro-goal-form d-none">
+              <label>
+                <span>Micro-goal label</span>
+                <input
+                  id="microGoalTitleInput"
+                  name="title"
+                  type="text"
+                  maxlength="255"
+                  placeholder="Tutorial 4 Q3"
+                  required
+                />
+              </label>
+              <label>
+                <span>Question or task</span>
+                <textarea
+                  id="microGoalQuestionInput"
+                  name="description"
+                  rows="3"
+                  placeholder="Paste the question, prompt, or task the answer should be checked against"
+                  required
+                ></textarea>
+              </label>
+              <button type="submit">Add</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="status-controls-box" aria-labelledby="statusControlsTitle">
+          <h2 id="statusControlsTitle">Your Status</h2>
+          <div class="status-controls" role="group" aria-label="Set your current status">
+            <button class="status-control active" type="button" data-status="focus">
+              <i class="fas fa-bullseye" aria-hidden="true"></i>
+              <span>Focusing</span>
+            </button>
+            <button class="status-control" type="button" data-status="break">
+              <i class="fas fa-mug-hot" aria-hidden="true"></i>
+              <span>On Break</span>
+            </button>
+            <button class="status-control" type="button" data-status="need_help">
+              <i class="fas fa-hand" aria-hidden="true"></i>
+              <span>Need Help</span>
+            </button>
+          </div>
+          <div class="status-progress-panel">
+            <div class="status-progress-copy">
+              <span>Micro-goal progress</span>
+              <strong id="statusProgressText">0%</strong>
+            </div>
+            <button
+              id="statusProgressBar"
+              class="status-progress-bar"
+              type="button"
+              role="slider"
+              aria-label="Set micro-goal progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              aria-valuetext="0%"
+            >
+              <span id="statusProgressFill"></span>
+            </button>
+            <p id="statusProgressHint">
+              Drag or click the bar to update progress. 100% requires workings, a .txt file, or a
+              Word .docx file.
+            </p>
+          </div>
+        </section>
+
+        <section class="members-box" aria-labelledby="membersTitle">
+          <div class="members-header">
+            <h2 id="membersTitle">Members</h2>
+            <div class="members-header-actions">
+              <button
+                id="rejoinConsultationButton"
+                class="rejoin-consultation-btn d-none"
+                type="button"
+              >
+                <i class="fas fa-comments"></i>
+                <span>Rejoin consultation</span>
+              </button>
+              <button id="membersToggleButton" class="members-toggle-btn" type="button">
+                Show all
+              </button>
+            </div>
+          </div>
+          <div id="membersList" class="members-list"></div>
+        </section>
+
+        <section class="status-mix-dashboard" aria-labelledby="statusMixTitle">
+          <div class="status-mix-heading">
+            <div>
+              <span class="session-kicker">Learning Analytics</span>
+              <h2 id="statusMixTitle">Focus Status Mix</h2>
+            </div>
+            <div id="statusMixSummary" class="status-mix-summary"></div>
+          </div>
+          <div class="status-mix-chart-shell">
+            <div
+              id="statusMixChart"
+              class="status-mix-chart"
+              role="img"
+              aria-label="Percentage of session time spent in each focus status"
+            ></div>
+          </div>
+          <div id="statusMixLegend" class="status-mix-legend"></div>
+        </section>
+      </section>
+    </main>
+
+    <div
+      id="intentionModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="intentionModalTitle"
+    >
+      <section class="session-modal-card intention-modal-card">
+        <div class="session-modal-header">
+          <h2 id="intentionModalTitle">What do you want done by the end?</h2>
+        </div>
+        <form id="intentionForm" class="intention-form">
+          <label>
+            <span>Session intention</span>
+            <textarea
+              id="intentionInput"
+              rows="3"
+              maxlength="180"
+              placeholder="Finish SDLC revision notes and submit evidence"
+              required
+            ></textarea>
+          </label>
+          <button type="submit">Set Mission</button>
+        </form>
+      </section>
+    </div>
+
+    <div
+      id="queueModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="queueModalTitle"
+    >
+      <section class="session-modal-card queue-modal-card">
+        <div class="session-modal-header">
+          <h2 id="queueModalTitle">Queued Micro-goals</h2>
+          <button
+            id="closeQueueButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close queue"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="queuedGoalsList" class="queued-goals-list"></div>
+      </section>
+    </div>
+
+    <div
+      id="exitModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="exitModalTitle"
+    >
+      <section class="session-modal-card exit-modal-card">
+        <h2 id="exitModalTitle">Exit Session?</h2>
+        <p>This will exit the session and bring you to the Personal Summary page.</p>
+        <div class="session-modal-actions">
+          <button id="cancelExitButton" class="btn btn-light" type="button">Cancel</button>
+          <button id="confirmExitButton" class="btn btn-danger" type="button">Exit Session</button>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="timeExpiryModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="timeExpiryTitle"
+    >
+      <section class="session-modal-card time-expiry-card">
+        <span class="time-expiry-kicker">Session Timer</span>
+        <h2 id="timeExpiryTitle">Time is up</h2>
+        <p id="timeExpiryText">
+          All study timers are paused. End the session or extend the timer to keep working.
+        </p>
+
+        <form id="extendSessionForm" class="time-expiry-extend-panel">
+          <label>
+            <span>Extend by</span>
+            <select id="extendMinutesSelect">
+              <option value="300">5 minutes</option>
+              <option value="600" selected>10 minutes</option>
+              <option value="900">15 minutes</option>
+              <option value="1800">30 minutes</option>
+            </select>
+          </label>
+          <div class="session-modal-actions">
+            <button id="endExpiredSessionButton" class="btn btn-light" type="button">
+              End Session
+            </button>
+            <button class="btn btn-primary" type="submit">Extend</button>
+          </div>
+        </form>
+
+        <div id="stayExitPanel" class="time-expiry-stay-panel d-none">
+          <div class="session-modal-actions">
+            <button id="exitExtendedSessionButton" class="btn btn-light" type="button">
+              Exit
+            </button>
+            <button id="stayExtendedSessionButton" class="btn btn-primary" type="button">
+              Stay
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="consultationModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="consultationModalTitle"
+    >
+      <section class="session-modal-card">
+        <h2 id="consultationModalTitle">Start Consultation?</h2>
+        <p>
+          <span id="consultationMemberName">This user</span> has requested help. Would you like to
+          start a consultation session with them?
+        </p>
+        <div class="session-modal-actions">
+          <button id="cancelConsultationButton" class="btn btn-light" type="button">Cancel</button>
+          <button
+            id="openPendingConsultationChatButton"
+            class="btn btn-light consultation-chat-button"
+            type="button"
+          >
+            <i class="fas fa-comments" aria-hidden="true"></i>
+            <span>Chat</span>
+          </button>
+          <button id="confirmConsultationButton" class="btn btn-primary" type="button">
+            Start Consultation
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="consultationWorkspaceModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="consultationWorkspaceTitle"
+    >
+      <section class="session-modal-card consultation-workspace-card">
+        <div class="session-modal-header">
+          <div>
+            <span class="consultation-kicker">Consultation</span>
+            <h2 id="consultationWorkspaceTitle">Consultation Workspace</h2>
+          </div>
+          <div class="consultation-header-actions">
+            <button
+              id="openConsultationChatButton"
+              class="btn btn-light consultation-chat-button"
+              type="button"
+            >
+              <i class="fas fa-comments" aria-hidden="true"></i>
+              <span>Chat</span>
+            </button>
+            <button
+              id="closeConsultationWorkspaceButton"
+              class="modal-icon-button"
+              type="button"
+              aria-label="Close consultation workspace"
+            >
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="consultation-workspace-body">
+          <div id="consultationWorkspaceStatus" class="consultation-workspace-status"></div>
+          <div id="consultationContext" class="consultation-context"></div>
+
+          <section class="consultation-shared-workspace" aria-label="Shared consultation workspace">
+            <div class="workspace-tabs" role="tablist" aria-label="Consultation workspace tools">
+              <button
+                id="whiteboardTabButton"
+                class="workspace-tab active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="whiteboardPanel"
+                tabindex="0"
+                data-workspace-tab="whiteboard"
+              >
+                Whiteboard
+              </button>
+              <button
+                id="scratchpadTabButton"
+                class="workspace-tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="scratchpadPanel"
+                tabindex="-1"
+                data-workspace-tab="scratchpad"
+              >
+                Scratchpad
+              </button>
+            </div>
+            <div class="workspace-panel-shell">
+              <section
+                id="whiteboardPanel"
+                class="workspace-panel"
+                role="tabpanel"
+                aria-labelledby="whiteboardTabButton"
+                data-workspace-panel="whiteboard"
+              >
+                <div class="whiteboard-toolbar">
+                  <button id="clearWhiteboardButton" class="workspace-tool-button" type="button">
+                    <i class="fas fa-eraser"></i>
+                    <span>Clear</span>
+                  </button>
+                </div>
+                <canvas
+                  id="consultationWhiteboard"
+                  class="consultation-whiteboard"
+                  role="img"
+                  tabindex="0"
+                  aria-label="Shared whiteboard. Use the Scratchpad tab for keyboard text input."
+                ></canvas>
+              </section>
+              <section
+                id="scratchpadPanel"
+                class="workspace-panel d-none"
+                role="tabpanel"
+                aria-labelledby="scratchpadTabButton"
+                hidden
+                data-workspace-panel="scratchpad"
+              >
+                <textarea
+                  id="consultationScratchpad"
+                  class="consultation-scratchpad"
+                  rows="10"
+                  placeholder="Write working steps, equations, or explanation"
+                ></textarea>
+              </section>
+            </div>
+          </section>
+
+          <div class="consultation-session-actions">
+            <button id="finishConsultationButton" class="btn btn-primary" type="button">
+              End Consultation
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="consultationReviewModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="consultationReviewTitle"
+    >
+      <section class="session-modal-card consultation-review-modal-card">
+        <div class="session-modal-header">
+          <div>
+            <span class="consultation-kicker">Consultation</span>
+            <h2 id="consultationReviewTitle">Direction / next step</h2>
+          </div>
+          <button
+            id="closeConsultationReviewButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close direction modal"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <p id="consultationReviewPrompt" class="consultation-review-prompt"></p>
+        <form id="consultationReviewForm" class="consultation-review-form">
+          <label>
+            <span>Direction / next step</span>
+            <textarea
+              name="teacher_direction"
+              rows="4"
+              placeholder="Write the exact next step"
+              required
+            ></textarea>
+          </label>
+          <fieldset class="consultation-checklist">
+            <legend>Teaching reflection</legend>
+            <label>
+              <input type="checkbox" name="summary_checklist" value="Clarified the blocker" />
+              <span>Clarified the blocker</span>
+            </label>
+            <label>
+              <input type="checkbox" name="summary_checklist" value="Modelled the next step" />
+              <span>Modelled the next step</span>
+            </label>
+            <label>
+              <input type="checkbox" name="summary_checklist" value="Checked understanding" />
+              <span>Checked understanding</span>
+            </label>
+            <label>
+              <input type="checkbox" name="summary_checklist" value="Left a clear action" />
+              <span>Left a clear action</span>
+            </label>
+          </fieldset>
+          <div class="session-modal-actions">
+            <button id="cancelConsultationReviewButton" class="btn btn-light" type="button">
+              Cancel
+            </button>
+            <button id="submitConsultationReviewButton" class="btn btn-primary" type="submit">
+              Send
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div
+      id="consultationDirectionModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="consultationDirectionTitle"
+    >
+      <section class="session-modal-card consultation-review-modal-card">
+        <div class="session-modal-header">
+          <div>
+            <span class="consultation-kicker">Consultation</span>
+            <h2 id="consultationDirectionTitle">Direction / next step</h2>
+          </div>
+          <button
+            id="closeConsultationDirectionButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close direction"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <p id="consultationDirectionText" class="consultation-direction-text"></p>
+      </section>
+    </div>
+
+    <div
+      id="memberGoalsModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="memberGoalsModalTitle"
+    >
+      <section class="session-modal-card member-goals-modal-card">
+        <div class="session-modal-header">
+          <h2 id="memberGoalsModalTitle">Micro-goals & Uploads</h2>
+          <button
+            id="closeMemberGoalsButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close micro-goals and uploads"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="memberGoalsModalContent" class="member-goals-modal-content"></div>
+      </section>
+    </div>
+
+    <div
+      id="completionModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="completionModalTitle"
+    >
+      <section class="session-modal-card completion-modal-card">
+        <h2 id="completionModalTitle">Complete Micro-goal?</h2>
+        <p>
+          Add your written equations, a .txt file, or a Word .docx file to lock this micro-goal at
+          100%.
+        </p>
+        <div id="completionAiFeedback" class="completion-ai-feedback d-none"></div>
+        <form id="completionEvidenceForm" class="evidence-upload-form">
+          <label>
+            <span>Workings or completion note</span>
+            <textarea
+              name="equation_text"
+              rows="3"
+              placeholder="Show your workings or completion notes"
+            ></textarea>
+          </label>
+          <div class="evidence-upload-row">
+            <input
+              name="evidence_file"
+              type="file"
+              accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            />
+            <button type="submit">
+              <i class="fas fa-upload"></i>
+              <span>Submit & Complete</span>
+            </button>
+          </div>
+        </form>
+        <div class="session-modal-actions">
+          <button id="cancelCompletionButton" class="btn btn-light" type="button">Cancel</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="sessionToastContainer" class="session-toast-container" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/navbar.js"></script>
+    <script src="js/sessionPage/studySessionPage.js?v=status-mix-stale-pause-guard"></script>
+  </body>
+</html>

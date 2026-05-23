@@ -16,13 +16,14 @@ const badgeRoutes = require('./routers/Badge.router');
 const userBadgeRoutes = require('./routers/UserBadge.router');
 
 const moduleRoutes = require('./routers/Module.router');
+const userModuleRoutes = require('./routers/UserModule.router');
 const prefRoutes = require('./routers/MatchPreference.router');
 const languageRoutes = require('./routers/Language.router');
 
 const app = express();
 
 // Parse incoming JSON request bodies (e.g. from POST/PUT requests)
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Serve static files (HTML, CSS, JS, images) from the 'public' folder.
 // e.g. src/public/index.html is accessible at http://localhost:<port>/
@@ -33,11 +34,12 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // Define routes
 app.use('/api/users', userRoutes);
+app.use('/api/usermodules', userModuleRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/sessions', studySessionRoutes);
 app.use('/api/chats', chatRoutes);
 
-app.use('/api/friend', friendRoutes);
+app.use('/api/friends', friendRoutes);
 app.use('/api/friendrequest', friendRequestRoutes);
 app.use('/api/institution', institutionRoutes);
 app.use('/api/diploma', diplomaRoutes);

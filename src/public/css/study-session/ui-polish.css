@@ -1,0 +1,700 @@
+.study-session-body {
+  --session-page: #f6f7fb;
+  --session-page-deep: #edf2f7;
+  --session-surface: #ffffff;
+  --session-surface-soft: #f8fafc;
+  --session-ink: #111827;
+  --session-text: #334155;
+  --session-muted: #64748b;
+  --session-faint: #94a3b8;
+  --session-line: #dbe3ee;
+  --session-line-strong: #cbd5e1;
+  --session-primary: #2563eb;
+  --session-primary-soft: #eff6ff;
+  --session-success: #16a34a;
+  --session-success-soft: #ecfdf5;
+  --session-warning: #f59e0b;
+  --session-warning-soft: #fffbeb;
+  --session-danger: #ef4444;
+  --session-danger-soft: #fff1f2;
+  --session-consult: #6366f1;
+  --session-consult-soft: #eef2ff;
+  --session-radius: 8px;
+  --session-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  --session-shadow-raised: 0 18px 42px rgba(15, 23, 42, 0.1);
+  background: linear-gradient(180deg, var(--session-page) 0%, var(--session-page-deep) 100%);
+  color: var(--session-text);
+  letter-spacing: 0;
+}
+
+.study-session-body * {
+  letter-spacing: 0;
+}
+
+.study-session-body #navbar {
+  margin-top: 12px;
+  border: 1px solid rgba(219, 227, 238, 0.92);
+  border-radius: var(--session-radius);
+  padding: 10px 14px !important;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.study-session-body #navbar .nav-link,
+.study-session-body #navbar .dropdown-item {
+  border-radius: var(--session-radius);
+  color: var(--session-muted);
+  font-weight: 700;
+}
+
+.study-session-body #navbar .nav-link:hover,
+.study-session-body #navbar .nav-link.active,
+.study-session-body #navbar .dropdown-item:hover {
+  background: var(--session-primary-soft);
+  color: var(--session-primary) !important;
+}
+
+.study-session-body #navbar .dropdown-menu {
+  border: 1px solid var(--session-line) !important;
+  border-radius: var(--session-radius) !important;
+}
+
+.session-web-shell {
+  width: min(100%, 1240px);
+  margin: 24px auto 56px;
+  padding: 0 22px;
+}
+
+.session-screen {
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  gap: 18px;
+}
+
+.session-topbar,
+.session-focus-card,
+.status-controls-box,
+.members-box,
+.status-mix-dashboard {
+  border: 1px solid var(--session-line);
+  border-radius: var(--session-radius);
+  background: var(--session-surface);
+  box-shadow: var(--session-shadow);
+}
+
+.session-topbar {
+  align-items: center;
+  padding: 18px 20px;
+}
+
+.session-topbar h1 {
+  max-width: 28ch;
+  margin-top: 3px;
+  color: var(--session-ink);
+  font-size: clamp(1.55rem, 2.4vw, 2.2rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.session-kicker,
+.session-label,
+.consultation-kicker,
+.time-expiry-kicker {
+  color: var(--session-primary);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.session-icon-btn {
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--session-line);
+  border-radius: var(--session-radius);
+  background: var(--session-surface-soft);
+  color: var(--session-muted);
+  font-size: 0;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.session-icon-btn i {
+  font-size: 1rem;
+}
+
+.session-icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: #fecaca;
+  background: var(--session-danger-soft);
+  color: #b91c1c;
+}
+
+.session-focus-card {
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 24px;
+  min-height: 250px;
+  padding: 24px;
+}
+
+.timer-ring {
+  width: 126px;
+  background: conic-gradient(var(--session-primary) var(--timer-progress, 100%), #e5eaf1 0);
+  color: var(--session-ink);
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.1),
+    0 12px 30px rgba(37, 99, 235, 0.12);
+}
+
+.timer-ring::before {
+  background: var(--session-surface);
+  box-shadow: inset 0 0 0 1px #eef2f7;
+}
+
+.mission-strip {
+  border-color: #bfdbfe;
+  border-left: 4px solid var(--session-primary);
+  border-radius: var(--session-radius);
+  background: #f8fbff;
+}
+
+.mission-strip span {
+  color: var(--session-primary);
+}
+
+.mission-edit-button,
+.add-goal-btn,
+.queue-goal-btn,
+.modal-icon-button,
+.workspace-tool-button,
+.consultation-chat-button {
+  border-radius: var(--session-radius);
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.mission-edit-button:hover,
+.add-goal-btn:hover,
+.queue-goal-btn:hover,
+.modal-icon-button:hover,
+.workspace-tool-button:hover,
+.consultation-chat-button:hover {
+  transform: translateY(-1px);
+  border-color: #bfdbfe;
+  background: var(--session-primary-soft);
+  color: var(--session-primary);
+}
+
+.mission-edit-button:focus-visible,
+.add-goal-btn:focus-visible,
+.queue-goal-btn:focus-visible,
+.modal-icon-button:focus-visible,
+.workspace-tool-button:focus-visible,
+.consultation-chat-button:focus-visible,
+.status-control:focus-visible,
+.status-progress-bar:focus-visible,
+.member-goals-button:focus-visible,
+.consultation-status-button:focus-visible,
+.consultation-whiteboard:focus-visible,
+.members-toggle-btn:focus-visible,
+.workspace-tab:focus-visible,
+.rejoin-consultation-btn:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 3px;
+}
+
+.consultation-chat-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.micro-goal-heading-row {
+  align-items: flex-start;
+}
+
+.micro-goal-heading-row h2 {
+  max-width: 100%;
+  color: var(--session-ink);
+  font-size: clamp(1.45rem, 2.6vw, 2rem);
+  line-height: 1.12;
+}
+
+.micro-goal-area p {
+  max-width: 62ch;
+  color: var(--session-muted);
+}
+
+.queued-goal-preview,
+.micro-goal-form input,
+.micro-goal-form textarea,
+.evidence-upload-form textarea,
+.evidence-upload-form input,
+.consultation-review-form textarea,
+.time-expiry-extend-panel select,
+.intention-form textarea {
+  border-color: var(--session-line);
+  border-radius: var(--session-radius);
+  background: var(--session-surface);
+}
+
+.micro-goal-form input:focus,
+.micro-goal-form textarea:focus,
+.evidence-upload-form textarea:focus,
+.evidence-upload-form input:focus,
+.consultation-review-form textarea:focus,
+.time-expiry-extend-panel select:focus,
+.intention-form textarea:focus,
+.consultation-scratchpad:focus {
+  border-color: #93c5fd;
+  outline: 3px solid rgba(37, 99, 235, 0.16);
+}
+
+.micro-goal-form button,
+.intention-form button,
+.evidence-upload-row button,
+.session-modal .btn-primary {
+  border: 0;
+  border-radius: var(--session-radius);
+  background: var(--session-primary);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+}
+
+.micro-goal-form button:hover,
+.intention-form button:hover,
+.evidence-upload-row button:hover,
+.session-modal .btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.status-controls-box {
+  padding: 18px;
+}
+
+.status-controls-box h2,
+.members-header h2 {
+  color: var(--session-ink);
+  font-size: 0.95rem;
+}
+
+.status-controls {
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--session-radius);
+  padding: 5px;
+  background: var(--session-surface-soft);
+}
+
+.status-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border-radius: calc(var(--session-radius) - 2px);
+  color: var(--session-muted);
+  line-height: 1.1;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.status-control i {
+  font-size: 0.9rem;
+}
+
+.status-control.active {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.status-control[data-status='focus'].active {
+  background: var(--session-success-soft);
+  color: #166534;
+}
+
+.status-control[data-status='break'].active {
+  background: var(--session-warning-soft);
+  color: #92400e;
+}
+
+.status-control[data-status='need_help'].active {
+  background: var(--session-danger-soft);
+  color: #b91c1c;
+}
+
+.status-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.status-progress-panel {
+  gap: 10px;
+}
+
+.status-progress-bar {
+  height: 16px;
+  border: 1px solid #dce3ed;
+  background: #edf2f7;
+}
+
+.status-progress-bar span,
+.member-progress-bar span,
+.focus-credit-meter span {
+  background: linear-gradient(90deg, var(--session-primary), var(--session-success));
+}
+
+.status-progress-bar::after {
+  border-color: #ffffff;
+  background: var(--session-primary);
+  box-shadow:
+    0 0 0 2px rgba(37, 99, 235, 0.25),
+    0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+.members-box {
+  padding: 20px;
+}
+
+.members-header {
+  margin-bottom: 14px;
+}
+
+.members-toggle-btn,
+.rejoin-consultation-btn {
+  border: 1px solid var(--session-line);
+  border-radius: var(--session-radius);
+  padding: 7px 11px;
+  background: var(--session-surface-soft);
+  color: var(--session-primary);
+}
+
+.rejoin-consultation-btn {
+  background: var(--session-primary);
+  color: #ffffff;
+}
+
+.members-list {
+  gap: 10px;
+}
+
+.session-member-card {
+  border-color: var(--session-line);
+  border-radius: var(--session-radius);
+  background: var(--session-surface);
+  box-shadow: none;
+}
+
+.session-member-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--session-line-strong);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.current-user-card {
+  border-color: #bfdbfe;
+}
+
+.session-member-card.status-need-help {
+  border-color: #fecaca;
+  border-left: 4px solid var(--session-danger);
+  background: #fffafa;
+}
+
+.session-member-card.status-in-consultation {
+  border-color: #c7d2fe;
+  border-left: 4px solid var(--session-consult);
+  background: #fbfbff;
+}
+
+.member-avatar {
+  background: var(--session-primary-soft);
+  color: var(--session-primary);
+}
+
+.current-user-card .member-avatar {
+  background: var(--session-primary);
+}
+
+.member-status {
+  border: 1px solid transparent;
+  padding: 4px 9px;
+}
+
+.member-status.status-need-help {
+  border-color: #fecaca;
+  background: var(--session-danger-soft);
+  color: #b91c1c;
+}
+
+.member-status.status-in-consultation {
+  border-color: #c7d2fe;
+  background: var(--session-consult-soft);
+  color: #3730a3;
+}
+
+.member-status.status-on-break {
+  border-color: #fde68a;
+  background: var(--session-warning-soft);
+  color: #92400e;
+}
+
+.member-status.status-focus,
+.member-status.status-focusing {
+  border-color: #bbf7d0;
+  background: var(--session-success-soft);
+  color: #166534;
+}
+
+.focus-credit-strip {
+  margin-top: 12px;
+  border: 0;
+  border-top: 1px solid #edf2f7;
+  border-radius: 0;
+  padding: 10px 0 0;
+  background: transparent;
+}
+
+.focus-credit-score strong {
+  color: var(--session-ink);
+}
+
+.member-goals-button {
+  min-height: 38px;
+  border-top-color: #edf2f7;
+  color: var(--session-primary);
+}
+
+.member-goals-button:hover {
+  color: #1d4ed8;
+}
+
+.member-goal-card,
+.work-check-card,
+.work-check-checklist,
+.work-check-feedback,
+.completion-ai-feedback,
+.evidence-chip,
+.evidence-equation,
+.queued-goal-item,
+.consultation-context,
+.consultation-session-actions,
+.consultation-review-form,
+.consultation-direction-text,
+.workspace-panel-shell {
+  border-radius: var(--session-radius);
+}
+
+.status-mix-dashboard {
+  gap: 18px;
+  padding: 20px;
+}
+
+.status-mix-heading h2 {
+  color: var(--session-ink);
+}
+
+.status-mix-summary {
+  min-height: 32px;
+  border: 1px solid var(--session-line);
+  border-radius: var(--session-radius);
+  background: var(--session-surface-soft);
+}
+
+.status-mix-chart {
+  gap: 0;
+}
+
+.status-mix-member-row {
+  gap: 9px;
+  padding: 13px 0;
+}
+
+.status-mix-member-row:first-child {
+  padding-top: 0;
+}
+
+.status-mix-member-row + .status-mix-member-row {
+  border-top: 1px solid #edf2f7;
+}
+
+.status-mix-member-heading strong {
+  color: var(--session-ink);
+}
+
+.status-mix-stacked-bar {
+  height: 28px;
+  border: 1px solid #dbe3ee;
+  border-radius: var(--session-radius);
+  background: #eef2f7;
+}
+
+.status-mix-bar-segment {
+  min-width: 0;
+  transition: width 0.2s linear;
+}
+
+.status-mix-status-chip,
+.status-mix-legend-item {
+  border-color: var(--session-line);
+  border-radius: var(--session-radius);
+  background: var(--session-surface);
+}
+
+.session-modal {
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(4px);
+}
+
+.session-modal-card {
+  border: 1px solid rgba(219, 227, 238, 0.94);
+  border-radius: var(--session-radius);
+  box-shadow: var(--session-shadow-raised);
+}
+
+.session-modal-card h2 {
+  color: var(--session-ink);
+}
+
+.session-modal .btn {
+  border-radius: var(--session-radius);
+  font-weight: 800;
+}
+
+.session-modal .btn-light {
+  border: 1px solid var(--session-line);
+  background: var(--session-surface-soft);
+  color: var(--session-text);
+}
+
+.consultation-workspace-card {
+  width: min(1040px, calc(100vw - 32px));
+  border-radius: var(--session-radius);
+}
+
+.consultation-workspace-body {
+  gap: 12px;
+}
+
+.consultation-context,
+.consultation-session-actions,
+.consultation-review-form {
+  border-color: var(--session-line);
+  background: var(--session-surface-soft);
+}
+
+.workspace-tabs {
+  border: 1px solid var(--session-line);
+  border-radius: var(--session-radius);
+  background: var(--session-surface-soft);
+}
+
+.workspace-tab {
+  border-radius: calc(var(--session-radius) - 2px);
+}
+
+.workspace-tab.active {
+  background: var(--session-surface);
+  color: var(--session-primary);
+}
+
+.consultation-whiteboard {
+  background:
+    linear-gradient(#eef2f7 1px, transparent 1px),
+    linear-gradient(90deg, #eef2f7 1px, transparent 1px),
+    #ffffff;
+  background-size: 28px 28px;
+}
+
+.session-toast {
+  border-radius: var(--session-radius);
+}
+
+@media (max-width: 991px) {
+  .session-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .session-focus-card {
+    grid-template-columns: 132px minmax(0, 1fr);
+  }
+
+  .members-box {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .session-web-shell {
+    margin-top: 16px;
+    padding: 0 12px;
+  }
+
+  .study-session-body #navbar {
+    margin-top: 8px;
+  }
+
+  .session-topbar {
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .session-topbar h1 {
+    font-size: 1.42rem;
+  }
+
+  .session-focus-card,
+  .status-controls-box,
+  .members-box,
+  .status-mix-dashboard {
+    padding: 16px;
+  }
+
+  .session-focus-card {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .timer-ring {
+    width: 116px;
+  }
+
+  .micro-goal-heading-row {
+    display: grid;
+    gap: 12px;
+  }
+
+  .micro-goal-actions {
+    justify-content: flex-start;
+  }
+
+  .status-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .status-control {
+    justify-content: flex-start;
+    padding: 0 12px;
+  }
+
+  .member-name-row,
+  .member-meta-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .consultation-workspace-card {
+    width: min(100%, calc(100vw - 18px));
+    height: min(88vh, calc(100vh - 18px));
+  }
+}

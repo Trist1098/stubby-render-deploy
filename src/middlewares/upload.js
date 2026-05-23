@@ -2,33 +2,69 @@
 
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+
+const uploadDir = 'src/public/uploads/';
+const allowedTextExtensions = /\.(txt|docx)$/i;
+const allowedTextMimeTypes =
+  /(text\/plain|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|application\/octet-stream)/;
+const allowedWorkCheckExtensions = /\.(txt|docx)$/i;
+const allowedWorkCheckMimeTypes = allowedTextMimeTypes;
+
+fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
-    destination: function (req, file, callback) {
-        callback(null, 'src/public/uploads/');
-    },
-    filename: function (req, file, callback) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        callback(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
+  destination: function (req, file, callback) {
+    callback(null, uploadDir);
+  },
+  filename: function (req, file, callback) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    callback(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  },
 });
 
 const fileFilter = (req, file, callback) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+  const extname = allowedTextExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTextMimeTypes.test(file.mimetype);
 
-    if (extname && mimetype) {
-        callback(null, true);
-    } else {
-        callback(new Error('Only images are allowed'));
-    }
+  if (extname && mimetype) {
+    callback(null, true);
+  } else {
+    const error = new Error('Only .txt or .docx files are allowed');
+    error.status = 400;
+    callback(error);
+  }
+};
+
+const workCheckFileFilter = (req, file, callback) => {
+  const extname = allowedWorkCheckExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedWorkCheckMimeTypes.test(file.mimetype);
+
+  if (extname && mimetype) {
+    callback(null, true);
+  } else {
+    const error = new Error('Only .txt or .docx files are allowed');
+    error.status = 400;
+    callback(error);
+  }
 };
 
 const upload = multer({
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-    fileFilter: fileFilter
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter,
+});
+
+upload.memoryText = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter,
+});
+
+upload.memoryWorkCheck = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: workCheckFileFilter,
 });
 
 module.exports = upload;

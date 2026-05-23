@@ -1,0 +1,164 @@
+.timer-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: conic-gradient(#203047 var(--timer-progress, 100%), #dfe5ec 0);
+  color: #203047;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.timer-ring::before {
+  position: absolute;
+  inset: 6px;
+  border-radius: inherit;
+  background: #ffffff;
+  content: '';
+}
+
+.timer-ring span {
+  position: relative;
+  z-index: 1;
+}
+
+.mission-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #eff6ff;
+  color: #203047;
+}
+
+.mission-strip>div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mission-strip span {
+  color: #2563eb;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mission-strip strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.mission-edit-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #203047;
+}
+
+.session-label {
+  display: block;
+  color: #8a94a6;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.micro-goal-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.micro-goal-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.micro-goal-heading-row h2 {
+  margin: 2px 0 0;
+  color: #1f2937;
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.queued-goal-preview {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.queued-goal-preview span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.queued-goal-preview strong {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.micro-goal-area p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+.micro-goal-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.micro-goal-form label {
+  display: grid;
+  gap: 5px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.micro-goal-form input,
+.micro-goal-form textarea {
+  min-width: 0;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+}
+
+.micro-goal-form textarea {
+  resize: vertical;
+}
+
+.micro-goal-form button {
+  justify-self: end;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #203047;
+  color: #ffffff;
+  font-weight: 700;
+}

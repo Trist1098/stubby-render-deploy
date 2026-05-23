@@ -1,4 +1,4 @@
-const friendModel = require('../models/Badge.model');
+const badgeModel = require('../models/Badge.model');
 
 module.exports.getAllBadges = async function (req, res, next) {
   try {

@@ -23,6 +23,18 @@ module.exports.getFriendRequestById = async function (requestId) {
   return rows[0] || null;
 };
 
+module.exports.getFriendRequestBetweenUsers = async function ({ senderId, receiverId }) {
+  const SQLSTATEMENT = `
+    SELECT request_id, sender_id, receiver_id, created_at
+    FROM FriendRequest
+    WHERE (sender_id = $1 AND receiver_id = $2)
+       OR (sender_id = $2 AND receiver_id = $1)
+  `;
+  const VALUES = [senderId, receiverId];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows[0] || null;
+};
+
 module.exports.deleteFriendRequestById = async function (requestId) {
   const SQLSTATEMENT = `
     DELETE FROM FriendRequest

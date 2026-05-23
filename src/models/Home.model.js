@@ -1,3 +1,5 @@
+const pool = require('./db');
+
 const calendarEvents = [
   {
     id: 1,
@@ -75,6 +77,24 @@ const recordActivity = (action, event) => {
   return entry;
 };
 
+module.exports.getCalendarEvents = async function getCalendarEvents(userId) {
+  const SQLSTATEMENT = `
+    SELECT c.event_id, c.creator_id, c.module_id, c.name, c.topic, c.location,
+           TO_CHAR(c.event_date, 'YYYY-MM-DD') AS date,
+           c.booking_time, c.type, c.status, c.notes,
+           COALESCE(json_agg(json_build_object('user_id', ep.user_id, 'status', ep.status, 'joined_at', ep.joined_at)) FILTER (WHERE ep.user_id IS NOT NULL), '[]') as participants
+    FROM CalendarEvent c
+    LEFT JOIN EventParticipant ep ON c.event_id = ep.event_id
+    WHERE c.creator_id = $1 OR c.event_id IN (
+      SELECT event_id FROM EventParticipant WHERE user_id = $1
+    )
+    GROUP BY c.event_id
+    ORDER BY c.event_date ASC
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [userId]);
+  return rows;
+};
+
 // Return only events that are not marked as goalCompleted so completed goals
 // are removed from the main calendar view.
 const parseReminderOffset = (offset, event) => {
@@ -91,10 +111,6 @@ const parseReminderOffset = (offset, event) => {
   eventDateTime.setMinutes(eventDateTime.getMinutes() - minutes);
   return eventDateTime.toISOString();
 };
-
-const getCalendarEvents = () => Promise.resolve(
-  calendarEvents.filter((event) => !event.goalCompleted).map(cloneEvent)
-);
 
 const getActivity = (userId, limit = 20) => Promise.resolve(
   activityLog.slice(0, limit).map((item) => ({ ...item }))
@@ -171,29 +187,47 @@ const validateEventPayload = (payload) => {
   return errors;
 };
 
-const createCalendarEvent = (payload) => {
-  const errors = validateEventPayload(payload);
-  if (errors.length) {
-    return Promise.reject(new Error(errors.join('; ')));
+module.exports.createCalendarEvent = async function createCalendarEvent(data) {
+  const SQLSTATEMENT = `
+    INSERT INTO CalendarEvent (creator_id, request_id, module_id, name, topic, location, is_online, meeting_url, event_date, booking_time, type, status, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    RETURNING event_id, creator_id, request_id, module_id, name, topic, location, is_online, meeting_url, TO_CHAR(event_date, 'YYYY-MM-DD') AS date, booking_time, type, status, notes
+  `;
+  const VALUES = [
+    data.creator_id,
+    data.request_id || null,
+    data.module_id || null,
+    data.name,
+    data.topic || '',
+    data.location || '',
+    data.is_online || false,
+    data.meeting_url || null,
+    data.event_date,
+    data.booking_time || '',
+    data.type || 'Study Session',
+    data.status || 'Confirmed',
+    data.notes || ''
+  ];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  const newEvent = rows[0];
+
+  if (newEvent) {
+    try {
+      const PARTICIPANT_SQL = `INSERT INTO EventParticipant (event_id, user_id, status) VALUES ($1, $2, $3)`;
+      if (data.partner_id) {
+        await pool.query(PARTICIPANT_SQL, [newEvent.event_id, data.partner_id, 'Accepted']);
+      }
+      if (data.co_participants && Array.isArray(data.co_participants)) {
+        for (const pId of data.co_participants) {
+          await pool.query(PARTICIPANT_SQL, [newEvent.event_id, pId, 'Pending']);
+        }
+      }
+    } catch (partErr) {
+      console.error("Error inserting into EventParticipant:", partErr);
+    }
   }
 
-  const event = {
-    id: getNextId(),
-    title: payload.title,
-    date: payload.date,
-    start: payload.start,
-    end: payload.end,
-    description: payload.description || '',
-    color: payload.color || 'primary',
-    priority: payload.priority || 'medium',
-    goal: payload.goal || '',
-    goalCompleted: Boolean(payload.goalCompleted),
-    remindAt: payload.remindAt || parseReminderOffset(payload.reminderOffset, payload) || null,
-  };
-
-  calendarEvents.push(event);
-  recordActivity('created', event);
-  return Promise.resolve(cloneEvent(event));
+  return newEvent;
 };
 
 const updateCalendarEvent = (id, payload) => {
@@ -283,9 +317,9 @@ const getGoalProgress = () => {
 };
 
 module.exports = {
-  getCalendarEvents,
+  getCalendarEvents: module.exports.getCalendarEvents,
   getCalendarEventById,
-  createCalendarEvent,
+  createCalendarEvent: module.exports.createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
   getProgressSummary,
