@@ -24,6 +24,11 @@
             border-radius: 0.75rem;
             padding: 0.85rem;
             background: #fff;
+            transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+        }
+        .calendar-cell:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 24px rgba(15, 23, 42, 0.08);
         }
         .calendar-cell--header {
             background: #f8fafc;
@@ -45,6 +50,81 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+            animation: pillEntrance .35s ease forwards;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+        .event-pill:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+            cursor: pointer;
+        }
+        .list-group-item {
+            transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+            opacity: 0;
+            transform: translateX(-8px);
+            animation: itemFadeIn .32s ease forwards;
+        }
+        .list-group-item:hover {
+            transform: translateX(3px);
+            background: #f8f9fa;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+        }
+        .btn {
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        .progress .progress-bar {
+            transition: width .45s ease;
+        }
+        .modal.fade .modal-dialog {
+            transform: scale(0.96) translateY(-10px);
+            transition: transform .25s ease;
+        }
+        .modal.show .modal-dialog {
+            transform: scale(1) translateY(0);
+        }
+        .page-fade-in {
+            animation: pageFadeIn .45s ease both;
+        }
+        .month-title-pop {
+            animation: monthPop .3s ease both;
+        }
+        @keyframes pillEntrance {
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        @keyframes itemFadeIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        @keyframes pageFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes monthPop {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.04);
+            }
+            100% {
+                transform: scale(1);
+            }
         }
     </style>
 </head>
@@ -94,7 +174,7 @@
         </div>
     </header>
 
-    <main class="container py-5">
+    <main class="container py-5 page-fade-in">
         <div class="row mb-5">
             <div class="col-12">
                 <h1 class="fw-bold">Hello, <span id="userName" class="text-primary">Student</span>! 👋</h1>
@@ -442,6 +522,8 @@
                 const firstDayIndex = new Date(year, month, 1).getDay();
                 const totalDays = new Date(year, month + 1, 0).getDate();
                 monthTitle.textContent = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+                monthTitle.classList.add('month-title-pop');
+                setTimeout(() => monthTitle.classList.remove('month-title-pop'), 300);
                 calendarGrid.innerHTML = '';
 
                 for (let i = 0; i < firstDayIndex; i++) {
@@ -488,9 +570,10 @@
                 }
 
                 eventList.innerHTML = '';
-                events.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)).forEach((event) => {
+                events.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)).forEach((event, index) => {
                     const item = document.createElement('div');
                     item.className = 'list-group-item list-group-item-action mb-2 rounded-3';
+                    item.style.animationDelay = `${Math.min(index, 6) * 0.04}s`;
                     item.innerHTML = `
                         <div class="d-flex justify-content-between gap-3">
                             <div>
