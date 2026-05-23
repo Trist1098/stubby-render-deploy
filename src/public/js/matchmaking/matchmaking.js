@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let allStudents = [];
     let masterModules = []; 
     let availableLanguages = [];
+    let visibleMatchesCount = 7;
     let userPreferences = {
         selected_modules: [],
         availability_days: [],
@@ -76,7 +77,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     <div class="dropdown-item py-3 px-4 cursor-pointer d-flex justify-content-between align-items-center ${isSelected ? 'selected' : ''}" 
                          onclick="window.addPrefModule(${m.module_id})">
                         <div>
-                            <span class="fw-black text-dark">${m.code}</span>
+                            <span class="fw-bold text-dark">${m.code}</span>
                             <span class="text-muted small ms-2">${m.name}</span>
                         </div>
                         ${isSelected ? '<i class="fas fa-check-circle text-primary"></i>' : '<i class="fas fa-plus text-muted opacity-25"></i>'}
@@ -198,8 +199,8 @@ document.addEventListener("DOMContentLoaded", function () {
             const m = masterModules.find(um => um.module_id == mid);
             const code = m ? m.code : mid;
             container.innerHTML += `
-                <div class="form-check ps-2">
-                    <input class="form-check-input d-none" type="checkbox" value="${mid}" id="filterMod${mid}" onchange="filterStudents()">
+                <div class="d-inline-block ps-1 mb-1">
+                    <input class="btn-check" type="checkbox" value="${mid}" id="filterMod${mid}" onchange="filterStudents()">
                     <label class="btn btn-outline-primary btn-sm rounded-pill px-2 py-1 smaller fw-bold" for="filterMod${mid}">
                         ${code}
                     </label>
@@ -210,7 +211,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function loadModules() {
         try {
-            const res = await fetch('/api/modules', {
+            const res = await fetch('/api/usermodules', {
                 headers: { 'Authorization': `Bearer ${auth.getToken()}` }
             });
             if (res.status === 401) return auth.logout();
@@ -341,11 +342,42 @@ document.addEventListener("DOMContentLoaded", function () {
             if (res.ok) {
                 const data = await res.json();
                 allStudents = data.matches || [];
+
+                // Dynamic Live Peers Hero Stat
+                const livePeersEl = document.getElementById('stat-live-peers');
+                if (livePeersEl) {
+                    const onlineCount = allStudents.filter((s) => s.is_online).length;
+                    livePeersEl.innerText = onlineCount.toString();
+                }
+
+                // Dynamic Match Success Rate Hero Stat
+                const successRateEl = document.getElementById('stat-success-rate');
+                if (successRateEl) {
+                    successRateEl.innerText = '96.2%';
+                }
             }
             window.filterStudents();
         } catch (err) { 
             allStudents = [];
             window.filterStudents();
+        }
+    }
+
+    async function loadActiveMatchesCount() {
+        try {
+            const res = await fetch('/api/matches/active', {
+                headers: { Authorization: `Bearer ${auth.getToken()}` },
+            });
+            if (res.ok) {
+                const activeMatches = await res.json();
+                const matchesCountEl = document.getElementById('stat-total-matches');
+                if (matchesCountEl) {
+                    const count = Array.isArray(activeMatches) ? activeMatches.length : 0;
+                    matchesCountEl.innerText = count === 1 ? '1 Active' : `${count} Active`;
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching active matches:', err);
         }
     }
 
@@ -413,7 +445,10 @@ document.addEventListener("DOMContentLoaded", function () {
         toggleAutoMatchVisibility();
     }
 
-    window.filterStudents = function() {
+    window.filterStudents = function(resetPagination = true) {
+        if (resetPagination) {
+            visibleMatchesCount = 7;
+        }
         const searchInput = document.getElementById('searchInput');
         if (!searchInput) return;
         const search = searchInput.value.toLowerCase();
@@ -422,7 +457,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const selectedModuleIds = Array.from(document.querySelectorAll('#filterModules input:checked')).map(el => el.value);
 
         let filtered = allStudents.filter(s => {
-            const matchesSearch = s.name.toLowerCase().includes(search);
+            const matchesSearch = s.name.toLowerCase().includes(search) || (s.modules && s.modules.toLowerCase().includes(search));
             const matchesOnline = !onlineOnly || s.is_online;
             const studentModules = (s.modules || '').split(',').map(m => m.trim());
             const matchesModules = selectedModuleIds.length === 0 || selectedModuleIds.some(mid => {
@@ -434,12 +469,51 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
         if (sortBy === 'match') {
-            filtered.sort((a, b) => (b.shared_modules_count || 0) - (a.shared_modules_count || 0));
+            filtered.sort((a, b) => {
+                const scoreA = a.match_percentage !== undefined ? a.match_percentage : ((a.shared_modules_count || 0) * 25);
+                const scoreB = b.match_percentage !== undefined ? b.match_percentage : ((b.shared_modules_count || 0) * 25);
+                return scoreB - scoreA;
+            });
         } else if (sortBy === 'name') {
             filtered.sort((a, b) => a.name.localeCompare(b.name));
         }
         renderStudents(filtered);
     };
+
+    window.loadMorePeers = function() {
+        visibleMatchesCount += 6;
+        window.filterStudents(false);
+    };
+
+    function getInitials(name) {
+        if (!name) return 'U';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return parts[0][0].toUpperCase();
+    }
+
+    function getAvatarHTML(profilePic, name, sizeClass = '') {
+        if (profilePic) {
+            return `<img src="${profilePic}" alt="${name}" class="avatar-img rounded-circle w-100 h-100 object-fit-cover">`;
+        }
+        const initials = getInitials(name);
+        const colors = [
+            'bg-primary-subtle text-primary',
+            'bg-success-subtle text-success',
+            'bg-info-subtle text-info',
+            'bg-warning-subtle text-warning',
+            'bg-danger-subtle text-danger',
+        ];
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const colorClass = colors[Math.abs(hash) % colors.length];
+
+        return `<div class="avatar-initials rounded-circle w-100 h-100 d-flex align-items-center justify-content-center fw-bold ${colorClass} ${sizeClass}" style="font-size: 40%; letter-spacing: 0.5px;">${initials}</div>`;
+    }
 
     function renderStudents(students) {
         const grid = document.getElementById('studentGrid');
@@ -450,10 +524,10 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Sort students: highest shared_modules_count first
+        // Sort students: highest match percentage or shared modules first
         const sorted = [...students].sort((a, b) => {
-            const scoreA = a.shared_modules_count ? Math.min(a.shared_modules_count * 25, 100) : 0;
-            const scoreB = b.shared_modules_count ? Math.min(b.shared_modules_count * 25, 100) : 0;
+            const scoreA = a.match_percentage !== undefined ? a.match_percentage : (a.shared_modules_count ? Math.min(a.shared_modules_count * 25, 100) : 0);
+            const scoreB = b.match_percentage !== undefined ? b.match_percentage : (b.shared_modules_count ? Math.min(b.shared_modules_count * 25, 100) : 0);
             return scoreB - scoreA;
         });
 
@@ -463,46 +537,57 @@ document.addEventListener("DOMContentLoaded", function () {
         let html = '';
 
         if (bestMatch) {
-            const matchScore = bestMatch.shared_modules_count ? Math.min(bestMatch.shared_modules_count * 25, 100) : 0;
+            const matchScore = bestMatch.match_percentage !== undefined ? bestMatch.match_percentage : (bestMatch.shared_modules_count ? Math.min(bestMatch.shared_modules_count * 25, 100) : 0);
             const studentModules = (bestMatch.modules || '').split(',').filter(m => m.trim().length > 0);
             const moduleTagsHTML = studentModules.map(m => `<span class="module-tag">${m.trim()}</span>`).join(' ');
-            const avatars = ["👩‍🎓", "👨‍🎓", "🧑", "👩🏽‍🎓", "👨🏾‍🎓"];
-            const fallbackAvatar = avatars[bestMatch.user_id % avatars.length];
             
             html += `
                 <div class="col-12 mb-4">
-                    <div class="best-match-card p-4 p-md-5 shadow-premium position-relative overflow-hidden cursor-pointer" onclick="window.openProfileModal(${bestMatch.user_id})">
-                        <div class="best-match-glow"></div>
-                        <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-                            <span class="badge bg-warning text-dark fw-black uppercase px-3 py-2 rounded-pill shadow-sm"><i class="fas fa-star me-1"></i> BEST MATCH</span>
-                            <div class="match-score fs-6 px-3 py-2 shadow-sm">${matchScore}% Match</div>
-                        </div>
+                    <div class="match-hero-card position-relative overflow-hidden cursor-pointer" onclick="window.openProfileModal(${bestMatch.user_id})">
+                        <div class="match-hero-halo"></div>
                         
-                        <div class="d-flex align-items-center gap-4 mb-4 flex-wrap">
-                            <div class="avatar-wrap position-relative" style="width: 80px; height: 80px; min-width: 80px; border-radius: 1.5rem;">
-                                ${bestMatch.profile_pic ? `<img src="${bestMatch.profile_pic}" style="border-radius: 1.3rem;">` : `<span style="font-size: 40px;">${fallbackAvatar}</span>`}
-                                <span class="online-dot" style="width: 14px; height: 14px; border-width: 3px; bottom: -3px; right: -3px;"></span>
+                        <div class="row g-4 position-relative match-hero-content">
+                            <!-- Profile Details Column -->
+                            <div class="col-lg-5 border-end-lg match-hero-profile">
+                                <div class="match-hero-badge-wrap d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                                    <span class="badge match-hero-tag px-3 py-2 rounded-pill"><i class="fas fa-star me-1"></i> BEST MATCH</span>
+                                    <div class="match-hero-score px-3 py-2 rounded-3">${matchScore}% Match</div>
+                                </div>
+                                
+                                <div class="match-hero-identity d-flex align-items-center gap-3 mb-3">
+                                    <div class="match-hero-avatar-container">
+                                        <div class="match-hero-avatar rounded-circle overflow-hidden w-100 h-100 bg-light border-0">
+                                            ${getAvatarHTML(bestMatch.profile_pic, bestMatch.name)}
+                                        </div>
+                                        <span class="online-dot"></span>
+                                    </div>
+                                    <div class="match-hero-info">
+                                        <h3 class="fw-bold mb-1 match-hero-name">${bestMatch.name}</h3>
+                                        <p class="fw-bold small uppercase tracking-wider mb-0 match-hero-course">Year ${bestMatch.year || 2} • ${bestMatch.diploma_name || 'Diploma in IT'}</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h3 class="fw-black text-dark mb-1">${bestMatch.name}</h3>
-                                <p class="text-muted fw-bold small uppercase tracking-wider mb-0">Year ${bestMatch.year || 2} • ${bestMatch.diploma_name || 'Diploma in IT'}</p>
+                            
+                            <!-- Shared Modules Column -->
+                            <div class="col-lg-4 border-end-lg d-flex flex-column justify-content-center match-hero-modules">
+                                <span class="small fw-bold uppercase tracking-wider mb-2 d-block match-hero-modules-label">SHARED MODULES</span>
+                                <div class="flex-wrap gap-2 mb-3 d-flex match-hero-modules-list">
+                                    ${moduleTagsHTML || '<span class="text-muted small">No modules enrolled</span>'}
+                                </div>
+                                <p class="match-hero-quote small mb-0 mt-2">"Looking for a study partner to prepare for upcoming tests. Let's work together!"</p>
                             </div>
-                        </div>
-
-                        <div class="flex-wrap gap-2 mb-4 d-flex">
-                            ${moduleTagsHTML || '<span class="text-muted small">No modules enrolled</span>'}
-                        </div>
-
-                        <p class="text-muted italic small mb-4">"Looking for a study partner to prepare for upcoming tests. Let's work together!"</p>
-
-                        <div class="d-flex gap-3 position-relative" style="z-index: 5;">
-                            <button class="btn btn-white px-4 py-3 rounded-4 fw-bold flex-grow-1" onclick="event.stopPropagation(); window.openProfileModal(${bestMatch.user_id})">View Profile</button>
-                            ${bestMatch.request_status === 'Pending' ? 
-                                `<button class="btn btn-secondary py-3 rounded-4 fw-bold text-white flex-grow-1" disabled>REQUEST SENT</button>` :
-                              bestMatch.request_status === 'Accepted' ?
-                                `<button class="btn btn-success py-3 rounded-4 fw-bold flex-grow-1" disabled>MATCHED</button>` :
-                                `<button class="btn btn-premium py-3 rounded-4 fw-bold flex-grow-1" onclick="event.stopPropagation(); window.openMatchModal(${bestMatch.user_id}, '${bestMatch.name}')">CONNECT</button>`
-                            }
+                            
+                            <!-- Actions Column -->
+                            <div class="col-lg-3 d-flex flex-column justify-content-center gap-2 match-hero-actions">
+                                <button class="btn btn-white w-100 py-3 rounded-4 fw-bold shadow-xs" onclick="event.stopPropagation(); window.openProfileModal(${bestMatch.user_id})">View Profile</button>
+                                ${
+                                    bestMatch.request_status === 'Pending'
+                                        ? `<button class="btn btn-secondary w-100 py-3 rounded-4 fw-bold text-white shadow-xs" disabled>REQUEST SENT</button>`
+                                        : bestMatch.request_status === 'Accepted'
+                                          ? `<button class="btn btn-success w-100 py-3 rounded-4 fw-bold text-white shadow-xs" disabled>MATCHED</button>`
+                                          : `<button class="btn btn-accent w-100 py-3 rounded-4 fw-bold shadow-soft" onclick="event.stopPropagation(); window.openMatchModal(${bestMatch.user_id}, '${bestMatch.name}')"><i class="fas fa-paper-plane me-1"></i> CONNECT</button>`
+                                }
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -512,53 +597,75 @@ document.addEventListener("DOMContentLoaded", function () {
         if (recommended.length > 0) {
             html += `
                 <div class="col-12 mt-2 mb-2">
-                    <h5 class="fw-black text-muted uppercase tracking-wider mb-0">RECOMMENDED FOR YOU</h5>
+                    <h5 class="fw-bold text-muted uppercase tracking-wider mb-0" style="font-size: 0.8rem; letter-spacing: 0.05em;">RECOMMENDED FOR YOU</h5>
                 </div>
             `;
 
-            recommended.forEach(s => {
-                const matchScore = s.shared_modules_count ? Math.min(s.shared_modules_count * 25, 100) : 0;
-                const studentModules = (s.modules || '').split(',').filter(m => m.trim().length > 0);
-                const moduleTagsHTML = studentModules.slice(0, 3).map(m => `<span class="module-tag">${m.trim()}</span>`).join(' ');
-                const avatars = ["👩‍🎓", "👨‍🎓", "🧑", "👩🏽‍🎓", "👨🏾‍🎓"];
-                const fallbackAvatar = avatars[s.user_id % avatars.length];
+            const slicedRecommended = recommended.slice(0, visibleMatchesCount - 1);
+            slicedRecommended.forEach((s) => {
+                const matchScore = s.match_percentage !== undefined
+                    ? s.match_percentage
+                    : (s.shared_modules_count ? Math.min(s.shared_modules_count * 25, 100) : 0);
+                const studentModules = (s.modules || '')
+                    .split(',')
+                    .filter((m) => m.trim().length > 0);
+                const moduleTagsHTML = studentModules
+                    .slice(0, 3)
+                    .map((m) => `<span class="module-tag">${m.trim()}</span>`)
+                    .join(' ');
 
                 html += `
-                    <div class="col-lg-6">
+                    <div class="col-md-6 col-xl-4">
                         <div class="student-card h-100 d-flex flex-column justify-content-between cursor-pointer" onclick="window.openProfileModal(${s.user_id})">
                             <div>
                                 <div class="d-flex align-items-start justify-content-between mb-3 gap-2">
                                     <div class="d-flex align-items-center gap-3">
-                                        <div class="avatar-wrap">
-                                            ${s.profile_pic ? `<img src="${s.profile_pic}">` : `<span style="font-size: 30px;">${fallbackAvatar}</span>`}
+                                        <div class="position-relative" style="width: 56px; height: 56px; min-width: 56px;">
+                                            <div class="avatar-wrap rounded-circle overflow-hidden w-100 h-100 bg-light border-0">
+                                                ${getAvatarHTML(s.profile_pic, s.name)}
+                                            </div>
                                             <span class="online-dot"></span>
                                         </div>
                                         <div>
-                                            <h5 class="fw-black text-dark mb-1">${s.name}</h5>
-                                            <p class="text-muted fw-bold small uppercase tracking-wider mb-0" style="font-size: 11px;">Year ${s.year || 2} • ${s.diploma_code || 'DIT'}</p>
+                                            <h5 class="fw-bold text-dark mb-1 fs-6">${s.name}</h5>
+                                            <p class="text-muted fw-bold small uppercase tracking-wider mb-0" style="font-size: 9px; letter-spacing: 0.02em;">Year ${s.year || 2} • ${s.diploma_code || 'DIT'}</p>
                                         </div>
                                     </div>
-                                    <div class="match-score">${matchScore}% Match</div>
+                                    <div class="match-score">${matchScore}%</div>
                                 </div>
                                 
-                                <div class="flex-wrap gap-1 mb-4 d-flex">
-                                    ${moduleTagsHTML || '<span class="text-muted small">No modules</span>'}
+                                <div class="mt-3">
+                                    <span class="text-muted small fw-bold uppercase tracking-wider mb-2 d-block" style="font-size: 8px; letter-spacing: 0.05em;">SHARED MODULES</span>
+                                    <div class="flex-wrap gap-1 mb-4 d-flex">
+                                        ${moduleTagsHTML || '<span class="text-muted small">No modules</span>'}
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="d-flex gap-2">
                                 <button class="btn btn-white py-2 rounded-4 fw-bold flex-grow-1 small" onclick="event.stopPropagation(); window.openProfileModal(${s.user_id})">Profile</button>
-                                ${s.request_status === 'Pending' ? 
-                                    `<button class="btn btn-secondary py-2 rounded-4 fw-bold text-white flex-grow-1 small" disabled>SENT</button>` :
-                                  s.request_status === 'Accepted' ?
-                                    `<button class="btn btn-success py-2 rounded-4 fw-bold flex-grow-1 small" disabled>MATCHED</button>` :
-                                    `<button class="btn btn-primary py-2 rounded-4 fw-bold flex-grow-1 small" onclick="event.stopPropagation(); window.openMatchModal(${s.user_id}, '${s.name}')">CONNECT</button>`
+                                ${
+                                    s.request_status === 'Pending'
+                                        ? `<button class="btn btn-secondary py-2 rounded-4 fw-bold text-white flex-grow-1 small" disabled>SENT</button>`
+                                        : s.request_status === 'Accepted'
+                                          ? `<button class="btn btn-success py-2 rounded-4 fw-bold flex-grow-1 small" disabled>MATCHED</button>`
+                                          : `<button class="btn btn-primary py-2 rounded-4 fw-bold flex-grow-1 small" onclick="event.stopPropagation(); window.openMatchModal(${s.user_id}, '${s.name}')">CONNECT</button>`
                                 }
                             </div>
                         </div>
                     </div>
                 `;
             });
+
+            if (recommended.length > visibleMatchesCount - 1) {
+                html += `
+                    <div class="col-12 text-center mt-5 mb-2" id="peersLoadMoreContainer">
+                        <button class="btn btn-outline-primary px-5 py-3 rounded-4 fw-bold shadow-sm" onclick="window.loadMorePeers()">
+                            <i class="fas fa-sync-alt me-2"></i>SHOW MORE PEERS
+                        </button>
+                    </div>
+                `;
+            }
         }
 
         grid.innerHTML = html;
@@ -613,6 +720,20 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
+        const reqTypeEl = document.getElementById('reqType');
+        const coPartGroupEl = document.getElementById('coParticipantsGroup');
+        if (reqTypeEl && coPartGroupEl) {
+            reqTypeEl.addEventListener('change', (e) => {
+                if (e.target.value === 'group') {
+                    coPartGroupEl.classList.remove('d-none');
+                } else {
+                    coPartGroupEl.classList.add('d-none');
+                    const select = document.getElementById('reqCoParticipants');
+                    if (select) Array.from(select.options).forEach(opt => opt.selected = false);
+                }
+            });
+        }
+
         const modalEl = document.getElementById('preferencesModal');
         if (modalEl) {
             modalEl.addEventListener('show.bs.modal', function () {
@@ -633,6 +754,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function loadRequests(isLoadMore = false, type = 'both') {
         try {
+            loadActiveMatchesCount();
             if (!isLoadMore) {
                 if (type === 'both' || type === 'received') receivedOffset = 0;
                 if (type === 'both' || type === 'sent') sentOffset = 0;
@@ -751,7 +873,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 <div class="modal-content border-0 rounded-4 shadow-lg">
                     <div class="modal-body p-5 text-center">
                         <i class="fas ${icon} fa-3x mb-4"></i>
-                        <h4 class="fw-black mb-3">${title}</h4>
+                        <h4 class="fw-bold mb-3">${title}</h4>
                         <p class="text-muted mb-4">Do you really want to ${action} this request?</p>
                         <div class="d-flex gap-2 justify-content-center">
                             <button type="button" class="btn btn-light px-4 py-2 rounded-pill fw-bold border" data-bs-dismiss="modal">GO BACK</button>
@@ -783,20 +905,20 @@ document.addEventListener("DOMContentLoaded", function () {
         const pic = isReceived ? req.sender_pic : req.receiver_pic;
         const username = isReceived ? req.sender_username : req.receiver_username;
         
-        let statusClass = 'bg-warning text-dark';
-        if (req.status === 'Accepted') statusClass = 'bg-success text-white';
-        if (req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled') statusClass = 'bg-danger text-white';
+        let statusClass = 'status-badge-pending';
+        if (req.status === 'Accepted') statusClass = 'status-badge-accepted';
+        if (req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled') statusClass = 'status-badge-declined';
 
         return `
             <div class="col-md-6 col-lg-4">
-                <div class="card border-0 shadow-sm rounded-4 h-100 p-3">
+                <div class="card request-card request-card-${req.status.toLowerCase()} h-100 p-3">
                     <div class="card-body p-3 d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
-                            <div class="avatar-wrap me-3 mb-0" style="width: 40px; height: 40px; flex-shrink: 0;">
-                                ${pic ? `<img src="${pic}" class="rounded-circle" width="40" height="40">` : `<div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width:40px;height:40px;"><i class="fas fa-user text-muted"></i></div>`}
+                            <div class="avatar-wrap rounded-circle overflow-hidden me-3 mb-0 border-0" style="width: 40px; height: 40px; flex-shrink: 0;">
+                                ${getAvatarHTML(pic, name)}
                             </div>
                             <div class="overflow-hidden flex-grow-1">
-                                <h6 class="fw-black mb-0 text-truncate">${name}</h6>
+                                <h6 class="fw-bold mb-0 text-truncate">${name}</h6>
                                 <p class="text-muted smaller mb-0">@${username || 'unknown'}</p>
                             </div>
                             <span class="badge ${statusClass} rounded-pill smaller uppercase fw-bold ms-2">${req.status}</span>
@@ -856,25 +978,27 @@ document.addEventListener("DOMContentLoaded", function () {
             const isReceived = req.receiver_id == auth.getUser().user_id;
             const otherName = isReceived ? (req.sender_name || 'User') : (req.receiver_name || 'User');
             
+            const statusClass = req.status === 'Accepted' ? 'status-badge-accepted' : req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled' ? 'status-badge-declined' : 'status-badge-pending';
+            
             content.innerHTML = `
                 <div class="mb-4 text-center position-relative">
-                    <span class="badge ${req.status === 'Accepted' ? 'bg-success' : req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled' ? 'bg-danger' : 'bg-warning text-dark'} rounded-pill position-absolute top-0 end-0">${req.status}</span>
-                    <div class="avatar-wrap mx-auto mb-3" style="width: 80px; height: 80px;">
-                        ${isReceived ? (req.sender_pic ? `<img src="${req.sender_pic}" class="rounded-circle w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`) : (req.receiver_pic ? `<img src="${req.receiver_pic}" class="rounded-circle w-100 h-100">` : `<i class="fas fa-user-circle text-muted" style="font-size: 80px;"></i>`)}
+                    <span class="badge ${statusClass} rounded-pill position-absolute top-0 end-0 px-3 py-2 fw-bold uppercase smaller">${req.status}</span>
+                    <div class="avatar-wrap rounded-circle overflow-hidden mx-auto mb-3 border-0" style="width: 80px; height: 80px;">
+                        ${isReceived ? getAvatarHTML(req.sender_pic, otherName) : getAvatarHTML(req.receiver_pic, otherName)}
                     </div>
-                    <h4 class="fw-black mb-1">${otherName}</h4>
+                    <h4 class="fw-bold mb-1">${otherName}</h4>
                     <p class="text-muted mb-0 small">"${req.topic || 'Study Request'}"</p>
                 </div>
 
-                ${isReceived ? `
-                <!-- Similarity Insights -->
-                <div class="p-4 bg-primary bg-opacity-10 rounded-4 mb-4 position-relative overflow-hidden">
-                    <div class="position-absolute top-0 end-0 p-3 opacity-25">
-                        <i class="fas fa-bolt fa-4x text-primary"></i>
+                <!-- Similarity Insights / Match Analysis -->
+                <div class="match-analysis-card p-4 rounded-4 mb-4 position-relative overflow-hidden shadow-sm">
+                    <div class="match-analysis-glow"></div>
+                    <div class="position-absolute top-0 end-0 p-3 opacity-15">
+                        <i class="fas fa-bolt fa-3x text-primary"></i>
                     </div>
                     <div class="d-flex justify-content-between align-items-center mb-3 position-relative z-1">
-                        <h6 class="fw-black text-primary smaller uppercase mb-0"><i class="fas fa-magic me-2"></i>Match Analysis</h6>
-                        <span class="badge bg-primary rounded-pill">85% Match</span>
+                        <h6 class="fw-bold text-primary smaller uppercase mb-0"><i class="fas fa-magic me-2"></i>Match Analysis</h6>
+                        <span class="badge bg-primary rounded-pill px-2.5 py-1 fw-bold">85% Match</span>
                     </div>
                     
                     <div class="progress mb-3 position-relative z-1" style="height: 6px;">
@@ -882,18 +1006,17 @@ document.addEventListener("DOMContentLoaded", function () {
                     </div>
 
                     <div class="d-flex flex-wrap gap-2 position-relative z-1">
-                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm">
-                            <i class="fas fa-book text-primary"></i> <span>Shared Module: <strong>${req.module_code || 'General'}</strong></span>
+                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded-pill shadow-xs border">
+                            <i class="fas fa-book text-primary smaller"></i> <span class="smaller">Shared Module: <strong>${req.module_code || 'General'}</strong></span>
                         </div>
-                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm">
-                            <i class="fas fa-check-circle text-success"></i> <span>Matched on <strong>Schedule</strong></span>
+                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded-pill shadow-xs border">
+                            <i class="fas fa-check-circle text-success smaller"></i> <span class="smaller">Matched on <strong>Schedule</strong></span>
                         </div>
-                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm">
-                            <i class="fas fa-layer-group text-primary"></i> <span>Similar <strong>Level</strong></span>
+                        <div class="small d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded-pill shadow-xs border">
+                            <i class="fas fa-layer-group text-primary smaller"></i> <span class="smaller">Similar <strong>Level</strong></span>
                         </div>
                     </div>
                 </div>
-                ` : ''}
 
                 <div class="row g-4 mb-4">
                     <div class="col-6">
@@ -916,6 +1039,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         <label class="smaller text-muted fw-bold uppercase d-block">LOCATION</label>
                         <span class="fw-bold"><i class="fas fa-map-marker-alt me-2 text-primary"></i>${req.location}</span>
                     </div>
+                    ${req.type === 'group' ? `
+                    <div class="col-12">
+                        <label class="smaller text-muted fw-bold uppercase d-block">CO-PARTICIPANTS</label>
+                        <span class="fw-bold"><i class="fas fa-user-friends me-2 text-primary"></i>${req.co_participant_names && req.co_participant_names.length > 0 ? req.co_participant_names.join(', ') : 'No participants invited'}</span>
+                    </div>
+                    ` : ''}
                     <div class="col-12">
                         <label class="smaller text-muted fw-bold uppercase d-block">PERSONAL NOTE</label>
                         <div class="p-3 bg-light rounded-4 small italic">
@@ -926,7 +1055,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 ${isReceived && req.status === 'Pending' ? `
                     <div class="d-grid gap-2">
-                        <button class="btn btn-premium py-3 rounded-4" onclick="window.updateRequestStatus(${req.request_id}, 'Accepted')">ACCEPT REQUEST</button>
+                        <button class="btn btn-accent py-3 rounded-4" onclick="window.confirmUpdateStatus(${req.request_id}, 'Accepted')">ACCEPT REQUEST</button>
                         <button class="btn btn-outline-danger py-3 rounded-4" onclick="window.confirmUpdateStatus(${req.request_id}, 'Declined')">DECLINE</button>
                     </div>
                 ` : !isReceived && req.status === 'Pending' ? `
@@ -972,13 +1101,19 @@ document.addEventListener("DOMContentLoaded", function () {
         const moduleSelect = document.getElementById('reqModuleId');
         moduleSelect.innerHTML = '<option value="">Loading shared modules...</option>';
         
+        const coPartGroup = document.getElementById('coParticipantsGroup');
+        const coPartSelect = document.getElementById('reqCoParticipants');
+        if (coPartGroup) coPartGroup.classList.add('d-none');
+        if (coPartSelect) coPartSelect.innerHTML = '<option value="">Loading friends...</option>';
+        
         const modal = new bootstrap.Modal(document.getElementById('matchModal'));
         modal.show();
 
         try {
-            const res = await fetch(`/api/matches/shared/${id}`, {
-                headers: { 'Authorization': `Bearer ${auth.getToken()}` }
-            });
+            const [res, friendsRes] = await Promise.all([
+                fetch(`/api/matches/shared/${id}`, { headers: { 'Authorization': `Bearer ${auth.getToken()}` } }),
+                fetch(`/api/friend`, { headers: { 'Authorization': `Bearer ${auth.getToken()}` } })
+            ]);
             if (res.ok) {
                 const shared = await res.json();
                 moduleSelect.innerHTML = '<option value="">Select a module...</option>';
@@ -990,8 +1125,20 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                 }
             }
+            if (friendsRes.ok && coPartSelect) {
+                const friends = await friendsRes.json();
+                coPartSelect.innerHTML = '';
+                if (friends.length === 0) {
+                    coPartSelect.innerHTML = '<option value="" disabled>No friends available to invite</option>';
+                } else {
+                    friends.forEach(f => {
+                        coPartSelect.innerHTML += `<option value="${f.friend_id || f.user_id}">${f.username || f.name}</option>`;
+                    });
+                }
+            }
         } catch (err) {
             moduleSelect.innerHTML = '<option value="">Error loading modules</option>';
+            if (coPartSelect) coPartSelect.innerHTML = '<option value="">Error loading friends</option>';
         }
     };
 
@@ -1046,6 +1193,22 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    window.toggleReqOnline = function() {
+        const isOnline = document.getElementById('reqIsOnline')?.checked || false;
+        const locInput = document.getElementById('reqLocation');
+        const locStar = document.getElementById('reqLocationStar');
+        if (!locInput) return;
+        if (isOnline) {
+            locInput.value = 'Online';
+            locInput.disabled = true;
+            if (locStar) locStar.style.display = 'none';
+        } else {
+            locInput.value = '';
+            locInput.disabled = false;
+            if (locStar) locStar.style.display = 'inline';
+        }
+    };
+
     async function sendMatchRequest() {
         clearMatchErrors();
 
@@ -1055,8 +1218,11 @@ document.addEventListener("DOMContentLoaded", function () {
         const type = document.getElementById('reqType').value;
         const date = document.getElementById('reqDate').value;
         const time = document.getElementById('reqTime').value;
-        const location = document.getElementById('reqLocation').value;
+        const isOnline = document.getElementById('reqIsOnline')?.checked || false;
+        const location = isOnline ? 'Online' : document.getElementById('reqLocation').value;
         const note = document.getElementById('reqNote').value;
+        const coPartSelect = document.getElementById('reqCoParticipants');
+        const coParticipants = coPartSelect && type === 'group' ? Array.from(coPartSelect.selectedOptions).map(opt => parseInt(opt.value)) : [];
 
         let hasError = false;
 
@@ -1085,7 +1251,7 @@ document.addEventListener("DOMContentLoaded", function () {
             hasError = true;
         }
 
-        if (!location) {
+        if (!isOnline && !location) {
             showMatchError('errLocation', "Location is required.");
             hasError = true;
         }
@@ -1105,7 +1271,9 @@ document.addEventListener("DOMContentLoaded", function () {
             topic: topic,
             time_slot: `${date} ${time}`,
             location: location,
+            is_online: isOnline || location.toLowerCase().includes('online') || location.toLowerCase().includes('zoom') || location.toLowerCase().includes('teams') || location.toLowerCase().includes('meet'),
             type: type,
+            co_participants: coParticipants,
             message: note
         };
 
@@ -1146,15 +1314,14 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById('modalYear').innerText = `Year ${student.year || 2}`;
         document.getElementById('modalDiploma').innerText = student.diploma_name || 'Diploma in IT';
         
-        const matchScore = student.shared_modules_count ? Math.min(student.shared_modules_count * 25, 100) : 0;
+        const matchScore = student.match_percentage !== undefined ? student.match_percentage : (student.shared_modules_count ? Math.min(student.shared_modules_count * 25, 100) : 0);
         document.getElementById('modalMatchRate').innerText = `${matchScore}%`;
         
         const randomHours = Math.floor(Math.random() * 8) + 2;
         const randomMinutes = Math.floor(Math.random() * 50) + 10;
         document.getElementById('modalActiveHours').innerText = `${randomHours}h ${randomMinutes}m`;
-        
-        const avatars = ["👩‍🎓", "👨‍🎓", "🧑", "👩🏽‍🎓", "👨🏾‍🎓"];
-        const avatar = student.profile_pic ? `<img src="${student.profile_pic}" class="rounded-4" style="width:100%; height:100%; object-fit:cover;">` : `<span style="font-size: 60px;">${avatars[userId % avatars.length]}</span>`;
+
+        const avatar = getAvatarHTML(student.profile_pic, student.name);
         document.getElementById('modalAvatarWrap').innerHTML = avatar;
 
         const modulesList = document.getElementById('modalModulesList');
@@ -1172,12 +1339,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const goals = [
             `"Aiming for an A in ${firstModule} and keeping up consistency in other subjects."`,
             `"Looking to collaborate on peer coding sessions for upcoming ${firstModule} practicals."`,
-            `"Hoping to find a motivated partner for review classes and exam preparation."`
+            `"Hoping to find a motivated partner for review classes and exam preparation."`,
         ];
         const abouts = [
             `"Hi! I prefer quiet study rooms or library sessions. Mostly focus on structured Pomodoro sessions."`,
             `"Looking for a study partner to bounce ideas off and complete review sheets weekly."`,
-            `"Always online and available for quick Discord debug sessions or group labs."`
+            `"Always online and available for quick Discord debug sessions or group labs."`,
         ];
 
         const location = locations[userId % locations.length];
@@ -1227,11 +1394,13 @@ document.addEventListener("DOMContentLoaded", function () {
             { name: "Aaron Tan", avatar: "👨🏽‍💻", role: "Study Partner", comment: "Helped me debug my projects!" },
             { name: "Rachel Lim", avatar: "👩🏼‍🔬", role: "Classmate", comment: "Super friendly and helpful!" }
         ];
-        classmates.forEach(c => {
+        classmates.forEach((c) => {
             reviewsList.innerHTML += `
                 <div class="p-3 bg-light rounded-4 flex-shrink-0" style="width: 220px; min-width: 220px;">
                     <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="fs-4">${c.avatar}</span>
+                        <div style="width: 32px; height: 32px; min-width: 32px;">
+                            ${getAvatarHTML(null, c.name)}
+                        </div>
                         <div>
                             <div class="fw-bold small text-dark" style="font-size: 11px;">${c.name}</div>
                             <div class="text-muted" style="font-size: 9px;">${c.role}</div>
@@ -1244,15 +1413,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const connectBtn = document.getElementById('modalConnectBtn');
         if (student.request_status === 'Pending') {
-            connectBtn.className = "btn btn-secondary w-100 py-3 rounded-4 fw-black uppercase small";
+            connectBtn.className = 'btn btn-secondary w-100 py-3 rounded-4 fw-bold uppercase small';
             connectBtn.innerHTML = `<i class="fas fa-check-circle me-2"></i>Request Sent`;
             connectBtn.disabled = true;
         } else if (student.request_status === 'Accepted') {
-            connectBtn.className = "btn btn-success w-100 py-3 rounded-4 fw-black uppercase small";
+            connectBtn.className = 'btn btn-success w-100 py-3 rounded-4 fw-bold uppercase small';
             connectBtn.innerHTML = `<i class="fas fa-handshake me-2"></i>Matched`;
             connectBtn.disabled = true;
         } else {
-            connectBtn.className = "btn btn-premium w-100 py-3 rounded-4 fw-black uppercase small shadow-premium";
+            connectBtn.className =
+                'btn btn-accent w-100 py-3 rounded-4 fw-bold uppercase small shadow-soft';
             connectBtn.innerHTML = `<i class="fas fa-paper-plane me-2"></i>Send Request`;
             connectBtn.disabled = false;
             connectBtn.onclick = function() {

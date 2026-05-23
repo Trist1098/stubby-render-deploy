@@ -40,6 +40,10 @@ export function unpinMessageRequest(conversationId, messageId) {
   return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/pin`, 'DELETE');
 }
 
+export function replyToMessageRequest(conversationId, parentMessageId, text) {
+  return apiRequest(`/api/chats/${conversationId}/messages/${parentMessageId}/reply`, 'POST', { text });
+}
+
 export function addReactionRequest(conversationId, messageId, emoji) {
   return apiRequest(`/api/chats/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, 'POST');
 }
@@ -83,4 +87,12 @@ export async function uploadFileRequest(conversationId, file) {
     console.error('API Error:', err);
     return { message: 'Network error' };
   }
+}
+
+export function sendTypingRequest(conversationId, typing) {
+  return apiRequest(`/api/chats/${conversationId}/typing`, 'PUT', { typing });
+}
+
+export function fetchTypingUsers(conversationId) {
+  return apiRequest(`/api/chats/${conversationId}/typing`);
 }

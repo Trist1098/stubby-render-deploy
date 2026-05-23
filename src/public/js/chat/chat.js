@@ -12,10 +12,22 @@ async function loadConversations() {
   renderConversationList(loadMessages);
 }
 
+async function refreshConversations() {
+  const data = await fetchConversations();
+  if (!Array.isArray(data)) return;
+  const changed = data.length !== chatState.conversations.length ||
+    data.some((c, i) => c.conversation_id !== chatState.conversations[i]?.conversation_id ||
+      c.last_message_at !== chatState.conversations[i]?.last_message_at);
+  if (!changed) return;
+  chatState.conversations = data;
+  renderConversationList(loadMessages);
+}
+
 if (!auth.isLoggedIn()) {
   window.location.href = 'login.html';
 } else {
   renderEmptyChat();
   initNewChatModal(loadConversations);
   loadConversations();
+  setInterval(refreshConversations, 3000);
 }
