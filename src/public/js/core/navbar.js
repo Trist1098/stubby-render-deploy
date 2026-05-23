@@ -1,40 +1,40 @@
+/* global auth */
+
 document.addEventListener('DOMContentLoaded', function () {
-    const token = localStorage.getItem('token');
-    let user = null;
+  const token = localStorage.getItem('token');
+  let user = null;
 
-    try {
-        const userJson = localStorage.getItem('user');
-        user = userJson ? JSON.parse(userJson) : null;
-    } catch {
-        console.error('Corrupted user data in localStorage');
+  try {
+    const userJson = localStorage.getItem('user');
+    user = userJson ? JSON.parse(userJson) : null;
+  } catch {
+    console.error('Corrupted user data in localStorage');
+  }
+
+  // 1. HIGHLIGHT ACTIVE LINK
+  const currentPath = window.location.pathname;
+  const navLinksList = document.querySelectorAll('.nav-link');
+
+  navLinksList.forEach((link) => {
+    if (
+      link.getAttribute('href') &&
+      (currentPath.endsWith(link.getAttribute('href')) ||
+        (currentPath === '/' && link.getAttribute('href') === 'index.html'))
+    ) {
+      link.classList.add('active');
     }
+  });
 
-    // 1. HIGHLIGHT ACTIVE LINK
-    const currentPath = window.location.pathname;
-    const navLinksList = document.querySelectorAll('.nav-link');
+  // 2. RENDER AUTH LINK
+  const renderNavbar = () => {
+    const authLink = document.getElementById('auth-link');
 
-    navLinksList.forEach((link) => {
-        if (
-            link.getAttribute('href') &&
-            (
-                currentPath.endsWith(link.getAttribute('href')) ||
-                (currentPath === '/' && link.getAttribute('href') === 'index.html')
-            )
-        ) {
-            link.classList.add('active');
-        }
-    });
+    if (!authLink) return;
 
-    // 2. RENDER AUTH LINK
-    const renderNavbar = () => {
-        const authLink = document.getElementById('auth-link');
+    if (token && user) {
+      authLink.className = 'nav-item dropdown';
 
-        if (!authLink) return;
-
-        if (token && user) {
-            authLink.className = 'nav-item dropdown';
-
-            authLink.innerHTML = `
+      authLink.innerHTML = `
                 <div class="dropdown">
                     <button class="btn btn-white fw-bold dropdown-toggle d-flex align-items-center gap-2 text-primary"
                             type="button"
@@ -50,9 +50,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             <i class="fas fa-user-circle me-2"></i> Profile
                         </a>
 
-                        <button id="settingsButton" class="dropdown-item py-2">
+                        <a href="settings.html" class="dropdown-item py-2">
                             <i class="fas fa-cog me-2"></i> Settings
-                        </button>
+                        </a>
 
                         <hr class="dropdown-divider">
 
@@ -63,67 +63,50 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             `;
 
-            // SETTINGS BUTTON
-            document.getElementById('settingsButton')?.addEventListener('click', () => {
-                if (window.location.pathname.endsWith('profile.html')) {
-                    const settingsModalEl = document.getElementById('profileSettingsModal');
-
-                    if (settingsModalEl && typeof bootstrap !== 'undefined') {
-                        bootstrap.Modal.getOrCreateInstance(settingsModalEl).show();
-                        return;
-                    }
-                }
-
-                window.location.href = 'profile.html?settings=true';
-            });
-
-            // LOGOUT BUTTON
-            document.getElementById('logoutButton')?.addEventListener('click', () => {
-                if (typeof auth !== 'undefined' && typeof auth.logout === 'function') {
-                    auth.logout();
-                } else {
-                    localStorage.clear();
-                    window.location.href = 'login.html';
-                }
-            });
-
+      document.getElementById('logoutButton')?.addEventListener('click', () => {
+        if (typeof auth !== 'undefined' && typeof auth.logout === 'function') {
+          auth.logout();
         } else {
-            authLink.innerHTML = `
+          localStorage.clear();
+          window.location.href = 'login.html';
+        }
+      });
+    } else {
+      authLink.innerHTML = `
                 <a href="login.html" class="btn btn-primary px-4">
                     Login
                 </a>
             `;
-        }
+    }
+  };
+
+  renderNavbar();
+
+  // 3. SCROLL EVENT FOR TRANSPARENT NAVBAR
+  const headerEl = document.querySelector('.header-transparent');
+
+  if (headerEl) {
+    const handleScroll = () => {
+      if (window.scrollY > 100) {
+        headerEl.classList.add('scrolled');
+      } else {
+        headerEl.classList.remove('scrolled');
+      }
     };
 
-    // Run navbar render
-    renderNavbar();
+    handleScroll();
+    window.addEventListener('scroll', handleScroll);
+  }
 
-    // 3. SCROLL EVENT FOR TRANSPARENT NAVBAR
-    const headerEl = document.querySelector('.header-transparent');
-
-    if (headerEl) {
-        const handleScroll = () => {
-            if (window.scrollY > 100) {
-                headerEl.classList.add('scrolled');
-            } else {
-                headerEl.classList.remove('scrolled');
-            }
-        };
-
-        handleScroll();
-        window.addEventListener('scroll', handleScroll);
+  // 4. USER UPDATE EVENT
+  window.addEventListener('userUpdated', () => {
+    try {
+      const userJson = localStorage.getItem('user');
+      user = userJson ? JSON.parse(userJson) : null;
+    } catch {
+      console.error('Corrupted user data in localStorage');
     }
 
-    // 4. USER UPDATE EVENT
-    window.addEventListener('userUpdated', () => {
-        try {
-            const userJson = localStorage.getItem('user');
-            user = userJson ? JSON.parse(userJson) : null;
-        } catch (err) {
-            console.error('Corrupted user data in localStorage');
-        }
-
-        renderNavbar();
-    });
+    renderNavbar();
+  });
 });
