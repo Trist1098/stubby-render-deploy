@@ -358,6 +358,18 @@ const notifications = [
   {u: 4, title: 'New Match Request', msg: 'James Lee sent you a study request for FOP2', type: 'info', read: false, nav: 'request-detail'}
 ];
 
+const matchPreferences = [
+  { u: 2, m: [1, 2, 3], d: ['monday', 'wednesday', 'friday'], md: ['online', 'in-person'], t: ['afternoon', 'evening'], s: 'discussion,silent', l: ['English', 'Mandarin'], dur: 90, pr: 80, g: 'any', pl: 'same', auto: true },
+  { u: 3, m: [2, 6], d: ['tuesday', 'thursday'], md: ['in-person'], t: ['morning', 'afternoon'], s: 'quiz,discussion', l: ['English'], dur: 60, pr: 60, g: 'any', pl: 'same', auto: true },
+  { u: 4, m: [1, 2], d: ['monday', 'tuesday', 'friday'], md: ['online'], t: ['evening'], s: 'silent,discussion', l: ['English', 'Malay'], dur: 120, pr: 70, g: 'any', pl: 'same', auto: true },
+  { u: 5, m: [2, 7], d: ['wednesday', 'thursday', 'friday'], md: ['online', 'in-person'], t: ['morning', 'evening'], s: 'discussion,quiz', l: ['English', 'Mandarin'], dur: 45, pr: 50, g: 'any', pl: 'same', auto: true },
+  { u: 6, m: [3, 4], d: ['monday', 'thursday'], md: ['in-person'], t: ['afternoon'], s: 'silent', l: ['English'], dur: 60, pr: 40, g: 'any', pl: 'same', auto: false },
+  { u: 7, m: [1, 7], d: ['tuesday', 'friday'], md: ['online'], t: ['morning', 'evening'], s: 'quiz,discussion', l: ['English', 'Tamil'], dur: 90, pr: 75, g: 'any', pl: 'same', auto: true },
+  { u: 8, m: [1, 3], d: ['monday', 'wednesday'], md: ['in-person'], t: ['afternoon'], s: 'silent,quiz', l: ['English'], dur: 120, pr: 30, g: 'any', pl: 'same', auto: false },
+  { u: 9, m: [1, 5], d: ['wednesday', 'friday'], md: ['online', 'in-person'], t: ['afternoon', 'evening'], s: 'discussion', l: ['English', 'Mandarin'], dur: 60, pr: 85, g: 'any', pl: 'same', auto: true },
+  { u: 10, m: [1, 2], d: ['tuesday', 'thursday'], md: ['online'], t: ['evening'], s: 'discussion,silent', l: ['English'], dur: 90, pr: 50, g: 'any', pl: 'same', auto: true }
+];
+
 async function seed() {
   console.log('Seeding data...');
 
@@ -543,6 +555,35 @@ async function seed() {
     const placeholders = notifications.map((_, i) => `($${i*6+1},$${i*6+2},$${i*6+3},$${i*6+4},$${i*6+5},$${i*6+6})`).join(', ');
     const values = notifications.flatMap(n => [n.u, n.title, n.msg, n.type, n.read, n.nav]);
     await pool.query(`INSERT INTO Notification ("user_id","title","message","type","is_read","nav_target") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+  }
+
+  // 24. Match Preferences
+  if (matchPreferences.length > 0) {
+    const placeholders = matchPreferences.map((_, i) => 
+      `($${i * 12 + 1}, $${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}, $${i * 12 + 12})`
+    ).join(', ');
+    const values = matchPreferences.flatMap(mp => [
+      mp.u,
+      JSON.stringify(mp.m),
+      mp.auto || false,
+      JSON.stringify(mp.d),
+      JSON.stringify(mp.md),
+      JSON.stringify(mp.t),
+      mp.s,
+      JSON.stringify(mp.l),
+      mp.dur || 60,
+      mp.pr || 1,
+      mp.g || 'any',
+      mp.pl || 'same'
+    ]);
+    await pool.query(
+      `INSERT INTO MatchPreference (
+        "user_id", "selected_modules", "auto_match_enabled", "availability_days", 
+        "selected_modes", "selected_times", "style", "selected_languages", 
+        "duration", "priority", "gender_pref", "partner_level"
+      ) VALUES ${placeholders} ON CONFLICT DO NOTHING`,
+      values
+    );
   }
 
   console.log('Seeding completed successfully.');
