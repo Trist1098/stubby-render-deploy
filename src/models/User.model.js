@@ -79,3 +79,20 @@ module.exports.selectByUserId = async function selectByUserId(data) {
     const { rows } = await pool.query(SQLSTATEMENT, VALUES);
     return rows[0];
 };
+
+module.exports.completeOnboardingModel = async function completeOnboardingModel(data) {
+    const SQLSTATEMENT = `
+        UPDATE "User"
+        SET institution_id = $1, diploma_id = $2, year = $3
+        WHERE user_id = $4
+        RETURNING *
+    `;
+    const VALUES = [
+        data.institutionId ? parseInt(data.institutionId) : null,
+        data.diplomaId ? parseInt(data.diplomaId) : null,
+        data.year ? parseInt(data.year) : 1,
+        data.userId
+    ];
+    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+    return rows[0];
+};

@@ -905,55 +905,97 @@ document.addEventListener("DOMContentLoaded", function () {
         const pic = isReceived ? req.sender_pic : req.receiver_pic;
         const username = isReceived ? req.sender_username : req.receiver_username;
         
-        let statusClass = 'status-badge-pending';
-        if (req.status === 'Accepted') statusClass = 'status-badge-accepted';
-        if (req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled') statusClass = 'status-badge-declined';
+        // Status config
+        const statusMap = {
+            'Accepted':  { cls: 'req-card-accepted',  badge: 'req-badge-accepted',  icon: 'fa-check-circle',  label: 'Accepted'  },
+            'Rejected':  { cls: 'req-card-declined',  badge: 'req-badge-declined',  icon: 'fa-times-circle',  label: 'Declined'  },
+            'Declined':  { cls: 'req-card-declined',  badge: 'req-badge-declined',  icon: 'fa-times-circle',  label: 'Declined'  },
+            'Cancelled': { cls: 'req-card-declined',  badge: 'req-badge-declined',  icon: 'fa-ban',           label: 'Cancelled' },
+            'Pending':   { cls: 'req-card-pending',   badge: 'req-badge-pending',   icon: 'fa-clock',         label: 'Pending'   },
+        };
+        const s = statusMap[req.status] || statusMap['Pending'];
+
+        const sessionType = req.type === 'group' ? 'Group Study' : '1-on-1';
+        const dateStr = formatDisplayDate(req.time_slot);
+        const timeStr = req.time_slot ? req.time_slot.split(' ')[1] : 'N/A';
 
         return `
             <div class="col-md-6 col-lg-4">
-                <div class="card request-card request-card-${req.status.toLowerCase()} h-100 p-3">
-                    <div class="card-body p-3 d-flex flex-column">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="avatar-wrap rounded-circle overflow-hidden me-3 mb-0 border-0" style="width: 40px; height: 40px; flex-shrink: 0;">
+                <div class="req-card ${s.cls} h-100 d-flex flex-column">
+
+                    <!-- Top: person + status -->
+                    <div class="req-card-top d-flex align-items-center gap-3 mb-3">
+                        <div class="req-card-avatar-wrap position-relative flex-shrink-0">
+                            <div class="req-card-avatar rounded-circle overflow-hidden">
                                 ${getAvatarHTML(pic, name)}
                             </div>
-                            <div class="overflow-hidden flex-grow-1">
-                                <h6 class="fw-bold mb-0 text-truncate">${name}</h6>
-                                <p class="text-muted smaller mb-0">@${username || 'unknown'}</p>
-                            </div>
-                            <span class="badge ${statusClass} rounded-pill smaller uppercase fw-bold ms-2">${req.status}</span>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="req-card-name fw-bold text-truncate">${name}</div>
+                            <div class="req-card-username text-truncate">@${username || 'unknown'}</div>
+                        </div>
+                        <span class="req-badge ${s.badge}">
+                            <i class="fas ${s.icon} me-1"></i>${s.label}
+                        </span>
+                    </div>
+
+                    <!-- Middle: session info -->
+                    <div class="req-card-body flex-grow-1">
+                        <div class="req-card-topic text-truncate mb-2">${req.topic || 'No specific topic'}</div>
+
+                        <div class="req-card-tags d-flex flex-wrap gap-1 mb-3">
+                            <span class="req-tag req-tag-module">
+                                <i class="fas fa-book-open fa-xs"></i>${req.module_code || 'General'}
+                            </span>
+                            <span class="req-tag req-tag-type">
+                                <i class="fas fa-users fa-xs"></i>${sessionType}
+                            </span>
                         </div>
 
-                        <div class="mb-3 flex-grow-1">
-                            <div class="mb-2">
-                                <span class="badge bg-light text-dark border rounded-pill smaller fw-bold"><i class="fas fa-book text-primary me-1"></i> ${req.module_code || 'General'}</span>
-                                <span class="badge bg-light text-dark border rounded-pill smaller fw-bold"><i class="fas fa-users text-primary me-1"></i> ${req.type === 'group' ? 'Group Study' : '1-on-1'}</span>
+                        <div class="req-card-details">
+                            <div class="req-detail-row">
+                                <i class="fas fa-calendar-alt req-detail-icon"></i>
+                                <span>${dateStr}</span>
                             </div>
-                            <p class="mb-2 small text-truncate fw-bold">${req.topic || 'No specific topic'}</p>
-                            
-                            <div class="d-flex align-items-center gap-3 mb-1">
-                                <div class="smaller text-muted d-flex align-items-center"><i class="far fa-calendar-alt text-primary me-2"></i> ${formatDisplayDate(req.time_slot)}</div>
-                                <div class="smaller text-muted d-flex align-items-center"><i class="far fa-clock text-primary me-2"></i> ${req.time_slot ? req.time_slot.split(' ')[1] : 'N/A'}</div>
+                            <div class="req-detail-row">
+                                <i class="fas fa-clock req-detail-icon"></i>
+                                <span>${timeStr}</span>
                             </div>
-                            <div class="smaller text-muted d-flex align-items-center text-truncate"><i class="fas fa-map-marker-alt text-primary me-2"></i> ${req.location || 'N/A'}</div>
+                            <div class="req-detail-row">
+                                <i class="fas fa-map-marker-alt req-detail-icon"></i>
+                                <span class="text-truncate">${req.location || 'N/A'}</span>
+                            </div>
                         </div>
-                        
-                        <div class="mt-auto pt-3 border-top">
-                            ${isReceived && req.status === 'Pending' ? `
-                                <div class="d-flex gap-2 mb-2">
-                                    <button class="btn btn-primary btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.confirmUpdateStatus(${req.request_id}, 'Accepted')">ACCEPT</button>
-                                    <button class="btn btn-outline-danger btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.confirmUpdateStatus(${req.request_id}, 'Declined')">DECLINE</button>
-                                </div>
-                                <button class="btn btn-light btn-sm w-100 rounded-pill fw-bold py-2 text-primary border" onclick="window.viewRequestDetail(${req.request_id})">VIEW DETAILS</button>
-                            ` : !isReceived && req.status === 'Pending' ? `
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-outline-danger btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.confirmUpdateStatus(${req.request_id}, 'Cancelled')">CANCEL</button>
-                                    <button class="btn btn-outline-primary btn-sm flex-grow-1 rounded-pill fw-bold py-2" onclick="window.viewRequestDetail(${req.request_id})">DETAILS</button>
-                                </div>
-                            ` : `
-                                <button class="btn btn-outline-primary btn-sm w-100 rounded-pill fw-bold py-2" onclick="window.viewRequestDetail(${req.request_id})">VIEW DETAILS</button>
-                            `}
-                        </div>
+                    </div>
+
+                    <!-- Bottom: actions -->
+                    <div class="req-card-footer mt-3">
+                        ${isReceived && req.status === 'Pending' ? `
+                            <div class="d-flex gap-2 mb-2">
+                                <button class="btn btn-accent flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.confirmUpdateStatus(${req.request_id}, 'Accepted')">
+                                    <i class="fas fa-check fa-xs me-1"></i>Accept
+                                </button>
+                                <button class="btn btn-outline-danger flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.confirmUpdateStatus(${req.request_id}, 'Declined')">
+                                    <i class="fas fa-times fa-xs me-1"></i>Decline
+                                </button>
+                            </div>
+                            <button class="btn btn-white w-100 py-2 rounded-4 fw-bold small" onclick="window.viewRequestDetail(${req.request_id})">
+                                View Details
+                            </button>
+                        ` : !isReceived && req.status === 'Pending' ? `
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-danger flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.confirmUpdateStatus(${req.request_id}, 'Cancelled')">
+                                    <i class="fas fa-ban fa-xs me-1"></i>Cancel
+                                </button>
+                                <button class="btn btn-white flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.viewRequestDetail(${req.request_id})">
+                                    Details
+                                </button>
+                            </div>
+                        ` : `
+                            <button class="btn btn-white w-100 py-2 rounded-4 fw-bold small" onclick="window.viewRequestDetail(${req.request_id})">
+                                View Details
+                            </button>
+                        `}
                     </div>
                 </div>
             </div>

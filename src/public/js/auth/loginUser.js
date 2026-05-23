@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+﻿document.addEventListener("DOMContentLoaded", function () {
   const loginForm = document.getElementById('loginForm');
   if (!loginForm) return;
 
@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (res.token) {
                 auth.setToken(res.token);
                 auth.setUser(res.user);
-                window.location.href = 'index.html';
+                window.location.href = 'home.html';
             } else {
                 alert(res.message || 'Login failed. Please check your credentials.');
             }

@@ -1,4 +1,4 @@
-const getCurrentUserId = () => {
+﻿const getCurrentUserId = () => {
   const userId = localStorage.getItem('currentUserId');
   return userId ? Number(userId) : null;
 };
@@ -137,7 +137,7 @@ const injectNavbar = () => {
 
   navbarEl.innerHTML = `
     <nav class="app-shell-nav">
-      <a class="brand-link" href="index.html" aria-label="Study Together home">
+      <a class="brand-link" href="home.html" aria-label="Study Together home">
         <span class="brand-mark">ST</span>
         <span>Study Together</span>
       </a>
@@ -147,7 +147,7 @@ const injectNavbar = () => {
       </button>
 
       <div id="mainNavigation" class="nav-links">
-        <a data-nav-page="index.html" href="index.html">Dashboard</a>
+        <a data-nav-page="home.html" href="home.html">Dashboard</a>
         <a data-nav-page="study-sessions.html" href="study-sessions.html">Study Sessions</a>
         <a id="currentSessionLink" data-nav-page="study-session.html" href="#">Current Session</a>
         <a data-nav-page="consultation.html" href="consultation.html">Consultation</a>

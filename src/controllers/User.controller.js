@@ -1,4 +1,4 @@
-const { selectByUsernameOrEmail, create, updateProfile, updateProfilePicture, enrollModules, selectByUserId } = require('../models/User.model');
+const { selectByUsernameOrEmail, create, updateProfile, completeOnboardingModel, updateProfilePicture, enrollModules, selectByUserId } = require('../models/User.model');
 
 module.exports.login = async (req, res, next) => {
     const identifier = req.body.username || req.body.identifier;
@@ -58,11 +58,11 @@ module.exports.completeOnboarding = async (req, res, next) => {
     }
 
     try {
-        const updatedUser = await updateProfile({ 
-            institution_id, 
-            diploma_id, 
+        const updatedUser = await completeOnboardingModel({ 
+            institutionId: institution_id, 
+            diplomaId: diploma_id, 
             year, 
-            user_id: userId 
+            userId 
         });
         
         await enrollModules({ 
