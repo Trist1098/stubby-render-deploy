@@ -14,6 +14,7 @@ import {
   sendTypingRequest,
   fetchTypingUsers,
   searchMessagesRequest,
+  getMentionSuggestionsRequest,
 } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
@@ -33,6 +34,8 @@ let voiceDiscarded = false;
 let replyingTo = null;
 let searchMode = false;
 let searchTimeout = null;
+let mentionQuery = null;
+let mentionTimeout = null;
 const reactionChoices = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F389}'];
 
 function cleanupVoiceState() {
@@ -69,6 +72,8 @@ export function renderChatPanel() {
   replyingTo = null;
   searchMode = false;
   clearTimeout(searchTimeout);
+  mentionQuery = null;
+  clearTimeout(mentionTimeout);
 
   const panel = document.getElementById('chatPanel');
   const conv = getActiveConversation();
@@ -118,6 +123,7 @@ export function renderChatPanel() {
       ${renderMessages()}
     </div>
     <div class="message-composer border-top" id="messageComposerWrap">
+      <div class="mention-dropdown d-none" id="mentionDropdown"></div>
       <div class="reply-bar d-none" id="replyBar"></div>
       <form class="d-flex gap-2 p-3" id="messageForm">
         <label class="btn btn-outline-secondary flex-shrink-0" for="fileInput" title="Attach file">
@@ -153,6 +159,9 @@ export function renderChatPanel() {
   document.getElementById('searchType').addEventListener('change', executeSearch);
   document.getElementById('searchDateFrom').addEventListener('change', executeSearch);
   document.getElementById('searchDateTo').addEventListener('change', executeSearch);
+  if (messageInput) {
+    messageInput.addEventListener('input', handleMentionInput);
+  }
 
   const pinnedBar = document.getElementById('pinnedBar');
   if (pinnedBar) pinnedBar.addEventListener('click', handlePinnedBarClick);
@@ -303,7 +312,7 @@ function renderMessageContent(message) {
     </a>
     ${fileDetails}`;
   }
-  return `<div>${escapeHtml(message.text || '')}</div>`;
+  return `<div>${highlightMentions(escapeHtml(message.text || ''))}</div>`;
 }
 
 function renderVoiceMessage(message) {
@@ -963,6 +972,70 @@ function jumpToMessage(messageId) {
     setTimeout(() => row.classList.remove('message-highlight'), 2000);
   }
 }
+
+
+function highlightMentions(escapedText) {
+  return escapedText.replace(/@(\w+)/g, '<span class="mention-highlight">@$1</span>');
+}
+
+function handleMentionInput() {
+  const input = document.getElementById('messageInput');
+  if (!input) return;
+  const val = input.value;
+  const cursor = input.selectionStart;
+  const before = val.slice(0, cursor);
+  const match = before.match(/@(\w*)$/);
+  if (!match) {
+    closeMentionDropdown();
+    return;
+  }
+  mentionQuery = match[1];
+  clearTimeout(mentionTimeout);
+  mentionTimeout = setTimeout(() => fetchMentionSuggestions(mentionQuery), 200);
+}
+
+async function fetchMentionSuggestions(q) {
+  if (!chatState.activeConversationId) return;
+  const users = await getMentionSuggestionsRequest(chatState.activeConversationId, q);
+  if (!Array.isArray(users) || mentionQuery === null) return;
+  renderMentionDropdown(users);
+}
+
+function renderMentionDropdown(users) {
+  const dropdown = document.getElementById('mentionDropdown');
+  if (!dropdown) return;
+  if (users.length === 0) {
+    closeMentionDropdown();
+    return;
+  }
+  dropdown.innerHTML = users.map((u) =>
+    `<button class="mention-option" data-username="${escapeHtml(u.username)}" type="button">${escapeHtml(u.username)}</button>`
+  ).join('');
+  dropdown.classList.remove('d-none');
+  dropdown.querySelectorAll('.mention-option').forEach((btn) => {
+    btn.addEventListener('click', () => selectMention(btn.dataset.username));
+  });
+}
+
+function selectMention(username) {
+  const input = document.getElementById('messageInput');
+  if (!input) return;
+  const cursor = input.selectionStart;
+  const before = input.value.slice(0, cursor);
+  const replaced = before.replace(/@(\w*)$/, `@${username} `);
+  input.value = replaced + input.value.slice(cursor);
+  const newCursor = replaced.length;
+  input.setSelectionRange(newCursor, newCursor);
+  input.focus();
+  closeMentionDropdown();
+}
+
+function closeMentionDropdown() {
+  mentionQuery = null;
+  const dropdown = document.getElementById('mentionDropdown');
+  if (dropdown) dropdown.classList.add('d-none');
+}
+
 
 function renderTypingIndicator() {
   const list = document.getElementById('messagesList');

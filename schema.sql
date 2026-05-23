@@ -37,6 +37,7 @@ DROP TABLE IF EXISTS EventComment CASCADE;
 DROP TABLE IF EXISTS EventParticipant CASCADE;
 DROP TABLE IF EXISTS CalendarEvent CASCADE;
 DROP TABLE IF EXISTS Notification CASCADE;
+DROP TABLE IF EXISTS MessageMention CASCADE;
 DROP TABLE IF EXISTS MessagePin CASCADE;
 DROP TABLE IF EXISTS MessageReaction CASCADE;
 DROP TABLE IF EXISTS ChatMessage CASCADE;
@@ -343,6 +344,16 @@ CREATE TABLE MessageReaction (
     FOREIGN KEY (message_id) REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(message_id, user_id, emoji)
+);
+
+CREATE TABLE MessageMention (
+    mention_id        SERIAL PRIMARY KEY,
+    message_id        INT NOT NULL,
+    mentioned_user_id INT NOT NULL,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (message_id)        REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
+    FOREIGN KEY (mentioned_user_id) REFERENCES "User"(user_id)         ON DELETE CASCADE,
+    UNIQUE(message_id, mentioned_user_id)
 );
 
 CREATE TABLE UserPresence (

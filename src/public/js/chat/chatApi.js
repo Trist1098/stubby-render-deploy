@@ -101,3 +101,10 @@ export function searchMessagesRequest(conversationId, params) {
   const qs = new URLSearchParams(params).toString();
   return apiRequest(`/api/chats/${conversationId}/search?${qs}`);
 }
+export function searchConversationsRequest(q) {
+  return apiRequest(`/api/chats/search?q=${encodeURIComponent(q)}`);
+}
+
+export function getMentionSuggestionsRequest(conversationId, q) {
+  return apiRequest(`/api/chats/${conversationId}/mentions?q=${encodeURIComponent(q)}`);
+}

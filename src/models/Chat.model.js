@@ -385,6 +385,53 @@ module.exports.searchMessages = async (conversationId, { q, dateFrom, dateTo, se
   return result.rows;
 };
 
+module.exports.searchConversations = async (userId, q) => {
+  const result = await pool.query(
+    `SELECT
+       cc.conversation_id,
+       cc.name,
+       cc.type,
+       cc.created_at,
+       CASE WHEN cc.type = 'friend' THEN (
+         SELECT u2.username
+         FROM ConversationMember cm2
+         JOIN "User" u2 ON u2.user_id = cm2.user_id
+         WHERE cm2.conversation_id = cc.conversation_id AND cm2.user_id != $1
+         LIMIT 1
+       ) ELSE NULL END AS other_username
+     FROM ChatConversation cc
+     JOIN ConversationMember cm ON cm.conversation_id = cc.conversation_id
+     WHERE cm.user_id = $1
+       AND (
+         cc.name ILIKE $2
+         OR (cc.type = 'friend' AND EXISTS (
+           SELECT 1 FROM ConversationMember cm3
+           JOIN "User" u3 ON u3.user_id = cm3.user_id
+           WHERE cm3.conversation_id = cc.conversation_id
+             AND cm3.user_id != $1
+             AND u3.username ILIKE $2
+         ))
+       )
+     ORDER BY cc.created_at DESC`,
+    [userId, `%${q}%`]
+  );
+  return result.rows;
+};
+
+module.exports.getMentionSuggestions = async (conversationId, q) => {
+  const result = await pool.query(
+    `SELECT u.user_id, u.username
+     FROM ConversationMember cm
+     JOIN "User" u ON u.user_id = cm.user_id
+     WHERE cm.conversation_id = $1
+       AND u.username ILIKE $2
+     ORDER BY u.username
+     LIMIT 10`,
+    [conversationId, `%${q || ''}%`]
+  );
+  return result.rows;
+};
+
 module.exports.setTypingStatus = async (userId, conversationId, isTyping) => {
   await pool.query(
     `INSERT INTO UserPresence (user_id, typing_status, conversation_id, last_seen)

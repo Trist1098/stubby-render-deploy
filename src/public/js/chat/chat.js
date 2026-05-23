@@ -2,7 +2,7 @@
 
 import { fetchConversations } from './chatApi.js';
 import { chatState } from './chatState.js';
-import { renderConversationList } from './conversations.js';
+import { renderConversationList, setConvSearch } from './conversations.js';
 import { initNewChatModal } from './modal.js';
 import { loadMessages, renderEmptyChat } from './messages.js';
 
@@ -30,4 +30,12 @@ if (!auth.isLoggedIn()) {
   initNewChatModal(loadConversations);
   loadConversations();
   setInterval(refreshConversations, 3000);
+
+  const convSearchInput = document.getElementById('convSearchInput');
+  if (convSearchInput) {
+    convSearchInput.addEventListener('input', (e) => {
+      setConvSearch(e.target.value);
+      renderConversationList(loadMessages);
+    });
+  }
 }

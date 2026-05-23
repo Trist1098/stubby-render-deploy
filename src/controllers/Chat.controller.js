@@ -21,6 +21,8 @@ const {
   setTypingStatus: setTypingStatusModel,
   getTypingUsers: getTypingUsersModel,
   searchMessages: searchMessagesModel,
+  searchConversations: searchConversationsModel,
+  getMentionSuggestions: getMentionSuggestionsModel,
 } = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
@@ -414,6 +416,32 @@ module.exports.searchMessages = async (req, res, next) => {
 
     const results = await searchMessagesModel(conversationId, { q, dateFrom, dateTo, senderId, type });
     res.json(results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.searchConversations = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const q = String(req.query.q || '').trim();
+  try {
+    const results = await searchConversationsModel(userId, q);
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getMentionSuggestions = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const q = String(req.query.q || '').trim();
+  if (!Number.isInteger(conversationId)) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+    const users = await getMentionSuggestionsModel(conversationId, q);
+    res.json(users);
   } catch (error) {
     next(error);
   }

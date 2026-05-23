@@ -23,29 +23,40 @@ const {
   setTypingStatus,
   getTypingUsers,
   searchMessages,
+  searchConversations,
+  getMentionSuggestions,
 } = require('../controllers/Chat.controller');
 
-// Get friends for the new chat modal
+// Static routes first to avoid being caught by /:conversationId
 router.get('/friends', jwtMiddleware.verifyToken, getFriends);
+router.get('/search', jwtMiddleware.verifyToken, searchConversations);
 
 // Conversation list and creation
 router.get('/', jwtMiddleware.verifyToken, getAllConversations);
 router.post('/', jwtMiddleware.verifyToken, createConversation);
+
+// Conversation-level actions
 router.put('/:conversationId/typing', jwtMiddleware.verifyToken, setTypingStatus);
 router.get('/:conversationId/typing', jwtMiddleware.verifyToken, getTypingUsers);
+router.get('/:conversationId/pinned', jwtMiddleware.verifyToken, getPinnedMessages);
+router.get('/:conversationId/search', jwtMiddleware.verifyToken, searchMessages);
+router.get('/:conversationId/mentions', jwtMiddleware.verifyToken, getMentionSuggestions);
+
+// Message actions
 router.get('/:conversationId/messages', jwtMiddleware.verifyToken, getMessages);
 router.post('/:conversationId/messages', jwtMiddleware.verifyToken, sendMessage);
 router.patch('/:conversationId/messages/:messageId', jwtMiddleware.verifyToken, editMessage);
 router.delete('/:conversationId/messages/:messageId', jwtMiddleware.verifyToken, deleteMessage);
-router.get('/:conversationId/pinned', jwtMiddleware.verifyToken, getPinnedMessages);
 router.post('/:conversationId/messages/:messageId/pin', jwtMiddleware.verifyToken, pinMessage);
 router.delete('/:conversationId/messages/:messageId/pin', jwtMiddleware.verifyToken, unpinMessage);
 router.post('/:conversationId/messages/:messageId/reply', jwtMiddleware.verifyToken, replyToMessage);
 router.post('/:conversationId/messages/:messageId/reactions/:emoji', jwtMiddleware.verifyToken, addReaction);
 router.delete('/:conversationId/messages/:messageId/reactions/:emoji', jwtMiddleware.verifyToken, removeReaction);
+
+// File uploads
 router.post('/:conversationId/upload', jwtMiddleware.verifyToken, verifyUploadTarget, uploadChatFile, uploadFile);
 router.post('/:conversationId/voice', jwtMiddleware.verifyToken, verifyUploadTarget, uploadChatVoice, uploadVoiceMessage);
-router.get('/:conversationId/search', jwtMiddleware.verifyToken, searchMessages);
+
 router.get('/:conversationId', jwtMiddleware.verifyToken, getConversationById);
 
 module.exports = router;
