@@ -9,7 +9,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="css/study-session.css?v=shared-workspace" />
+    <link rel="stylesheet" href="css/study-session.css?v=session-ui-polish" />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap"
       rel="stylesheet"
@@ -38,36 +38,39 @@
             </button>
 
             <div class="collapse navbar-collapse" id="navContent">
-              <ul class="navbar-nav mx-auto gap-2 study-nav-links" id="nav-links">
+              <ul class="navbar-nav mx-auto gap-2" id="nav-links">
                 <li class="nav-item">
                   <a href="home.html" class="nav-link study-nav-link">
                     <i class="fas fa-home"></i>
                     <span>Home</span>
                   </a>
                 </li>
-                <li class="nav-item">
-                  <a href="study-session.html" class="nav-link study-nav-link active">
-                    <i class="fas fa-layer-group"></i>
-                    <span>Study</span>
+                <li class="nav-item dropdown">
+                  <a
+                    href="matchmaking.html"
+                    class="nav-link dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                  >
+                    Matchmaking
                   </a>
+                  <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
+                    <li>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">
+                        Browse Matches
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">
+                        My Requests
+                      </a>
+                    </li>
+                  </ul>
                 </li>
                 <li class="nav-item">
-                  <a href="matchmaking.html" class="nav-link study-nav-link">
-                    <i class="fas fa-user-friends"></i>
-                    <span>Match</span>
-                  </a>
+                  <a href="study-session.html" class="nav-link active">Sessions</a>
                 </li>
                 <li class="nav-item">
-                  <a href="chat.html" class="nav-link study-nav-link">
-                    <i class="far fa-comment"></i>
-                    <span>Chat</span>
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a href="profile.html" class="nav-link study-nav-link">
-                    <i class="far fa-user"></i>
-                    <span>Profile</span>
-                  </a>
+                  <a href="chat.html" class="nav-link">Chat</a>
                 </li>
               </ul>
               <ul class="navbar-nav">
@@ -92,14 +95,28 @@
             type="button"
             aria-label="Exit session"
           >
-            <i class="fas fa-door-open"></i>
-            <span>Exit Session</span>
+            <i class="fas fa-right-from-bracket" aria-hidden="true"></i>
           </button>
         </div>
 
         <div id="sessionMessage" class="session-alert d-none"></div>
 
         <section class="session-focus-card">
+          <div id="sessionMissionStrip" class="mission-strip d-none">
+            <div>
+              <span>Mission</span>
+              <strong id="sessionMissionText"></strong>
+            </div>
+            <button
+              id="editMissionButton"
+              class="mission-edit-button"
+              type="button"
+              aria-label="Edit session mission"
+            >
+              <i class="fas fa-pen"></i>
+            </button>
+          </div>
+
           <div class="timer-ring" aria-label="Session countdown timer">
             <span id="countdownTimer">37:50</span>
           </div>
@@ -162,10 +179,17 @@
           <h2 id="statusControlsTitle">Your Status</h2>
           <div class="status-controls" role="group" aria-label="Set your current status">
             <button class="status-control active" type="button" data-status="focus">
-              Focusing
+              <i class="fas fa-bullseye" aria-hidden="true"></i>
+              <span>Focusing</span>
             </button>
-            <button class="status-control" type="button" data-status="break">On Break</button>
-            <button class="status-control" type="button" data-status="need_help">Need Help</button>
+            <button class="status-control" type="button" data-status="break">
+              <i class="fas fa-mug-hot" aria-hidden="true"></i>
+              <span>On Break</span>
+            </button>
+            <button class="status-control" type="button" data-status="need_help">
+              <i class="fas fa-hand" aria-hidden="true"></i>
+              <span>Need Help</span>
+            </button>
           </div>
           <div class="status-progress-panel">
             <div class="status-progress-copy">
@@ -176,10 +200,12 @@
               id="statusProgressBar"
               class="status-progress-bar"
               type="button"
+              role="slider"
               aria-label="Set micro-goal progress"
               aria-valuemin="0"
               aria-valuemax="100"
               aria-valuenow="0"
+              aria-valuetext="0%"
             >
               <span id="statusProgressFill"></span>
             </button>
@@ -209,14 +235,62 @@
           </div>
           <div id="membersList" class="members-list"></div>
         </section>
+
+        <section class="status-mix-dashboard" aria-labelledby="statusMixTitle">
+          <div class="status-mix-heading">
+            <div>
+              <span class="session-kicker">Learning Analytics</span>
+              <h2 id="statusMixTitle">Focus Status Mix</h2>
+            </div>
+            <div id="statusMixSummary" class="status-mix-summary"></div>
+          </div>
+          <div class="status-mix-chart-shell">
+            <div
+              id="statusMixChart"
+              class="status-mix-chart"
+              role="img"
+              aria-label="Percentage of session time spent in each focus status"
+            ></div>
+          </div>
+          <div id="statusMixLegend" class="status-mix-legend"></div>
+        </section>
       </section>
     </main>
+
+    <div
+      id="intentionModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="intentionModalTitle"
+    >
+      <section class="session-modal-card intention-modal-card">
+        <div class="session-modal-header">
+          <h2 id="intentionModalTitle">What do you want done by the end?</h2>
+        </div>
+        <form id="intentionForm" class="intention-form">
+          <label>
+            <span>Session intention</span>
+            <textarea
+              id="intentionInput"
+              rows="3"
+              maxlength="180"
+              placeholder="Finish SDLC revision notes and submit evidence"
+              required
+            ></textarea>
+          </label>
+          <button type="submit">Set Mission</button>
+        </form>
+      </section>
+    </div>
 
     <div
       id="queueModal"
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="queueModalTitle"
     >
       <section class="session-modal-card queue-modal-card">
@@ -240,6 +314,7 @@
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="exitModalTitle"
     >
       <section class="session-modal-card exit-modal-card">
@@ -253,10 +328,57 @@
     </div>
 
     <div
+      id="timeExpiryModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="timeExpiryTitle"
+    >
+      <section class="session-modal-card time-expiry-card">
+        <span class="time-expiry-kicker">Session Timer</span>
+        <h2 id="timeExpiryTitle">Time is up</h2>
+        <p id="timeExpiryText">
+          All study timers are paused. End the session or extend the timer to keep working.
+        </p>
+
+        <form id="extendSessionForm" class="time-expiry-extend-panel">
+          <label>
+            <span>Extend by</span>
+            <select id="extendMinutesSelect">
+              <option value="300">5 minutes</option>
+              <option value="600" selected>10 minutes</option>
+              <option value="900">15 minutes</option>
+              <option value="1800">30 minutes</option>
+            </select>
+          </label>
+          <div class="session-modal-actions">
+            <button id="endExpiredSessionButton" class="btn btn-light" type="button">
+              End Session
+            </button>
+            <button class="btn btn-primary" type="submit">Extend</button>
+          </div>
+        </form>
+
+        <div id="stayExitPanel" class="time-expiry-stay-panel d-none">
+          <div class="session-modal-actions">
+            <button id="exitExtendedSessionButton" class="btn btn-light" type="button">
+              Exit
+            </button>
+            <button id="stayExtendedSessionButton" class="btn btn-primary" type="button">
+              Stay
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div
       id="consultationModal"
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="consultationModalTitle"
     >
       <section class="session-modal-card">
@@ -267,6 +389,14 @@
         </p>
         <div class="session-modal-actions">
           <button id="cancelConsultationButton" class="btn btn-light" type="button">Cancel</button>
+          <button
+            id="openPendingConsultationChatButton"
+            class="btn btn-light consultation-chat-button"
+            type="button"
+          >
+            <i class="fas fa-comments" aria-hidden="true"></i>
+            <span>Chat</span>
+          </button>
           <button id="confirmConsultationButton" class="btn btn-primary" type="button">
             Start Consultation
           </button>
@@ -279,6 +409,7 @@
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="consultationWorkspaceTitle"
     >
       <section class="session-modal-card consultation-workspace-card">
@@ -288,6 +419,14 @@
             <h2 id="consultationWorkspaceTitle">Consultation Workspace</h2>
           </div>
           <div class="consultation-header-actions">
+            <button
+              id="openConsultationChatButton"
+              class="btn btn-light consultation-chat-button"
+              type="button"
+            >
+              <i class="fas fa-comments" aria-hidden="true"></i>
+              <span>Chat</span>
+            </button>
             <button
               id="closeConsultationWorkspaceButton"
               class="modal-icon-button"
@@ -312,6 +451,7 @@
                 role="tab"
                 aria-selected="true"
                 aria-controls="whiteboardPanel"
+                tabindex="0"
                 data-workspace-tab="whiteboard"
               >
                 Whiteboard
@@ -323,6 +463,7 @@
                 role="tab"
                 aria-selected="false"
                 aria-controls="scratchpadPanel"
+                tabindex="-1"
                 data-workspace-tab="scratchpad"
               >
                 Scratchpad
@@ -345,7 +486,9 @@
                 <canvas
                   id="consultationWhiteboard"
                   class="consultation-whiteboard"
-                  aria-label="Shared whiteboard"
+                  role="img"
+                  tabindex="0"
+                  aria-label="Shared whiteboard. Use the Scratchpad tab for keyboard text input."
                 ></canvas>
               </section>
               <section
@@ -353,6 +496,7 @@
                 class="workspace-panel d-none"
                 role="tabpanel"
                 aria-labelledby="scratchpadTabButton"
+                hidden
                 data-workspace-panel="scratchpad"
               >
                 <textarea
@@ -379,6 +523,7 @@
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="consultationReviewTitle"
     >
       <section class="session-modal-card consultation-review-modal-card">
@@ -443,6 +588,7 @@
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="consultationDirectionTitle"
     >
       <section class="session-modal-card consultation-review-modal-card">
@@ -469,6 +615,7 @@
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="memberGoalsModalTitle"
     >
       <section class="session-modal-card member-goals-modal-card">
@@ -492,6 +639,7 @@
       class="session-modal d-none"
       role="dialog"
       aria-modal="true"
+      aria-hidden="true"
       aria-labelledby="completionModalTitle"
     >
       <section class="session-modal-card completion-modal-card">
@@ -533,6 +681,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
-    <script src="js/sessionPage/studySessionPage.js?v=shared-workspace"></script>
+    <script src="js/sessionPage/studySessionPage.js?v=status-mix-stale-pause-guard"></script>
   </body>
 </html>

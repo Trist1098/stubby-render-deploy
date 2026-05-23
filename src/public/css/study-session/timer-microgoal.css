@@ -25,6 +25,51 @@
   z-index: 1;
 }
 
+.mission-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #eff6ff;
+  color: #203047;
+}
+
+.mission-strip>div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mission-strip span {
+  color: #2563eb;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mission-strip strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.mission-edit-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #203047;
+}
+
 .session-label {
   display: block;
   color: #8a94a6;

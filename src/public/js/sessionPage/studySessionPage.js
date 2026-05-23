@@ -1,11 +1,20 @@
 const DEFAULT_SESSION_ID = 2;
-const CURRENT_USER_ID = 2;
+const CURRENT_USER_ID = currentUserIdFromAuth();
 const urlParams = new URLSearchParams(window.location.search);
 const selectedId = Number(urlParams.get('id'));
 const sessionId = Number.isInteger(selectedId) && selectedId > 0 ? selectedId : DEFAULT_SESSION_ID;
 const apiBase = `/api/sessions/${sessionId}`;
 const MEMBER_PREVIEW_LIMIT = 3;
 const CHECKLIST_STORAGE_PREFIX = 'workCheckChecklist:';
+const INTENTION_STORAGE_PREFIX = 'sessionIntention:';
+const SESSION_REFRESH_INTERVAL_MS = 5000;
+const STATUS_BREAKDOWN_ORDER = ['focus', 'break', 'need_help', 'in_consultation'];
+const STATUS_BREAKDOWN_META = {
+  focus: { label: 'Focusing', color: '#16a34a' },
+  break: { label: 'On Break', color: '#f59e0b' },
+  need_help: { label: 'Need Help', color: '#ef4444' },
+  in_consultation: { label: 'In Consultation', color: '#6366f1' },
+};
 
 let sessionData = {
   id: sessionId,
@@ -20,6 +29,19 @@ let sessionData = {
 let timerStartedAt = Date.now();
 let timerInterval = null;
 let statusTimerInterval = null;
+let sessionPollInterval = null;
+let focusStatusMixPollInterval = null;
+let focusStatusMixRenderInterval = null;
+let focusStatusMixData = null;
+let focusStatusMixRequestVersion = 0;
+let statusUpdateInFlight = false;
+let pendingStatusUpdate = null;
+let sessionLoadInFlight = false;
+let expiryRefreshInFlight = false;
+let pausedRemainingSeconds = null;
+const focusStatusLiveAnchors = new Map();
+const focusStatusLocalTotalMs = new Map();
+const focusStatusMemberTotalAnchors = new Map();
 let activeProgressDrag = null;
 let membersExpanded = false;
 let pendingConsultationMemberId = null;
@@ -35,10 +57,36 @@ let workspaceSaveInFlight = false;
 let workspaceRevision = 0;
 let savedWorkspaceRevision = 0;
 let lastWorkspaceUpdatedAt = null;
+const modalFocusStack = [];
 const page = {};
 
+function currentUserIdFromAuth() {
+  try {
+    const user = window.auth ? window.auth.getUser() : null;
+    const userId = Number(user?.user_id || user?.id || user?.userId);
+    return Number.isInteger(userId) && userId > 0 ? userId : null;
+  } catch {
+    return null;
+  }
+}
+
+function requireStudySessionLogin() {
+  if (window.auth?.isLoggedIn() && CURRENT_USER_ID) return true;
+
+  window.location.href = 'login.html';
+  return false;
+}
+
 function bindPage() {
+  page.editMissionButton = byId('editMissionButton');
+  page.endExpiredSessionButton = byId('endExpiredSessionButton');
+  page.exitExtendedSessionButton = byId('exitExtendedSessionButton');
   page.exitModal = byId('exitModal');
+  page.extendMinutesSelect = byId('extendMinutesSelect');
+  page.extendSessionForm = byId('extendSessionForm');
+  page.intentionForm = byId('intentionForm');
+  page.intentionInput = byId('intentionInput');
+  page.intentionModal = byId('intentionModal');
   page.completionAiFeedback = byId('completionAiFeedback');
   page.completionForm = byId('completionEvidenceForm');
   page.completionModal = byId('completionModal');
@@ -47,6 +95,8 @@ function bindPage() {
   page.consultationDirectionText = byId('consultationDirectionText');
   page.consultationModal = byId('consultationModal');
   page.consultationMemberName = byId('consultationMemberName');
+  page.openConsultationChatButton = byId('openConsultationChatButton');
+  page.openPendingConsultationChatButton = byId('openPendingConsultationChatButton');
   page.consultationReviewForm = byId('consultationReviewForm');
   page.consultationReviewModal = byId('consultationReviewModal');
   page.consultationReviewPrompt = byId('consultationReviewPrompt');
@@ -67,6 +117,8 @@ function bindPage() {
   page.membersList = byId('membersList');
   page.membersToggle = byId('membersToggleButton');
   page.message = byId('sessionMessage');
+  page.missionStrip = byId('sessionMissionStrip');
+  page.missionText = byId('sessionMissionText');
   page.nextQueuedGoal = byId('nextQueuedGoal');
   page.queueModal = byId('queueModal');
   page.queuedGoalCount = byId('queuedGoalCount');
@@ -80,8 +132,16 @@ function bindPage() {
   page.statusProgressFill = byId('statusProgressFill');
   page.statusProgressHint = byId('statusProgressHint');
   page.statusProgressText = byId('statusProgressText');
+  page.stayExitPanel = byId('stayExitPanel');
+  page.stayExtendedSessionButton = byId('stayExtendedSessionButton');
+  page.timeExpiryModal = byId('timeExpiryModal');
+  page.timeExpiryText = byId('timeExpiryText');
+  page.timeExpiryTitle = byId('timeExpiryTitle');
   page.workspacePanels = Array.from(document.querySelectorAll('[data-workspace-panel]'));
   page.workspaceTabButtons = Array.from(document.querySelectorAll('[data-workspace-tab]'));
+  page.statusMixChart = byId('statusMixChart');
+  page.statusMixLegend = byId('statusMixLegend');
+  page.statusMixSummary = byId('statusMixSummary');
 }
 
 function byId(id) {
@@ -145,8 +205,212 @@ function clearMessage() {
   page.message.className = 'session-alert d-none';
 }
 
+function focusableElements(container) {
+  return Array.from(
+    container.querySelectorAll(
+      [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(', '),
+    ),
+  ).filter((element) => {
+    const style = window.getComputedStyle(element);
+    return (
+      !element.hasAttribute('disabled') &&
+      element.getAttribute('aria-hidden') !== 'true' &&
+      style.display !== 'none' &&
+      style.visibility !== 'hidden'
+    );
+  });
+}
+
 function showModal(modal, shouldShow) {
+  if (!modal) return;
+  const wasHidden = modal.classList.contains('d-none');
+
+  if (shouldShow && wasHidden) modalFocusStack.push(document.activeElement);
   modal.classList.toggle('d-none', !shouldShow);
+  modal.setAttribute('aria-hidden', String(!shouldShow));
+  if (shouldShow && wasHidden) {
+    if (!modal.hasAttribute('tabindex')) modal.setAttribute('tabindex', '-1');
+    window.setTimeout(() => (focusableElements(modal)[0] || modal).focus(), 0);
+  }
+  if (!shouldShow && !wasHidden) {
+    const previousFocus = modalFocusStack.pop();
+    if (previousFocus?.isConnected) previousFocus.focus();
+  }
+}
+
+function setButtonsDisabled(buttons, disabled) {
+  buttons.filter(Boolean).forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+function isSessionExpired() {
+  return sessionData.status === 'expired';
+}
+
+function isCurrentMemberTimerPaused() {
+  return Boolean(getCurrentMember()?.is_timer_paused);
+}
+
+function timersPausedForViewer() {
+  return isSessionExpired() || isCurrentMemberTimerPaused() || sessionData.status === 'completed';
+}
+
+function sessionMemberForViewer(data = sessionData) {
+  return (data.members || []).find((memberData) => Number(memberData.user_id) === CURRENT_USER_ID);
+}
+
+function sessionTimersPausedForViewer(data = sessionData) {
+  const currentMember = sessionMemberForViewer(data);
+  return (
+    data.status === 'expired' ||
+    data.status === 'completed' ||
+    Boolean(currentMember?.is_timer_paused)
+  );
+}
+
+function remainingSecondsForSession(data = sessionData, anchorStartedAt = timerStartedAt) {
+  const elapsedSeconds = sessionTimersPausedForViewer(data)
+    ? 0
+    : Math.floor((Date.now() - anchorStartedAt) / 1000);
+  return Math.max(0, Number(data.remaining_seconds || 0) - elapsedSeconds);
+}
+
+function shouldPreserveCountdown(previousData, nextData, options = {}) {
+  if (!options.silent) return false;
+  if (!previousData?.id || previousData.id !== nextData?.id) return false;
+  if (previousData.status !== nextData.status) return false;
+  if (sessionTimersPausedForViewer(previousData) || sessionTimersPausedForViewer(nextData)) {
+    return false;
+  }
+
+  return (
+    Number(previousData.planned_duration_seconds || 0) ===
+    Number(nextData.planned_duration_seconds || 0)
+  );
+}
+
+function memberStatusKey(memberData) {
+  return normalizeStatusForApi(memberData?.status_class || memberData?.current_status);
+}
+
+function preserveMemberStatusTimers(previousData, nextData, options = {}) {
+  if (!options.silent || !previousData?.id || previousData.id !== nextData?.id) return;
+
+  const previousMembersByUser = new Map(
+    (previousData.members || []).map((memberData) => [Number(memberData.user_id), memberData]),
+  );
+
+  (nextData.members || []).forEach((nextMember) => {
+    const previousMember = previousMembersByUser.get(Number(nextMember.user_id));
+    if (!previousMember) return;
+
+    const sameStatus = memberStatusKey(previousMember) === memberStatusKey(nextMember);
+    const samePauseState =
+      Boolean(previousMember.is_timer_paused) === Boolean(nextMember.is_timer_paused);
+    if (!sameStatus || !samePauseState) return;
+
+    nextMember.status_timer = Math.max(
+      Number(nextMember.status_timer) || 0,
+      Number(previousMember.status_timer) || 0,
+    );
+  });
+}
+
+function statusMixMemberIsPaused(member) {
+  if (sessionData.status === 'expired' || sessionData.status === 'completed') return true;
+  if (
+    Number(member?.user_id) === CURRENT_USER_ID &&
+    (statusUpdateInFlight || Boolean(pendingStatusUpdate))
+  ) {
+    return false;
+  }
+
+  return Boolean(member?.is_timer_paused);
+}
+
+function updatePausedRemainingSeconds() {
+  if (timersPausedForViewer()) {
+    if (pausedRemainingSeconds === null) {
+      pausedRemainingSeconds = Math.max(0, Number(sessionData.remaining_seconds) || 0);
+    }
+    return;
+  }
+
+  pausedRemainingSeconds = null;
+}
+
+function renderTimeExpiryModal() {
+  if (!page.timeExpiryModal) return;
+
+  const showExtendChoice = isSessionExpired();
+  const showStayChoice = !showExtendChoice && isCurrentMemberTimerPaused();
+
+  if (!showExtendChoice && !showStayChoice) {
+    showModal(page.timeExpiryModal, false);
+    return;
+  }
+
+  page.extendSessionForm.classList.toggle('d-none', !showExtendChoice);
+  page.stayExitPanel.classList.toggle('d-none', !showStayChoice);
+
+  if (showExtendChoice) {
+    page.timeExpiryTitle.textContent = 'Time is up';
+    page.timeExpiryText.textContent =
+      'All study timers are paused. End the session or extend the timer to keep working.';
+  } else {
+    page.timeExpiryTitle.textContent = 'Session extended';
+    page.timeExpiryText.textContent =
+      'Another member extended the session. Your timers are still paused until you stay or exit.';
+  }
+
+  showModal(page.timeExpiryModal, true);
+}
+
+function sessionIntentionKey() {
+  return `${INTENTION_STORAGE_PREFIX}${sessionId}:${CURRENT_USER_ID}`;
+}
+
+function readSessionIntention() {
+  return localStorage.getItem(sessionIntentionKey()) || '';
+}
+
+function renderSessionIntention() {
+  const intention = readSessionIntention();
+  page.missionStrip.classList.toggle('d-none', !intention);
+  page.missionText.textContent = intention;
+}
+
+function openIntentionModal() {
+  page.intentionInput.value = readSessionIntention();
+  showModal(page.intentionModal, true);
+  window.setTimeout(() => page.intentionInput.focus(), 0);
+}
+
+function promptForSessionIntention() {
+  renderSessionIntention();
+  if (!readSessionIntention()) openIntentionModal();
+}
+
+function saveSessionIntention(event) {
+  event.preventDefault();
+
+  const intention = page.intentionInput.value.trim();
+  if (!intention) {
+    page.intentionInput.focus();
+    return;
+  }
+
+  localStorage.setItem(sessionIntentionKey(), intention);
+  showModal(page.intentionModal, false);
+  renderSessionIntention();
 }
 
 function showToast({ title, message, type = 'info', actionLabel = '', action = null }) {
@@ -198,18 +462,41 @@ function emptyText(text, className = 'member-evidence-empty') {
   return `<p class="${className}">${escapeHtml(text)}</p>`;
 }
 
+function authRequestHeaders(headers = {}) {
+  const token = window.auth ? window.auth.getToken() : null;
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
+}
+
+function saveRotatedToken(response) {
+  const nextToken = response.headers.get('X-New-Token');
+  if (nextToken && window.auth) window.auth.setToken(nextToken);
+}
+
+function logoutIfUnauthorized(response) {
+  if (response.status === 401 && window.auth) window.auth.logout();
+}
+
 async function getJson(url, options = {}) {
+  const { headers = {}, ...fetchOptions } = options;
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
+    ...fetchOptions,
+    headers: authRequestHeaders({ 'Content-Type': 'application/json', ...headers }),
   });
+  saveRotatedToken(response);
+  logoutIfUnauthorized(response);
   const payload = response.status === 204 ? {} : await response.json();
   if (!response.ok) throw new Error(payload.error || 'Request failed');
   return payload.data || payload;
 }
 
 async function postForm(url, formData) {
-  const response = await fetch(url, { method: 'POST', body: formData });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: authRequestHeaders(),
+    body: formData,
+  });
+  saveRotatedToken(response);
+  logoutIfUnauthorized(response);
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || 'Upload failed');
   return payload.data || payload;
@@ -221,6 +508,10 @@ function workCheckUrl(goalId) {
 
 function workCheckHistoryUrl(goalId, userId) {
   return `${apiBase}/micro-goals/${goalId}/work-checks?user_id=${userId}`;
+}
+
+function focusStatusMixUrl() {
+  return `${apiBase}/focus-status-mix`;
 }
 
 function consultationUrl(consultationId = '') {
@@ -239,15 +530,24 @@ function consultationWorkspaceUrl(consultationId) {
   return `${consultationUrl(consultationId)}/workspace`;
 }
 
+function sessionMemberChatUrl(memberUserId) {
+  return `${apiBase}/members/${memberUserId}/chat`;
+}
+
 function renderPage() {
   page.title.textContent = sessionData.title || 'Software Engineering Practice';
+  updatePausedRemainingSeconds();
   renderCurrentGoal();
   renderMembers();
   renderStatusControls();
   renderStatusProgress();
   updateRejoinButton();
+  renderTimeExpiryModal();
   startTimer();
   startStatusTimer();
+  startSessionPolling();
+  startFocusStatusMixTicker();
+  startFocusStatusPolling();
 }
 
 function renderCurrentGoal() {
@@ -285,6 +585,380 @@ function renderQueuedGoal(queuedGoal) {
   `;
 }
 
+function focusStatusMeta(status) {
+  return (
+    STATUS_BREAKDOWN_META[normalizeStatusForApi(status)] || {
+      label: 'Other',
+      color: '#64748b',
+    }
+  );
+}
+
+function formatStatusPercentage(value) {
+  const safeValue = asPercent(value);
+  if (!safeValue) return '0%';
+  return safeValue < 10 && !Number.isInteger(safeValue)
+    ? `${safeValue.toFixed(1)}%`
+    : `${Math.round(safeValue)}%`;
+}
+
+function focusStatusAnchorKey(member) {
+  return String(member.user_id ?? member.name ?? 'member');
+}
+
+function localStatusTotalsMs(anchorKey) {
+  if (!focusStatusLocalTotalMs.has(anchorKey)) {
+    focusStatusLocalTotalMs.set(
+      anchorKey,
+      STATUS_BREAKDOWN_ORDER.reduce((totals, status) => {
+        totals[status] = 0;
+        return totals;
+      }, {}),
+    );
+  }
+  return focusStatusLocalTotalMs.get(anchorKey);
+}
+
+function commitLiveStatusAnchor(anchorKey, anchor) {
+  if (!anchor) return;
+
+  const totals = localStatusTotalsMs(anchorKey);
+  const elapsedMs = Math.max(0, Date.now() - anchor.startedAtMs);
+  const liveMs = Math.max(0, anchor.baseMs + elapsedMs);
+  totals[anchor.status] = Math.max(totals[anchor.status] || 0, liveMs);
+}
+
+function serverStatusTotalMs(member) {
+  const segmentTotalMs = (member.segments || []).reduce(
+    (sum, segment) => sum + Math.max(0, Number(segment.seconds) || 0) * 1000,
+    0,
+  );
+  const memberTotalMs = Math.max(0, Number(member.total_seconds) || 0) * 1000;
+  return Math.max(segmentTotalMs, memberTotalMs);
+}
+
+function localStatusTotalMs(anchorKey) {
+  const totals = localStatusTotalsMs(anchorKey);
+  return STATUS_BREAKDOWN_ORDER.reduce((sum, status) => sum + (totals[status] || 0), 0);
+}
+
+function liveMemberTotalSeconds(member, segmentTotalMs, isPaused = false) {
+  const anchorKey = focusStatusAnchorKey(member);
+  const serverTotalMs = Math.max(serverStatusTotalMs(member), Math.max(0, segmentTotalMs || 0));
+  const now = Date.now();
+  let anchor = focusStatusMemberTotalAnchors.get(anchorKey);
+
+  if (isPaused) {
+    const pausedTotalMs = Math.max(serverTotalMs, localStatusTotalMs(anchorKey), anchor?.baseMs || 0);
+    focusStatusMemberTotalAnchors.set(anchorKey, { baseMs: pausedTotalMs, startedAtMs: now });
+    return Math.floor(pausedTotalMs / 1000);
+  }
+
+  if (!anchor) {
+    anchor = {
+      baseMs: Math.max(serverTotalMs, localStatusTotalMs(anchorKey)),
+      startedAtMs: now,
+    };
+    focusStatusMemberTotalAnchors.set(anchorKey, anchor);
+  }
+
+  const liveMs = anchor.baseMs + Math.max(0, now - anchor.startedAtMs);
+  if (serverTotalMs > liveMs) {
+    anchor = { baseMs: serverTotalMs, startedAtMs: now };
+    focusStatusMemberTotalAnchors.set(anchorKey, anchor);
+  }
+
+  const nextLiveMs = anchor.baseMs + Math.max(0, now - anchor.startedAtMs);
+  return Math.floor(Math.max(nextLiveMs, serverTotalMs) / 1000);
+}
+
+function updateStatusMixMemberStatus(userId, status) {
+  if (!focusStatusMixData?.members) return;
+
+  const member = focusStatusMixData.members.find((item) => Number(item.user_id) === Number(userId));
+  if (!member) return;
+
+  const activeStatus = normalizeStatusForApi(status);
+  const anchorKey = focusStatusAnchorKey(member);
+  const existingAnchor = focusStatusLiveAnchors.get(anchorKey);
+  const currentStatus = normalizeStatusForApi(member.current_status_key || member.current_status);
+  member.is_timer_paused = false;
+  if (currentStatus === activeStatus && existingAnchor?.status === activeStatus) return;
+
+  commitLiveStatusAnchor(anchorKey, focusStatusLiveAnchors.get(anchorKey));
+
+  const totals = localStatusTotalsMs(anchorKey);
+  const serverSegment = (member.segments || []).find(
+    (segment) => normalizeStatusForApi(segment.status) === activeStatus,
+  );
+  const baseMs = Math.max(
+    totals[activeStatus] || 0,
+    Math.max(0, Number(serverSegment?.seconds) || 0) * 1000,
+  );
+
+  member.current_status_key = activeStatus;
+  member.current_status = focusStatusMeta(activeStatus).label;
+  focusStatusMixData.generated_at = new Date().toISOString();
+  focusStatusLiveAnchors.set(anchorKey, {
+    status: activeStatus,
+    baseMs,
+    startedAtMs: Date.now(),
+  });
+}
+
+function liveStatusSeconds(member, activeStatus, serverSeconds) {
+  const anchorKey = focusStatusAnchorKey(member);
+  const serverBaseMs = Math.max(0, Number(serverSeconds) || 0) * 1000;
+  const localTotals = localStatusTotalsMs(anchorKey);
+  let anchor = focusStatusLiveAnchors.get(anchorKey);
+  const now = Date.now();
+
+  if (!anchor || anchor.status !== activeStatus) {
+    commitLiveStatusAnchor(anchorKey, anchor);
+    focusStatusLiveAnchors.set(anchorKey, {
+      status: activeStatus,
+      baseMs: Math.max(serverBaseMs, localTotals[activeStatus] || 0),
+      startedAtMs: now,
+    });
+    anchor = focusStatusLiveAnchors.get(anchorKey);
+  }
+
+  const liveMs = anchor.baseMs + Math.max(0, now - anchor.startedAtMs);
+  if (serverBaseMs > liveMs) {
+    focusStatusLiveAnchors.set(anchorKey, {
+      status: activeStatus,
+      baseMs: serverBaseMs,
+      startedAtMs: now,
+    });
+    anchor = focusStatusLiveAnchors.get(anchorKey);
+  }
+
+  const elapsedMs = Math.max(0, now - anchor.startedAtMs);
+  const nextLiveMs = anchor.baseMs + elapsedMs;
+  localTotals[activeStatus] = Math.max(localTotals[activeStatus] || 0, nextLiveMs);
+  return Math.floor(nextLiveMs / 1000);
+}
+
+function buildLiveStatusSegments(member) {
+  const anchorKey = focusStatusAnchorKey(member);
+  const localTotals = localStatusTotalsMs(anchorKey);
+  const msByStatus = STATUS_BREAKDOWN_ORDER.reduce((totals, status) => {
+    totals[status] = 0;
+    return totals;
+  }, {});
+  const activeStatus = normalizeStatusForApi(member.current_status_key || member.current_status);
+  const isPaused = statusMixMemberIsPaused(member);
+
+  (member.segments || []).forEach((segment) => {
+    const status = normalizeStatusForApi(segment.status);
+    if (Object.prototype.hasOwnProperty.call(msByStatus, status)) {
+      msByStatus[status] += Math.max(0, Number(segment.seconds) || 0) * 1000;
+    }
+  });
+  STATUS_BREAKDOWN_ORDER.forEach((status) => {
+    if (status === activeStatus) return;
+    msByStatus[status] = Math.max(msByStatus[status], localTotals[status] || 0);
+  });
+  if (Object.prototype.hasOwnProperty.call(msByStatus, activeStatus) && !isPaused) {
+    msByStatus[activeStatus] = liveStatusSeconds(
+      member,
+      activeStatus,
+      msByStatus[activeStatus] / 1000,
+    ) * 1000;
+  } else if (Object.prototype.hasOwnProperty.call(msByStatus, activeStatus)) {
+    msByStatus[activeStatus] = Math.max(msByStatus[activeStatus], localTotals[activeStatus] || 0);
+  }
+
+  const segmentTotalMs = STATUS_BREAKDOWN_ORDER.reduce(
+    (sum, status) => sum + msByStatus[status],
+    0,
+  );
+  const totalSeconds = liveMemberTotalSeconds(member, segmentTotalMs, isPaused);
+
+  return STATUS_BREAKDOWN_ORDER.map((status) => ({
+    status,
+    ...focusStatusMeta(status),
+    seconds: Math.floor(msByStatus[status] / 1000),
+    percentage: segmentTotalMs
+      ? Number(((msByStatus[status] / segmentTotalMs) * 100).toFixed(1))
+      : 0,
+    segmentTotalSeconds: Math.floor(segmentTotalMs / 1000),
+    totalSeconds,
+  }));
+}
+
+function updateStatusSegmentElement(segmentEl, segment) {
+  if (!segmentEl) return;
+
+  const percentageText = formatStatusPercentage(segment.percentage);
+  const label = segment.percentage >= 12 ? `${segment.label} ${percentageText}` : '';
+  segmentEl.style.width = `${segment.percentage}%`;
+  segmentEl.style.minWidth = segment.percentage ? '2px' : '0';
+  segmentEl.style.padding = segment.percentage ? '0 7px' : '0';
+  segmentEl.title = `${segment.label} ${percentageText}`;
+  segmentEl.textContent = label;
+}
+
+function renderStatusSegment(segment) {
+  const percentageText = formatStatusPercentage(segment.percentage);
+  const label = segment.percentage >= 12 ? `${escapeHtml(segment.label)} ${percentageText}` : '';
+
+  return `
+    <span
+      class="status-mix-bar-segment status-${escapeHtml(segment.status)}"
+      data-status-mix-segment="${escapeHtml(segment.status)}"
+      style="width: ${segment.percentage}%; min-width: ${
+        segment.percentage ? '2px' : '0'
+      }; padding: ${segment.percentage ? '0 7px' : '0'}; background: ${segment.color}"
+      title="${escapeHtml(segment.label)} ${percentageText}"
+    >${label}</span>
+  `;
+}
+
+function renderStatusBreakdownChips(segments) {
+  return segments
+    .map(
+      (segment) => `
+        <span class="status-mix-status-chip" data-status-mix-chip="${escapeHtml(segment.status)}">
+          <i style="background: ${segment.color}"></i>
+          <span class="status-mix-chip-text">
+            ${escapeHtml(segment.label)} ${formatStatusPercentage(segment.percentage)}
+          </span>
+        </span>
+      `,
+    )
+    .join('');
+}
+
+function findStatusMixRow(anchorKey) {
+  if (!page.statusMixChart) return null;
+  return Array.from(page.statusMixChart.querySelectorAll('[data-status-mix-member]')).find(
+    (row) => row.dataset.statusMixMember === String(anchorKey),
+  );
+}
+
+function refreshFocusStatusMixDom(data = focusStatusMixData) {
+  const members = data?.members || [];
+  if (!members.length || !page.statusMixChart) return;
+
+  let needsFullRender = false;
+
+  members.forEach((member) => {
+    const anchorKey = focusStatusAnchorKey(member);
+    const row = findStatusMixRow(anchorKey);
+    if (!row) {
+      needsFullRender = true;
+      return;
+    }
+
+    const segments = buildLiveStatusSegments(member);
+    const totalSeconds = segments[0]?.totalSeconds || Number(member.total_seconds) || 0;
+    const currentStatus = focusStatusMeta(member.current_status_key || member.current_status);
+    const heading = row.querySelector('[data-status-mix-current]');
+    if (heading) {
+      heading.textContent = `${currentStatus.label} now - ${statusTime(totalSeconds)} tracked`;
+    }
+
+    segments.forEach((segment) => {
+      updateStatusSegmentElement(
+        row.querySelector(`[data-status-mix-segment="${segment.status}"]`),
+        segment,
+      );
+
+      const chipText = row.querySelector(
+        `[data-status-mix-chip="${segment.status}"] .status-mix-chip-text`,
+      );
+      if (chipText) {
+        chipText.textContent = `${segment.label} ${formatStatusPercentage(segment.percentage)}`;
+      }
+    });
+  });
+
+  if (needsFullRender) renderFocusStatusMixChart(data);
+}
+
+function renderFocusStatusMix(data, members) {
+  page.statusMixSummary.textContent = `Live - whole session - ${members.length} ${
+    members.length === 1 ? 'member' : 'members'
+  }`;
+
+  page.statusMixChart.innerHTML = members
+    .map((member) => {
+      const segments = buildLiveStatusSegments(member);
+      const totalSeconds = segments[0]?.totalSeconds || Number(member.total_seconds) || 0;
+      const currentStatus = focusStatusMeta(member.current_status_key || member.current_status);
+      const anchorKey = focusStatusAnchorKey(member);
+      return `
+        <article class="status-mix-member-row" data-status-mix-member="${escapeHtml(anchorKey)}">
+          <div class="status-mix-member-heading">
+            <strong>${escapeHtml(member.name || 'Member')}</strong>
+            <span data-status-mix-current>${escapeHtml(currentStatus.label)} now - ${statusTime(
+              totalSeconds,
+            )} tracked</span>
+          </div>
+          <div
+            class="status-mix-stacked-bar"
+            aria-label="${escapeHtml(member.name || 'Member')} focus status percentages"
+          >
+            ${segments.map(renderStatusSegment).join('')}
+          </div>
+          <div class="status-mix-status-chips">
+            ${renderStatusBreakdownChips(segments)}
+          </div>
+        </article>
+      `;
+    })
+    .join('');
+
+  page.statusMixLegend.innerHTML = STATUS_BREAKDOWN_ORDER.map((status) => {
+    const meta = focusStatusMeta(status);
+    return `
+      <span class="status-mix-legend-item">
+        <i class="status-mix-legend-swatch" style="background: ${meta.color}"></i>
+        ${escapeHtml(meta.label)}
+      </span>
+    `;
+  }).join('');
+}
+
+function renderFocusStatusMixChart(data) {
+  const members = data?.members || [];
+  if (!members.length) {
+    page.statusMixSummary.textContent = 'No activity yet';
+    page.statusMixLegend.innerHTML = '';
+    page.statusMixChart.innerHTML = '<p class="status-mix-empty">No focus status data yet</p>';
+    return;
+  }
+
+  renderFocusStatusMix(data, members);
+}
+
+async function loadFocusStatusMix(options = {}) {
+  if (options.showLoading !== false) page.statusMixSummary.textContent = 'Loading';
+  const requestVersion = ++focusStatusMixRequestVersion;
+
+  try {
+    const statusMix = await getJson(focusStatusMixUrl());
+    if (requestVersion !== focusStatusMixRequestVersion) return;
+    if ((statusUpdateInFlight || pendingStatusUpdate) && focusStatusMixData) return;
+    if (timersPausedForViewer() && focusStatusMixData) return;
+
+    focusStatusMixData = statusMix;
+    if (page.statusMixChart?.querySelector('[data-status-mix-member]')) {
+      refreshFocusStatusMixDom(statusMix);
+    } else {
+      renderFocusStatusMixChart(statusMix);
+    }
+  } catch (error) {
+    if (requestVersion !== focusStatusMixRequestVersion) return;
+
+    focusStatusMixData = null;
+    page.statusMixSummary.textContent = 'Unavailable';
+    page.statusMixLegend.innerHTML = '';
+    page.statusMixChart.innerHTML = `<p class="status-mix-empty">${escapeHtml(error.message)}</p>`;
+  }
+}
+
 function renderMembers() {
   const members = sessionData.members || [];
   const visibleMembers = membersExpanded ? members : members.slice(0, MEMBER_PREVIEW_LIMIT);
@@ -309,6 +983,7 @@ function renderStatusControls() {
     const isActive = button.dataset.status === currentStatus;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-pressed', String(isActive));
+    button.disabled = timersPausedForViewer();
   });
 }
 
@@ -316,12 +991,14 @@ function renderStatusProgress() {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
   const progress = asPercent(currentMember?.progress_percent);
-  const isLocked = Boolean(currentGoal?.is_completed || progress >= 100);
+  const isLocked = Boolean(currentGoal?.is_completed || progress >= 100 || timersPausedForViewer());
 
   paintProgress(progress);
   page.statusProgressBar.classList.toggle('is-locked', isLocked);
   page.statusProgressBar.setAttribute('aria-disabled', String(isLocked));
-  page.statusProgressHint.textContent = isLocked
+  page.statusProgressHint.textContent = timersPausedForViewer()
+    ? 'Session timers are paused until you choose how to continue.'
+    : isLocked
     ? 'Progress is locked at 100% for this micro-goal.'
     : 'Drag or click the bar to update progress. 100% requires workings, a .txt file, or a Word .docx file.';
 }
@@ -334,6 +1011,8 @@ function renderStatusTimers() {
 
 function currentStatusSeconds(timer) {
   const baseSeconds = Number(timer.dataset.statusSeconds) || 0;
+  if (timersPausedForViewer() || timer.dataset.timerPaused === 'true') return baseSeconds;
+
   const renderedAt = Number(timer.dataset.statusRenderedAt) || Date.now();
   const elapsedSeconds = Math.floor((Date.now() - renderedAt) / 1000);
   return baseSeconds + elapsedSeconds;
@@ -360,6 +1039,41 @@ function renderMemberCardInPlace(memberData) {
 
   card.outerHTML = renderMemberCard(memberData);
   renderStatusTimers();
+}
+
+function focusCreditTone(score) {
+  if (score >= 85) return 'excellent';
+  if (score >= 70) return 'reliable';
+  if (score >= 55) return 'building';
+  return 'starter';
+}
+
+function renderFocusCredit(memberData) {
+  const credit = memberData.focus_credit || {};
+  const score = asPercent(credit.score ?? 45);
+  const label = credit.label || 'Getting started';
+  const stats = [
+    `${Number(credit.focus_minutes) || 0}m focus`,
+    `${Number(credit.completed_micro_goals) || 0} goals`,
+    `${Number(credit.evidence_uploads) || 0} evidence`,
+    `${Number(credit.help_participation) || 0} help`,
+  ].join(' · ');
+
+  return `
+    <div class="focus-credit-strip focus-credit-${focusCreditTone(score)}" aria-label="Focus Credit Score ${score}, ${escapeHtml(label)}">
+      <div class="focus-credit-score">
+        <span>Focus Credit</span>
+        <strong>${score}</strong>
+      </div>
+      <div class="focus-credit-detail">
+        <b>${escapeHtml(label)}</b>
+        <span>${escapeHtml(stats)}</span>
+      </div>
+      <div class="focus-credit-meter" aria-hidden="true">
+        <span style="width: ${score}%"></span>
+      </div>
+    </div>
+  `;
 }
 
 function renderMemberCard(memberData) {
@@ -389,12 +1103,14 @@ function renderMemberCard(memberData) {
               class="member-status-time"
               data-status-seconds="${statusSeconds}"
               data-status-rendered-at="${Date.now()}"
+              data-timer-paused="${memberData.is_timer_paused ? 'true' : 'false'}"
             >${statusTime(statusSeconds)} in status</span>
             <span class="member-progress-value">${progress}%</span>
           </div>
           <div class="member-progress-bar" aria-label="Goal progress ${progress}%">
             <span class="member-progress-fill" style="width: ${progress}%"></span>
           </div>
+          ${renderFocusCredit(memberData)}
         </div>
       </div>
       <button
@@ -555,9 +1271,31 @@ function startStatusTimer() {
   statusTimerInterval = setInterval(renderStatusTimers, 1000);
 }
 
+function startSessionPolling() {
+  clearInterval(sessionPollInterval);
+  sessionPollInterval = setInterval(() => {
+    loadSession({ silent: true, promptForMission: false, refreshStatusMix: false });
+  }, SESSION_REFRESH_INTERVAL_MS);
+}
+
+function startFocusStatusMixTicker() {
+  clearInterval(focusStatusMixRenderInterval);
+  refreshFocusStatusMixDom();
+  focusStatusMixRenderInterval = setInterval(refreshFocusStatusMixDom, 1000);
+}
+
+function startFocusStatusPolling() {
+  clearInterval(focusStatusMixPollInterval);
+  focusStatusMixPollInterval = setInterval(() => {
+    loadFocusStatusMix({ showLoading: false });
+  }, 10000);
+}
+
 function renderTimer() {
-  const elapsedSeconds = Math.floor((Date.now() - timerStartedAt) / 1000);
-  const remainingSeconds = Math.max(0, Number(sessionData.remaining_seconds || 0) - elapsedSeconds);
+  const remainingSeconds =
+    pausedRemainingSeconds !== null
+      ? Math.max(0, pausedRemainingSeconds)
+      : remainingSecondsForSession();
   const totalSeconds = Math.max(
     remainingSeconds,
     Number(sessionData.planned_duration_seconds || 0),
@@ -568,20 +1306,60 @@ function renderTimer() {
     '--timer-progress',
     totalSeconds ? `${(remainingSeconds / totalSeconds) * 100}%` : '0%',
   );
+
+  if (
+    remainingSeconds <= 0 &&
+    sessionData.status === 'active' &&
+    Number(sessionData.planned_duration_seconds || 0) > 0
+  ) {
+    refreshExpiredSessionState();
+  }
 }
 
-async function loadSession() {
-  clearMessage();
+async function refreshExpiredSessionState() {
+  if (expiryRefreshInFlight) return;
+
+  expiryRefreshInFlight = true;
+  try {
+    await loadSession({ silent: true, promptForMission: false });
+  } finally {
+    expiryRefreshInFlight = false;
+  }
+}
+
+async function loadSession(options = {}) {
+  if (sessionLoadInFlight) return;
+  sessionLoadInFlight = true;
+  if (!options.silent) clearMessage();
+  syncRenderedStatusTimers();
+
+  const previousSessionData = sessionData;
+  const previousRemainingSeconds = remainingSecondsForSession(previousSessionData);
+  let nextSessionData;
 
   try {
-    sessionData = await getJson(apiBase);
+    nextSessionData = await getJson(apiBase);
   } catch (error) {
-    showMessage(error.message || 'Could not load the live study session.', 'danger');
+    if (!options.silent) {
+      showMessage(error.message || 'Could not load the live study session.', 'danger');
+    }
+    sessionLoadInFlight = false;
+    return;
   }
 
+  if (shouldPreserveCountdown(previousSessionData, nextSessionData, options)) {
+    const serverRemainingSeconds = Number(nextSessionData.remaining_seconds || 0);
+    nextSessionData.remaining_seconds = Math.min(previousRemainingSeconds, serverRemainingSeconds);
+  }
+
+  preserveMemberStatusTimers(previousSessionData, nextSessionData, options);
+  sessionData = nextSessionData;
   timerStartedAt = Date.now();
   localStorage.setItem('currentStudySessionId', String(sessionId));
   renderPage();
+  if (options.promptForMission !== false) promptForSessionIntention();
+  if (options.refreshStatusMix !== false) loadFocusStatusMix({ showLoading: !options.silent });
+  sessionLoadInFlight = false;
 }
 
 async function addMicroGoal(event) {
@@ -912,7 +1690,32 @@ async function submitMemberGoalEvidence(form) {
 function progressFromPointer(event) {
   const rect = page.statusProgressBar.getBoundingClientRect();
   const offset = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+  const completionSnapDistance = Math.min(Math.max(rect.width * 0.01, 6), 12);
+  if (rect.width - offset <= completionSnapDistance) return 100;
   return Math.round((offset / rect.width) * 100);
+}
+
+function progressFromKey(event) {
+  const currentProgress = asPercent(getCurrentMember()?.progress_percent);
+  const step = event.shiftKey ? 10 : 5;
+
+  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') return currentProgress + step;
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') return currentProgress - step;
+  if (event.key === 'PageUp') return currentProgress + 10;
+  if (event.key === 'PageDown') return currentProgress - 10;
+  if (event.key === 'Home') return 0;
+  if (event.key === 'End') return 100;
+  if (event.key === 'Enter' || event.key === ' ') return currentProgress;
+  return null;
+}
+
+function handleProgressKeydown(event) {
+  const progress = progressFromKey(event);
+  if (progress === null) return;
+
+  event.preventDefault();
+  if (isProgressLocked()) return;
+  updateCurrentProgress(asPercent(progress));
 }
 
 function paintProgress(progress) {
@@ -920,6 +1723,7 @@ function paintProgress(progress) {
   page.statusProgressFill.style.width = `${progress}%`;
   page.statusProgressBar.style.setProperty('--status-progress', `${progress}%`);
   page.statusProgressBar.setAttribute('aria-valuenow', String(progress));
+  page.statusProgressBar.setAttribute('aria-valuetext', `${progress}%`);
 
   const currentCard = page.membersList.querySelector(
     `.session-member-card[data-member-user-id="${CURRENT_USER_ID}"]`,
@@ -936,7 +1740,11 @@ function paintProgress(progress) {
 function isProgressLocked() {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
-  return Boolean(currentGoal?.is_completed || asPercent(currentMember?.progress_percent) >= 100);
+  return Boolean(
+    currentGoal?.is_completed ||
+      asPercent(currentMember?.progress_percent) >= 100 ||
+      timersPausedForViewer(),
+  );
 }
 
 function startProgressDrag(event) {
@@ -1127,38 +1935,129 @@ function normalizeStatusForApi(status) {
   return normalized;
 }
 
-async function updateCurrentStatus(event) {
+function statusClassForApiStatus(status) {
+  const normalizedStatus = normalizeStatusForApi(status);
+  return normalizedStatus === 'break' ? 'on-break' : normalizedStatus.replace(/_/g, '-');
+}
+
+function applyOptimisticCurrentStatus(status) {
+  const normalizedStatus = normalizeStatusForApi(status);
+  const currentMember = getCurrentMember();
+
+  if (currentMember) {
+    const previousStatus = normalizeStatusForApi(
+      currentMember.status_class || currentMember.current_status,
+    );
+    currentMember.current_status = focusStatusMeta(normalizedStatus).label;
+    currentMember.status_class = statusClassForApiStatus(normalizedStatus);
+    currentMember.is_timer_paused = false;
+    if (previousStatus !== normalizedStatus) currentMember.status_timer = 0;
+  }
+
+  updateStatusMixMemberStatus(CURRENT_USER_ID, normalizedStatus);
+  refreshFocusStatusMixDom();
+  if (currentMember) renderMemberCardInPlace(currentMember);
+  renderStatusControls();
+}
+
+async function flushStatusUpdateQueue() {
+  if (statusUpdateInFlight) return;
+
+  statusUpdateInFlight = true;
+  try {
+    while (pendingStatusUpdate) {
+      const statusToSend = pendingStatusUpdate;
+      pendingStatusUpdate = null;
+
+      try {
+        const updatedMember = await getJson(`${apiBase}/members/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            user_id: CURRENT_USER_ID,
+            status: statusToSend,
+          }),
+        });
+
+        if (!pendingStatusUpdate) {
+          const currentMember = getCurrentMember();
+          if (currentMember) {
+            currentMember.current_status = updatedMember.current_status;
+            currentMember.status_class = updatedMember.status_class;
+            currentMember.status_timer = updatedMember.status_timer || 0;
+            renderMemberCardInPlace(currentMember);
+            renderStatusControls();
+          }
+        }
+      } catch (error) {
+        if (!pendingStatusUpdate) showMessage(error.message, 'danger');
+      }
+    }
+  } finally {
+    statusUpdateInFlight = false;
+  }
+
+  loadFocusStatusMix({ showLoading: false });
+}
+
+function updateCurrentStatus(event) {
   const button = event.currentTarget;
-  const status = button.dataset.status;
-  if (!status) return;
+  const rawStatus = button.dataset.status;
+  if (!rawStatus) return;
+  if (timersPausedForViewer()) {
+    showMessage('Choose how to continue before changing status.', 'info');
+    renderTimeExpiryModal();
+    return;
+  }
+  const status = normalizeStatusForApi(rawStatus);
 
   syncRenderedStatusTimers();
-
-  try {
-    const updatedMember = await getJson(`${apiBase}/members/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        user_id: CURRENT_USER_ID,
-        status,
-      }),
-    });
-    const currentMember = getCurrentMember();
-    if (currentMember) {
-      currentMember.current_status = updatedMember.current_status;
-      currentMember.status_class = updatedMember.status_class;
-      currentMember.status_timer = updatedMember.status_timer || 0;
-    }
-    renderMemberCardInPlace(currentMember);
-    renderStatusControls();
-  } catch (error) {
-    showMessage(error.message, 'danger');
-  }
+  focusStatusMixRequestVersion += 1;
+  applyOptimisticCurrentStatus(status);
+  pendingStatusUpdate = status;
+  flushStatusUpdateQueue();
 }
+
 
 function openConsultationModal(memberName, memberUserId) {
   pendingConsultationMemberId = Number(memberUserId) || null;
   page.consultationMemberName.textContent = memberName || 'This user';
   showModal(page.consultationModal, true);
+}
+
+function consultationOtherUserId(consultation = activeConsultation) {
+  if (!consultation) return pendingConsultationMemberId;
+
+  const studentUserId = Number(consultation.student_user_id);
+  const teacherUserId = Number(consultation.teacher_user_id);
+  return studentUserId === CURRENT_USER_ID ? teacherUserId : studentUserId;
+}
+
+async function openConsultationChat(event) {
+  const otherUserId =
+    event?.currentTarget?.id === 'openPendingConsultationChatButton'
+      ? pendingConsultationMemberId
+      : consultationOtherUserId();
+  if (!otherUserId) {
+    showMessage('Choose a consultation member before opening chat.', 'danger');
+    return;
+  }
+
+  setButtonsDisabled(
+    [page.openPendingConsultationChatButton, page.openConsultationChatButton].filter(Boolean),
+    true,
+  );
+
+  try {
+    const chat = await getJson(sessionMemberChatUrl(otherUserId), { method: 'POST' });
+    if (!chat.conversation_id) throw new Error('Chat could not be opened');
+    window.location.href = `chat.html?conversationId=${encodeURIComponent(chat.conversation_id)}`;
+  } catch (error) {
+    setButtonsDisabled(
+      [page.openPendingConsultationChatButton, page.openConsultationChatButton].filter(Boolean),
+      false,
+    );
+    showMessage(error.message, 'danger');
+  }
 }
 
 function handleMemberActivation(event) {
@@ -1238,13 +2137,38 @@ function switchWorkspaceTab(tabName) {
     const isActive = button.dataset.workspaceTab === activeWorkspaceTab;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-selected', String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
   });
 
   page.workspacePanels.forEach((panel) => {
-    panel.classList.toggle('d-none', panel.dataset.workspacePanel !== activeWorkspaceTab);
+    const isActive = panel.dataset.workspacePanel === activeWorkspaceTab;
+    panel.classList.toggle('d-none', !isActive);
+    panel.hidden = !isActive;
   });
 
   if (activeWorkspaceTab === 'whiteboard') scheduleWhiteboardResize();
+}
+
+function handleWorkspaceTabKeydown(event) {
+  const currentIndex = page.workspaceTabButtons.indexOf(event.currentTarget);
+  if (currentIndex < 0) return;
+
+  const lastIndex = page.workspaceTabButtons.length - 1;
+  const nextIndexByKey = {
+    ArrowRight: currentIndex === lastIndex ? 0 : currentIndex + 1,
+    ArrowDown: currentIndex === lastIndex ? 0 : currentIndex + 1,
+    ArrowLeft: currentIndex === 0 ? lastIndex : currentIndex - 1,
+    ArrowUp: currentIndex === 0 ? lastIndex : currentIndex - 1,
+    Home: 0,
+    End: lastIndex,
+  };
+  const nextIndex = nextIndexByKey[event.key];
+  if (nextIndex === undefined) return;
+
+  event.preventDefault();
+  const nextButton = page.workspaceTabButtons[nextIndex];
+  nextButton.focus();
+  switchWorkspaceTab(nextButton.dataset.workspaceTab);
 }
 
 function scheduleWhiteboardResize() {
@@ -1509,6 +2433,7 @@ function renderConsultationWorkspace() {
   const finishButton = byId('finishConsultationButton');
   finishButton.disabled = isCompleted;
   finishButton.textContent = isCompleted ? 'Ended' : 'End Consultation';
+  page.openConsultationChatButton.disabled = !consultationOtherUserId();
 }
 
 function openConsultationWorkspace(consultation) {
@@ -1734,23 +2659,169 @@ async function exitSession() {
   window.location.href = 'personal-summary.html';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  bindPage();
+async function extendExpiredSession(event) {
+  event.preventDefault();
 
-  byId('showGoalFormButton').addEventListener('click', () => {
-    page.goalForm.classList.toggle('d-none');
-    if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
+  const extensionSeconds = Number(page.extendMinutesSelect.value) || 600;
+  const submitButton = page.extendSessionForm.querySelector('button[type="submit"]');
+  setButtonsDisabled([submitButton, page.endExpiredSessionButton], true);
+
+  try {
+    await getJson(`${apiBase}/time-expiry/extend`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        user_id: CURRENT_USER_ID,
+        extension_seconds: extensionSeconds,
+      }),
+    });
+    pausedRemainingSeconds = null;
+    showModal(page.timeExpiryModal, false);
+    await loadSession({ silent: true, promptForMission: false });
+    await loadFocusStatusMix({ showLoading: false });
+    showMessage(`Session extended by ${Math.round(extensionSeconds / 60)} minutes.`, 'info');
+  } catch (error) {
+    showMessage(error.message, 'danger');
+  } finally {
+    setButtonsDisabled([submitButton, page.endExpiredSessionButton], false);
+  }
+}
+
+async function stayInExtendedSession() {
+  setButtonsDisabled([page.stayExtendedSessionButton, page.exitExtendedSessionButton], true);
+
+  try {
+    await getJson(`${apiBase}/time-expiry/stay`, {
+      method: 'PATCH',
+      body: JSON.stringify({ user_id: CURRENT_USER_ID }),
+    });
+    pausedRemainingSeconds = null;
+    showModal(page.timeExpiryModal, false);
+    await loadSession({ silent: true, promptForMission: false });
+    await loadFocusStatusMix({ showLoading: false });
+  } catch (error) {
+    showMessage(error.message, 'danger');
+  } finally {
+    setButtonsDisabled([page.stayExtendedSessionButton, page.exitExtendedSessionButton], false);
+  }
+}
+
+async function leaveExtendedSession() {
+  setButtonsDisabled([page.exitExtendedSessionButton, page.stayExtendedSessionButton], true);
+
+  try {
+    await getJson(`${apiBase}/time-expiry/leave`, {
+      method: 'PATCH',
+      body: JSON.stringify({ user_id: CURRENT_USER_ID }),
+    });
+  } catch (error) {
+    console.info('Could not mark member as left:', error.message);
+  }
+
+  window.location.href = 'index.html';
+}
+
+function bindClick(id, handler) {
+  byId(id).addEventListener('click', handler);
+}
+
+function bindBackdropClose(modal, handler) {
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) handler();
   });
+}
 
+function visibleModalClosers() {
+  return [
+    { modal: page.exitModal, close: () => showModal(page.exitModal, false) },
+    { modal: page.queueModal, close: () => showModal(page.queueModal, false) },
+    { modal: page.consultationModal, close: () => showModal(page.consultationModal, false) },
+    { modal: page.consultationWorkspaceModal, close: closeConsultationWorkspace },
+    { modal: page.consultationReviewModal, close: () => showModal(page.consultationReviewModal, false) },
+    { modal: page.consultationDirectionModal, close: () => showModal(page.consultationDirectionModal, false) },
+    { modal: page.memberGoalsModal, close: () => showModal(page.memberGoalsModal, false) },
+    { modal: page.completionModal, close: () => showModal(page.completionModal, false) },
+    {
+      modal: page.intentionModal,
+      close: () => {
+        if (readSessionIntention()) showModal(page.intentionModal, false);
+      },
+    },
+  ];
+}
+
+function closeVisibleModalOnEscape(event) {
+  if (event.key !== 'Escape') return;
+
+  const visibleModal = visibleModalClosers().find(
+    (item) => item.modal && !item.modal.classList.contains('d-none'),
+  );
+  if (!visibleModal) return;
+
+  event.preventDefault();
+  visibleModal.close();
+}
+
+function keepFocusInsideVisibleModal(event) {
+  if (event.key !== 'Tab') return;
+
+  const visibleModal = visibleModalClosers()
+    .map((item) => item.modal)
+    .find((modal) => modal && !modal.classList.contains('d-none'));
+  if (!visibleModal) return;
+
+  const focusableItems = focusableElements(visibleModal);
+  if (!focusableItems.length) {
+    event.preventDefault();
+    visibleModal.focus();
+    return;
+  }
+
+  const firstItem = focusableItems[0];
+  const lastItem = focusableItems[focusableItems.length - 1];
+
+  if (event.shiftKey && document.activeElement === firstItem) {
+    event.preventDefault();
+    lastItem.focus();
+  } else if (!event.shiftKey && document.activeElement === lastItem) {
+    event.preventDefault();
+    firstItem.focus();
+  }
+}
+
+function toggleGoalForm() {
+  page.goalForm.classList.toggle('d-none');
+  if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
+}
+
+function toggleMembersExpanded() {
+  membersExpanded = !membersExpanded;
+  renderMembers();
+}
+
+function markScratchpadChanged() {
+  markWorkspaceDirty();
+  scheduleConsultationWorkspaceSave();
+}
+
+function resizeWorkspaceIfOpen() {
+  if (!page.consultationWorkspaceModal.classList.contains('d-none')) {
+    resizeWhiteboardCanvas();
+  }
+}
+
+function bindGoalAndMemberEvents() {
+  bindClick('showGoalFormButton', toggleGoalForm);
   page.goalForm.addEventListener('submit', addMicroGoal);
+  page.intentionForm.addEventListener('submit', saveSessionIntention);
+  page.editMissionButton.addEventListener('click', openIntentionModal);
   page.membersList.addEventListener('click', handleMemberActivation);
   page.membersList.addEventListener('click', handleMemberGoalsButton);
   page.memberGoalsModal.addEventListener('submit', handleEvidenceFormSubmit);
   page.memberGoalsModal.addEventListener('change', handleWorkCheckChecklistChange);
-  page.membersToggle.addEventListener('click', () => {
-    membersExpanded = !membersExpanded;
-    renderMembers();
-  });
+  page.membersToggle.addEventListener('click', toggleMembersExpanded);
+}
+
+function bindStatusAndTimerEvents() {
   page.statusControls.forEach((button) => {
     button.addEventListener('click', updateCurrentStatus);
   });
@@ -1758,87 +2829,88 @@ document.addEventListener('DOMContentLoaded', () => {
   page.statusProgressBar.addEventListener('pointermove', moveProgressDrag);
   page.statusProgressBar.addEventListener('pointerup', finishProgressDrag);
   page.statusProgressBar.addEventListener('pointercancel', cancelProgressDrag);
+  page.statusProgressBar.addEventListener('keydown', handleProgressKeydown);
   page.completionForm.addEventListener('submit', submitCompletionEvidence);
 
-  byId('exitSessionButton').addEventListener('click', () => showModal(page.exitModal, true));
-  byId('cancelExitButton').addEventListener('click', () => showModal(page.exitModal, false));
-  byId('confirmExitButton').addEventListener('click', exitSession);
-  byId('cancelCompletionButton').addEventListener('click', () =>
-    showModal(page.completionModal, false),
-  );
-  byId('cancelConsultationButton').addEventListener('click', () =>
-    showModal(page.consultationModal, false),
-  );
-  byId('confirmConsultationButton').addEventListener('click', startConsultation);
-  byId('closeConsultationWorkspaceButton').addEventListener('click', closeConsultationWorkspace);
-  byId('finishConsultationButton').addEventListener('click', finishConsultation);
+  bindClick('exitSessionButton', () => showModal(page.exitModal, true));
+  bindClick('cancelExitButton', () => showModal(page.exitModal, false));
+  bindClick('confirmExitButton', exitSession);
+  page.extendSessionForm.addEventListener('submit', extendExpiredSession);
+  page.endExpiredSessionButton.addEventListener('click', exitSession);
+  page.stayExtendedSessionButton.addEventListener('click', stayInExtendedSession);
+  page.exitExtendedSessionButton.addEventListener('click', leaveExtendedSession);
+  bindClick('cancelCompletionButton', () => showModal(page.completionModal, false));
+}
+
+function bindConsultationEvents() {
+  bindClick('cancelConsultationButton', () => showModal(page.consultationModal, false));
+  bindClick('confirmConsultationButton', startConsultation);
+  bindClick('openPendingConsultationChatButton', openConsultationChat);
+  bindClick('openConsultationChatButton', openConsultationChat);
+  bindClick('closeConsultationWorkspaceButton', closeConsultationWorkspace);
+  bindClick('finishConsultationButton', finishConsultation);
   page.workspaceTabButtons.forEach((button) => {
     button.addEventListener('click', () => switchWorkspaceTab(button.dataset.workspaceTab));
+    button.addEventListener('keydown', handleWorkspaceTabKeydown);
   });
   page.consultationWhiteboard.addEventListener('pointerdown', startWhiteboardStroke);
   page.consultationWhiteboard.addEventListener('pointermove', moveWhiteboardStroke);
   page.consultationWhiteboard.addEventListener('pointerup', finishWhiteboardStroke);
   page.consultationWhiteboard.addEventListener('pointercancel', finishWhiteboardStroke);
-  page.consultationScratchpad.addEventListener('input', () => {
-    markWorkspaceDirty();
-    scheduleConsultationWorkspaceSave();
-  });
+  page.consultationScratchpad.addEventListener('input', markScratchpadChanged);
   page.clearWhiteboardButton.addEventListener('click', clearWhiteboard);
-  window.addEventListener('resize', () => {
-    if (!page.consultationWorkspaceModal.classList.contains('d-none')) {
-      resizeWhiteboardCanvas();
-    }
-  });
+  window.addEventListener('resize', resizeWorkspaceIfOpen);
   page.rejoinConsultationButton.addEventListener('click', () =>
     openConsultationWorkspace(activeConsultation),
   );
   page.consultationReviewForm.addEventListener('submit', submitConsultationReview);
-  byId('cancelConsultationReviewButton').addEventListener('click', () =>
-    showModal(page.consultationReviewModal, false),
-  );
-  byId('closeConsultationReviewButton').addEventListener('click', () =>
-    showModal(page.consultationReviewModal, false),
-  );
-  byId('closeConsultationDirectionButton').addEventListener('click', () =>
+  bindClick('cancelConsultationReviewButton', () => showModal(page.consultationReviewModal, false));
+  bindClick('closeConsultationReviewButton', () => showModal(page.consultationReviewModal, false));
+  bindClick('closeConsultationDirectionButton', () =>
     showModal(page.consultationDirectionModal, false),
   );
+}
 
-  byId('viewQueueButton').addEventListener('click', () => showModal(page.queueModal, true));
-  byId('closeQueueButton').addEventListener('click', () => showModal(page.queueModal, false));
-  byId('closeMemberGoalsButton').addEventListener('click', () =>
-    showModal(page.memberGoalsModal, false),
+function bindQueueAndModalEvents() {
+  bindClick('viewQueueButton', () => showModal(page.queueModal, true));
+  bindClick('closeQueueButton', () => showModal(page.queueModal, false));
+  bindClick('closeMemberGoalsButton', () => showModal(page.memberGoalsModal, false));
+
+  bindBackdropClose(page.exitModal, () => showModal(page.exitModal, false));
+  bindBackdropClose(page.timeExpiryModal, renderTimeExpiryModal);
+  bindBackdropClose(page.queueModal, () => showModal(page.queueModal, false));
+  bindBackdropClose(page.consultationModal, () => showModal(page.consultationModal, false));
+  bindBackdropClose(page.consultationWorkspaceModal, closeConsultationWorkspace);
+  bindBackdropClose(page.consultationReviewModal, () =>
+    showModal(page.consultationReviewModal, false),
   );
+  bindBackdropClose(page.consultationDirectionModal, () =>
+    showModal(page.consultationDirectionModal, false),
+  );
+  bindBackdropClose(page.memberGoalsModal, () => showModal(page.memberGoalsModal, false));
+  bindBackdropClose(page.completionModal, () => showModal(page.completionModal, false));
+  bindBackdropClose(page.intentionModal, () => {
+    if (readSessionIntention()) {
+      showModal(page.intentionModal, false);
+    }
+  });
+}
 
-  page.exitModal.addEventListener('click', (event) => {
-    if (event.target === page.exitModal) showModal(page.exitModal, false);
-  });
-  page.queueModal.addEventListener('click', (event) => {
-    if (event.target === page.queueModal) showModal(page.queueModal, false);
-  });
-  page.consultationModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationModal) showModal(page.consultationModal, false);
-  });
-  page.consultationWorkspaceModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationWorkspaceModal) {
-      closeConsultationWorkspace();
-    }
-  });
-  page.consultationReviewModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationReviewModal) {
-      showModal(page.consultationReviewModal, false);
-    }
-  });
-  page.consultationDirectionModal.addEventListener('click', (event) => {
-    if (event.target === page.consultationDirectionModal) {
-      showModal(page.consultationDirectionModal, false);
-    }
-  });
-  page.memberGoalsModal.addEventListener('click', (event) => {
-    if (event.target === page.memberGoalsModal) showModal(page.memberGoalsModal, false);
-  });
-  page.completionModal.addEventListener('click', (event) => {
-    if (event.target === page.completionModal) showModal(page.completionModal, false);
-  });
+function bindStudySessionEvents() {
+  bindGoalAndMemberEvents();
+  bindStatusAndTimerEvents();
+  bindConsultationEvents();
+  bindQueueAndModalEvents();
+  switchWorkspaceTab(activeWorkspaceTab);
+  document.addEventListener('keydown', closeVisibleModalOnEscape);
+  document.addEventListener('keydown', keepFocusInsideVisibleModal);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (!requireStudySessionLogin()) return;
+
+  bindPage();
+  bindStudySessionEvents();
 
   loadSession();
 });
