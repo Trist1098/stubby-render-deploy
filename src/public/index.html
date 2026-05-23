@@ -1,654 +1,474 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stubby - Dashboard</title>
+    <title>Stubby — Find Study Partners That Actually Match</title>
+    <meta name="description" content="Stubby connects students with compatible study partners based on modules, learning style, and schedule. Stop studying alone.">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .calendar-card {
-            min-height: 560px;
-        }
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, minmax(0, 1fr));
-            gap: 0.5rem;
-        }
-        .calendar-cell {
-            min-height: 92px;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.75rem;
-            padding: 0.85rem;
-            background: #fff;
-        }
-        .calendar-cell--header {
-            background: #f8fafc;
-            font-weight: 700;
-        }
-        .calendar-cell--today {
-            border-color: #0d6efd;
-            box-shadow: 0 0 0 1px rgba(13,110,253,.2);
-        }
-        .event-pill {
-            display: block;
-            margin-top: 0.55rem;
-            padding: 0.35rem 0.55rem;
-            border-radius: 999px;
-            background: #0d6efd;
-            color: #fff;
-            font-size: 0.8rem;
-            line-height: 1.2;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/landing.css">
 </head>
+<body class="landing-body">
 
-<body class="d-flex flex-column min-vh-100">
-    <header>
+    <!-- ═══════════════════════════════════
+         Navigation
+         ═══════════════════════════════════ -->
+    <nav class="landing-nav" id="landingNav">
         <div class="container">
-            <nav id="navbar" class="navbar navbar-expand-lg py-3">
-                <div class="container-fluid p-0">
-                    <a href="index.html" class="d-flex align-items-center gap-2 text-decoration-none">
-                        <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
-                    </a>
+            <div class="d-flex align-items-center justify-content-between">
+                <a href="index.html" class="nav-logo">Stubby</a>
 
-                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#navContent">
-                        <i class="fas fa-bars"></i>
-                    </button>
-
-                    <div class="collapse navbar-collapse" id="navContent">
-                        <ul class="navbar-nav mx-auto gap-2" id="nav-links">
-                            <li class="nav-item">
-                                <a href="index.html" class="nav-link">Dashboard</a>
-                            </li>
-                            <li class="nav-item dropdown">
-                                <a href="matchmaking.html" class="nav-link dropdown-toggle d-flex align-items-center gap-1" data-bs-toggle="dropdown">
-                                    Matchmaking
-                                    <i class="fas fa-chevron-down nav-dropdown-icon ms-1"></i>
-                                </a>
-                                <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
-                                    <li><a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">Browse Matches</a></li>
-                                    <li><a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">My Requests</a></li>
-                                </ul>
-                            </li>
-                            <li class="nav-item">
-                                <a href="sessions.html" class="nav-link">Sessions</a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="chat.html" class="nav-link">Chat</a>
-                            </li>
-                        </ul>
-                        <!-- Auth toggle area -->
-                        <ul class="navbar-nav">
-                            <li class="nav-item" id="auth-link">
-                                <!-- Populated by navbar.js -->
-                            </li>
-                        </ul>
-                    </div>
+                <div class="nav-links d-none d-md-flex align-items-center gap-1">
+                    <a href="#how-it-works">How it works</a>
+                    <a href="#features">Features</a>
                 </div>
-            </nav>
-        </div>
-    </header>
 
-    <main class="container py-5">
-        <div class="row mb-5">
-            <div class="col-12">
-                <h1 class="fw-bold">Hello, <span id="userName" class="text-primary">Student</span>! 👋</h1>
-                <p class="text-muted">Welcome back to your workspace.</p>
-            </div>
-        </div>
-
-        <div class="row g-4 mb-5">
-            <div class="col-md-6">
-                <div class="premium-card h-100">
-                    <h5 class="fw-bold mb-3">Academic Status</h5>
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 border border-success border-opacity-10 rounded-pill">Online</span>
-                        <span id="userMajor" class="text-muted small">Loading details...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="premium-card h-100">
-                    <h5 class="fw-bold mb-3">Quick Actions</h5>
-                    <a href="matchmaking.html" class="btn btn-primary btn-sm">Find Partners</a>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="login.html" class="btn-nav-login d-none d-sm-inline-flex">Sign in</a>
+                    <a href="register.html" class="btn-nav-signup">Get started</a>
                 </div>
             </div>
         </div>
+    </nav>
 
-        <!-- Progress Tracker Section -->
-        <div class="row g-4 mb-5">
-            <div class="col-md-4">
-                <div class="card shadow-sm p-4">
-                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
-                        <i class="fas fa-chart-pie text-primary"></i> Overall Progress
-                    </h5>
-                    <div class="d-flex align-items-end gap-3 mb-3">
-                        <div>
-                            <p class="text-muted small mb-1">Completed</p>
-                            <p class="fw-bold h5 mb-0"><span id="progressOverallCompleted">0</span>/<span id="progressOverallTotal">0</span></p>
-                        </div>
-                        <div>
-                            <p class="text-muted small mb-1">Progress</p>
-                            <p class="fw-bold h5 text-primary mb-0"><span id="progressOverallPercent">0</span>%</p>
-                        </div>
+    <!-- ═══════════════════════════════════
+         Hero
+         ═══════════════════════════════════ -->
+    <section class="hero-section" id="hero">
+        <div class="container">
+            <div class="row align-items-center g-5">
+
+                <!-- Left: Copy -->
+                <div class="col-lg-6">
+                    <div class="hero-eyebrow">
+                        <span class="dot"></span>
+                        Student Matchmaking Platform
                     </div>
-                    <div class="progress mb-2" style="height: 0.5rem;">
-                        <div id="progressOverallBar" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+
+                    <h1 class="hero-headline">
+                        Find study partners<br>
+                        that <span class="highlight">actually fit</span>
+                    </h1>
+
+                    <p class="hero-subtext">
+                        Stubby matches students by module, learning pace, and availability — so every study session is time well spent.
+                    </p>
+
+                    <div class="hero-cta-group">
+                        <a href="register.html" class="btn-hero-primary">
+                            Create a free account
+                            <i class="fas fa-arrow-right fa-sm"></i>
+                        </a>
+                        <a href="#how-it-works" class="btn-hero-secondary">
+                            <i class="fas fa-play fa-xs"></i>
+                            See how it works
+                        </a>
+                    </div>
+
+                    <div class="hero-trust">
+                        <div class="avatars">
+                            <span>AJ</span>
+                            <span>KL</span>
+                            <span>MR</span>
+                            <span>SN</span>
+                        </div>
+                        <span>Students already using Stubby</span>
                     </div>
                 </div>
-            </div>
 
-            <div class="col-md-4">
-                <div class="card shadow-sm p-4">
-                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
-                        <i class="fas fa-calendar-day text-success"></i> Today's Tasks
-                    </h5>
-                    <div class="d-flex align-items-end gap-3 mb-3">
-                        <div>
-                            <p class="text-muted small mb-1">Completed</p>
-                            <p class="fw-bold h5 mb-0"><span id="progressTodayCompleted">0</span>/<span id="progressTodayTotal">0</span></p>
-                        </div>
-                        <div>
-                            <p class="text-muted small mb-1">Progress</p>
-                            <p class="fw-bold h5 text-success mb-0"><span id="progressTodayPercent">0</span>%</p>
-                        </div>
-                    </div>
-                    <div class="progress mb-2" style="height: 0.5rem;">
-                        <div id="progressTodayBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
+                <!-- Right: Visual -->
+                <div class="col-lg-6">
+                    <div class="hero-visual">
 
-            <div class="col-md-4">
-                <div class="card shadow-sm p-4">
-                    <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
-                        <i class="fas fa-bullseye text-warning"></i> Goals
-                    </h5>
-                    <div class="d-flex align-items-end gap-3 mb-3">
-                        <div>
-                            <p class="text-muted small mb-1">Completed</p>
-                            <p class="fw-bold h5 mb-0"><span id="progressGoalsCompleted">0</span>/<span id="progressGoalsTotal">0</span></p>
-                        </div>
-                        <div>
-                            <p class="text-muted small mb-1">Progress</p>
-                            <p class="fw-bold h5 text-warning mb-0"><span id="progressGoalsPercent">0</span>%</p>
-                        </div>
-                    </div>
-                    <div class="progress mb-2" style="height: 0.5rem;">
-                        <div id="progressGoalsBar" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section class="mb-5">
-            <div class="row g-4">
-                <div class="col-lg-8">
-                    <div class="card calendar-card shadow-sm p-4">
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <div>
-                                <h2 id="monthTitle" class="h4 mb-1">Loading month...</h2>
-                                <p class="text-muted mb-0" id="calendarSubtitle">Your event schedule at a glance.</p>
-                            </div>
-                            <div class="btn-group">
-                                <button id="prevMonth" type="button" class="btn btn-outline-primary btn-sm">Previous</button>
-                                <button id="nextMonth" type="button" class="btn btn-outline-primary btn-sm">Next</button>
-                            </div>
-                        </div>
-                        <div class="calendar-grid calendar-cell--header">
-                            <div class="calendar-cell calendar-cell--header">Sun</div>
-                            <div class="calendar-cell calendar-cell--header">Mon</div>
-                            <div class="calendar-cell calendar-cell--header">Tue</div>
-                            <div class="calendar-cell calendar-cell--header">Wed</div>
-                            <div class="calendar-cell calendar-cell--header">Thu</div>
-                            <div class="calendar-cell calendar-cell--header">Fri</div>
-                            <div class="calendar-cell calendar-cell--header">Sat</div>
-                        </div>
-                        <div id="calendarGrid" class="calendar-grid"></div>
-                    </div>
-                </div>
-                <div class="col-lg-4">
-                    <div class="card shadow-sm p-4 h-100">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div>
-                                <h5 class="fw-bold mb-0">Events</h5>
-                                <p class="text-muted small mb-0">Manage calendar items in one place.</p>
-                            </div>
-                            <button id="addEventButton" type="button" class="btn btn-sm btn-primary">Add</button>
-                        </div>
-                        <div id="eventFormContainer" class="mb-4 d-none">
-                            <div class="card border-secondary mb-3">
-                                <div class="card-body p-3">
-                                    <h6 id="formTitle" class="fw-bold mb-3">New event</h6>
-                                    <form id="eventForm">
-                                        <div class="mb-3">
-                                            <label class="form-label">Title</label>
-                                            <input id="eventTitle" class="form-control" required />
-                                        </div>
-                                        <div class="row g-2 mb-3">
-                                            <div class="col-6">
-                                                <label class="form-label">Date</label>
-                                                <input id="eventDate" type="date" class="form-control" required />
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label">Time</label>
-                                                <div class="d-flex gap-2">
-                                                    <input id="eventStart" type="time" class="form-control" required />
-                                                    <input id="eventEnd" type="time" class="form-control" required />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Priority</label>
-                                            <select id="eventPriority" class="form-select">
-                                                <option value="low">Low</option>
-                                                <option value="medium" selected>Medium</option>
-                                                <option value="high">High</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Color</label>
-                                            <select id="eventColor" class="form-select">
-                                                <option value="primary">Blue</option>
-                                                <option value="success">Green</option>
-                                                <option value="warning">Yellow</option>
-                                                <option value="danger">Red</option>
-                                                <option value="info">Teal</option>
-                                                <option value="secondary">Gray</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Goal</label>
-                                            <input id="eventGoal" class="form-control" placeholder="Track progress or milestone" />
-                                        </div>
-                                        <div class="form-check form-switch mb-3">
-                                            <input id="eventGoalCompleted" class="form-check-input" type="checkbox" />
-                                            <label class="form-check-label" for="eventGoalCompleted">Goal completed</label>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Description</label>
-                                            <textarea id="eventDescription" rows="3" class="form-control"></textarea>
-                                        </div>
-                                        <div class="d-flex justify-content-between gap-2">
-                                            <button type="submit" class="btn btn-primary btn-sm">Save event</button>
-                                            <button type="button" id="cancelFormButton" class="btn btn-outline-secondary btn-sm">Cancel</button>
-                                        </div>
-                                    </form>
+                        <!-- Side card: left -->
+                        <div class="hero-card-side left">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="mini-avatar" style="background: linear-gradient(135deg, #10b981, #059669);">KL</div>
+                                <div>
+                                    <div style="font-size: 0.8rem; font-weight: 700; color: #0f172a;">Kai Lim</div>
+                                    <div style="font-size: 0.7rem; color: #94a3b8;">Computer Science</div>
                                 </div>
                             </div>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <span class="mini-module-tag">ST0501</span>
+                                <span class="mini-module-tag">MA1511</span>
+                            </div>
+                            <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.6rem;">
+                                <i class="fas fa-clock fa-xs me-1" style="color: #10b981;"></i>
+                                Available weekday evenings
+                            </div>
                         </div>
-                        <div id="eventList" class="list-group"></div>
+
+                        <!-- Main match card -->
+                        <div class="hero-card-main">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div style="font-size: 0.72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em;">Best Match</div>
+                                <div class="match-score-badge">
+                                    <span class="score-dot"></span>
+                                    94% match
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <div class="mini-avatar" style="width: 48px; height: 48px; border-radius: 0.75rem; font-size: 0.95rem; background: linear-gradient(135deg, #6366f1, #8b5cf6);">AJ</div>
+                                <div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a;">Alex Johari</div>
+                                    <div style="font-size: 0.78rem; color: #64748b;">Information Technology</div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-1 flex-wrap mb-3">
+                                <span class="mini-module-tag">ST0501</span>
+                                <span class="mini-module-tag">IT2001</span>
+                                <span class="mini-module-tag">MA1511</span>
+                            </div>
+
+                            <div style="background: #f8fafc; border-radius: 0.625rem; padding: 0.75rem; font-size: 0.75rem; color: #64748b; margin-bottom: 1rem;">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="fas fa-book-open fa-xs" style="color: #6366f1;"></i>
+                                    <span>Prefers structured sessions</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-calendar fa-xs" style="color: #6366f1;"></i>
+                                    <span>Free Tue & Thu afternoons</span>
+                                </div>
+                            </div>
+
+                            <button style="width: 100%; background: #6366f1; color: white; border: none; border-radius: 0.5rem; padding: 0.6rem; font-size: 0.82rem; font-weight: 700; cursor: default;">
+                                Send Match Request
+                            </button>
+                        </div>
+
+                        <!-- Side card: right -->
+                        <div class="hero-card-side right">
+                            <div style="font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem;">Session Booked</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50; flex-shrink: 0;"></div>
+                                <div style="font-size: 0.78rem; font-weight: 600; color: #0f172a;">ST0501 Study Group</div>
+                            </div>
+                            <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.35rem;">
+                                <i class="fas fa-clock fa-xs me-1"></i>Thu 3:00 PM · Library L3
+                            </div>
+                            <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.5rem;">
+                                <i class="fas fa-users fa-xs me-1" style="color: #6366f1;"></i>
+                                3 participants
+                            </div>
+                        </div>
+
                     </div>
                 </div>
-            </div>
-        </section>
 
-        <section>
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="fw-bold h4 mb-0">Partner Suggestions</h2>
-                <a href="matchmaking.html" class="text-primary text-decoration-none fw-bold small">Browse All</a>
             </div>
-            <div id="partnerList" class="row g-4">
-                <div class="col-12 text-center text-muted py-5">
-                    <div class="spinner-border spinner-border-sm me-2"></div>
-                    Finding students...
-                </div>
-            </div>
-        </section>
-    </main>
+        </div>
+    </section>
 
-    <!-- Event details modal -->
-    <div class="modal fade" id="eventModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Event</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- ═══════════════════════════════════
+         Stats Strip
+         ═══════════════════════════════════ -->
+    <section class="stats-strip">
+        <div class="container">
+            <div class="d-flex justify-content-center align-items-center flex-wrap gap-4">
+                <div class="stat-item reveal">
+                    <div class="stat-number">500<span>+</span></div>
+                    <div class="stat-label">Students</div>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-2"><span id="modalColorBadge" class="badge bg-primary text-white">&nbsp;</span></div>
-                    <p id="modalDateTime" class="text-muted small"></p>
-                    <p id="modalDescription" class="mb-2"></p>
-                    <p><strong>Priority:</strong> <span id="modalPriority"></span></p>
-                    <p><strong>Goal:</strong> <span id="modalGoal"></span></p>
+                <div class="stat-divider"></div>
+                <div class="stat-item reveal reveal-delay-1">
+                    <div class="stat-number">1.2<span>k</span></div>
+                    <div class="stat-label">Matches Made</div>
                 </div>
-                <div class="modal-footer">
-                    <button id="modalEditButton" type="button" class="btn btn-sm btn-primary">Edit</button>
-                    <button id="modalDeleteButton" type="button" class="btn btn-sm btn-danger">Delete</button>
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div class="stat-divider"></div>
+                <div class="stat-item reveal reveal-delay-2">
+                    <div class="stat-number">94<span>%</span></div>
+                    <div class="stat-label">Match Accuracy</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item reveal reveal-delay-3">
+                    <div class="stat-number">8<span>+</span></div>
+                    <div class="stat-label">Diplomas Covered</div>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <footer class="mt-auto py-4 border-top">
-        <div class="container text-center">
-            <p class="text-muted mb-0">&copy; 2026 Stubby. All rights reserved.</p>
+    <!-- ═══════════════════════════════════
+         How It Works
+         ═══════════════════════════════════ -->
+    <section class="how-section" id="how-it-works">
+        <div class="container">
+            <div class="text-center mb-5 reveal">
+                <span class="section-eyebrow">How it works</span>
+                <h2 class="section-title">Three steps to a better study routine</h2>
+                <p class="section-subtitle mx-auto">
+                    No complicated setup. Fill in the details, get matched, and start studying.
+                </p>
+            </div>
+
+            <div class="row g-4 position-relative">
+
+                <!-- Connector lines (desktop only) -->
+                <div class="col-lg-4 position-relative">
+                    <div class="step-connector d-none d-lg-block"></div>
+                    <div class="step-card reveal">
+                        <div class="step-number">1</div>
+                        <div class="step-icon-wrap">
+                            <i class="fas fa-user-pen" style="color: #6366f1;"></i>
+                        </div>
+                        <div class="step-title">Build a profile</div>
+                        <p class="step-desc">
+                            Add the modules being studied, preferred study style, and weekly availability. Takes about two minutes.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 position-relative">
+                    <div class="step-connector d-none d-lg-block"></div>
+                    <div class="step-card reveal reveal-delay-1">
+                        <div class="step-number">2</div>
+                        <div class="step-icon-wrap">
+                            <i class="fas fa-sliders" style="color: #6366f1;"></i>
+                        </div>
+                        <div class="step-title">Set preferences</div>
+                        <p class="step-desc">
+                            Choose how to study — solo focus, small groups, or open sessions. Stubby filters matches accordingly.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="step-card reveal reveal-delay-2">
+                        <div class="step-number">3</div>
+                        <div class="step-icon-wrap">
+                            <i class="fas fa-handshake" style="color: #6366f1;"></i>
+                        </div>
+                        <div class="step-title">Connect and study</div>
+                        <p class="step-desc">
+                            Send a match request, chat directly, and schedule a session — all without leaving the platform.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         Features
+         ═══════════════════════════════════ -->
+    <section class="features-section" id="features">
+        <div class="container">
+            <div class="text-center mb-5 reveal">
+                <span class="section-eyebrow">Features</span>
+                <h2 class="section-title">Everything needed to study smarter</h2>
+                <p class="section-subtitle mx-auto">
+                    Built around how students actually work — not how apps think they should.
+                </p>
+            </div>
+
+            <div class="row g-4">
+
+                <div class="col-md-6 col-lg-4 reveal">
+                    <div class="feature-card">
+                        <div class="feature-icon indigo">
+                            <i class="fas fa-magnifying-glass"></i>
+                        </div>
+                        <div class="feature-title">Smart Matching</div>
+                        <p class="feature-desc">
+                            Matches are ranked by shared modules, schedule overlap, and study style — not just who signed up recently.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-4 reveal reveal-delay-1">
+                    <div class="feature-card">
+                        <div class="feature-icon emerald">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="feature-title">Session Scheduling</div>
+                        <p class="feature-desc">
+                            Book study sessions directly through Stubby. Set a time, location, and topic — partners get notified instantly.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-4 reveal reveal-delay-2">
+                    <div class="feature-card">
+                        <div class="feature-icon sky">
+                            <i class="fas fa-message"></i>
+                        </div>
+                        <div class="feature-title">Built-in Chat</div>
+                        <p class="feature-desc">
+                            Message matched partners without switching apps. Share notes, links, or just coordinate where to meet.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-4 reveal reveal-delay-1">
+                    <div class="feature-card">
+                        <div class="feature-icon amber">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="feature-title">Badges & Progress</div>
+                        <p class="feature-desc">
+                            Earn badges for consistent sessions and completed modules. A small nudge to keep the momentum going.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-4 reveal reveal-delay-2">
+                    <div class="feature-card">
+                        <div class="feature-icon violet">
+                            <i class="fas fa-sliders"></i>
+                        </div>
+                        <div class="feature-title">Match Preferences</div>
+                        <p class="feature-desc">
+                            Fine-tune who shows up in the feed. Filter by diploma, language, session type, and more.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-4 reveal reveal-delay-3">
+                    <div class="feature-card">
+                        <div class="feature-icon rose">
+                            <i class="fas fa-user-group"></i>
+                        </div>
+                        <div class="feature-title">Friend Network</div>
+                        <p class="feature-desc">
+                            Keep track of regular study partners. Build a network of people who are reliable and on the same track.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         Quote
+         ═══════════════════════════════════ -->
+    <section class="quote-section">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8 reveal">
+                    <div class="quote-card">
+                        <p class="quote-text">
+                            Finding someone to study with used to mean posting in group chats and hoping for a reply. Stubby just shows who is available and studying the same thing — that alone saves a lot of time.
+                        </p>
+                        <div class="d-flex align-items-center gap-3 mt-3">
+                            <div class="quote-author-avatar">SR</div>
+                            <div>
+                                <div class="quote-author-name">Siti Rahimah</div>
+                                <div class="quote-author-role">Diploma in Information Technology</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         CTA
+         ═══════════════════════════════════ -->
+    <section class="cta-section">
+        <div class="container text-center position-relative">
+            <div class="reveal">
+                <span class="section-eyebrow" style="color: #818cf8;">Ready to start?</span>
+                <h2 class="cta-headline">Stop studying alone</h2>
+                <p class="cta-subtext">
+                    Create an account, set up a profile, and Stubby handles the rest. The right study partner is already on here.
+                </p>
+
+                <div class="d-flex justify-content-center align-items-center gap-3 flex-wrap">
+                    <a href="register.html" class="btn-cta-primary">
+                        Create a free account
+                        <i class="fas fa-arrow-right fa-sm"></i>
+                    </a>
+                    <a href="login.html" class="btn-cta-ghost">
+                        Already have an account
+                    </a>
+                </div>
+
+                <p class="cta-note">No credit card. No subscription. Just sign up.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         Footer
+         ═══════════════════════════════════ -->
+    <footer class="landing-footer">
+        <div class="container">
+            <div class="row align-items-start g-4">
+                <div class="col-md-4">
+                    <a href="index.html" class="footer-logo">Stubby</a>
+                    <p class="footer-tagline">Student matchmaking, done right.</p>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="footer-links d-flex flex-column gap-2">
+                        <a href="#how-it-works">How it works</a>
+                        <a href="#features">Features</a>
+                        <a href="register.html">Sign up</a>
+                        <a href="login.html">Sign in</a>
+                    </div>
+                </div>
+
+                <div class="col-md-4 text-md-end">
+                    <div class="footer-links d-flex flex-column gap-2 align-items-md-end">
+                        <span style="font-size: 0.82rem; color: #334155;">Singapore Polytechnic</span>
+                        <span style="font-size: 0.82rem; color: #334155;">AY2026/27 S1</span>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="footer-divider">
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <p class="footer-copy mb-0">&copy; 2026 Stubby. All rights reserved.</p>
+                <p class="footer-copy mb-0">Built for students, by students.</p>
+            </div>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/core/auth.js"></script>
-    <script src="js/core/navbar.js"></script>
-    <script src="js/home/dashboard.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (!auth.isLoggedIn()) {
-                window.location.href = 'login.html';
-                return;
-            }
+        // Redirect logged-in users straight to the dashboard
+        if (auth.isLoggedIn()) {
+            window.location.href = 'home.html';
+        }
 
-            const monthTitle = document.getElementById('monthTitle');
-            const calendarGrid = document.getElementById('calendarGrid');
-            const eventList = document.getElementById('eventList');
-            const addEventButton = document.getElementById('addEventButton');
-            const eventFormContainer = document.getElementById('eventFormContainer');
-            const eventForm = document.getElementById('eventForm');
-            const formTitle = document.getElementById('formTitle');
-            const cancelFormButton = document.getElementById('cancelFormButton');
-            const eventTitleInput = document.getElementById('eventTitle');
-            const eventDateInput = document.getElementById('eventDate');
-            const eventStartInput = document.getElementById('eventStart');
-            const eventEndInput = document.getElementById('eventEnd');
-            const eventPriorityInput = document.getElementById('eventPriority');
-            const eventColorInput = document.getElementById('eventColor');
-            const eventGoalInput = document.getElementById('eventGoal');
-            const eventGoalCompletedInput = document.getElementById('eventGoalCompleted');
-            const eventDescriptionInput = document.getElementById('eventDescription');
-            const prevMonth = document.getElementById('prevMonth');
-            const nextMonth = document.getElementById('nextMonth');
+        // Sticky nav style on scroll
+        const nav = document.getElementById('landingNav');
+        window.addEventListener('scroll', () => {
+            nav.classList.toggle('scrolled', window.scrollY > 20);
+        }, { passive: true });
 
-            let currentMonth = new Date();
-            let events = [];
-            let editingEventId = null;
-
-            const formatDate = (value) => value.toString().padStart(2, '0');
-
-            const loadEvents = async () => {
-                const response = await apiRequest('/api/calendar');
-                if (response && response.events) {
-                    events = response.events;
-                    renderAll();
-                    return;
+        // Scroll reveal
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    revealObserver.unobserve(entry.target);
                 }
-                eventList.innerHTML = '<div class="text-danger p-3">Unable to load calendar events.</div>';
-            };
-
-            const renderCalendar = () => {
-                const year = currentMonth.getFullYear();
-                const month = currentMonth.getMonth();
-                const firstDayIndex = new Date(year, month, 1).getDay();
-                const totalDays = new Date(year, month + 1, 0).getDate();
-                monthTitle.textContent = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
-                calendarGrid.innerHTML = '';
-
-                for (let i = 0; i < firstDayIndex; i++) {
-                    const emptyCell = document.createElement('div');
-                    emptyCell.className = 'calendar-cell';
-                    calendarGrid.appendChild(emptyCell);
-                }
-
-                for (let day = 1; day <= totalDays; day++) {
-                    const dateString = `${year}-${formatDate(month + 1)}-${formatDate(day)}`;
-                    const dayEvents = events.filter((event) => event.date === dateString);
-                    const cell = document.createElement('div');
-                    cell.className = 'calendar-cell';
-                    if (dateString === new Date().toISOString().slice(0, 10)) {
-                        cell.classList.add('calendar-cell--today');
-                    }
-
-                    const dayNumber = document.createElement('div');
-                    dayNumber.className = 'fw-bold mb-2';
-                    dayNumber.textContent = day;
-                    cell.appendChild(dayNumber);
-
-                    dayEvents.slice(0, 2).forEach((event) => {
-                        const eventPill = document.createElement('span');
-                        eventPill.className = `event-pill badge bg-${event.color} text-white`;
-                        eventPill.textContent = `${event.start} ${event.title}`;
-                        // show detail modal when clicking an event
-                        eventPill.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            openEventModal(event.id);
-                        });
-                        cell.appendChild(eventPill);
-                    });
-
-                    cell.addEventListener('click', () => openEventForm(null, dateString));
-                    calendarGrid.appendChild(cell);
-                }
-            };
-
-            const renderEventList = () => {
-                if (!events.length) {
-                    eventList.innerHTML = '<div class="text-muted p-3">No events yet. Use Add event to create one.</div>';
-                    return;
-                }
-
-                eventList.innerHTML = '';
-                events.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)).forEach((event) => {
-                    const item = document.createElement('div');
-                    item.className = 'list-group-item list-group-item-action mb-2 rounded-3';
-                    item.innerHTML = `
-                        <div class="d-flex justify-content-between gap-3">
-                            <div>
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <strong>${event.title}</strong>
-                                    <span class="badge bg-${event.color}">${event.priority}</span>
-                                </div>
-                                <div class="text-muted small">${event.date} · ${event.start} — ${event.end}</div>
-                                <div class="small text-muted">${event.description || 'No description'}</div>
-                                <div class="mt-2">
-                                    <span class="badge ${event.goalCompleted ? 'bg-success' : 'bg-secondary'}">${event.goal || 'No goal'}</span>
-                                </div>
-                            </div>
-                            <div class="text-end">
-                                <button type="button" class="btn btn-sm btn-outline-primary mb-2 edit-event" data-id="${event.id}">Edit</button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-event" data-id="${event.id}">Delete</button>
-                            </div>
-                        </div>
-                    `;
-
-                    item.querySelector('.edit-event').addEventListener('click', () => openEventForm(event.id));
-                    item.querySelector('.delete-event').addEventListener('click', () => handleDeleteEvent(event.id));
-                    eventList.appendChild(item);
-                });
-            };
-
-            const renderAll = () => {
-                renderCalendar();
-                renderEventList();
-            };
-
-            const showForm = () => eventFormContainer.classList.remove('d-none');
-            const hideForm = () => eventFormContainer.classList.add('d-none');
-
-            const resetForm = () => {
-                editingEventId = null;
-                formTitle.textContent = 'New event';
-                eventTitleInput.value = '';
-                eventDateInput.value = new Date().toISOString().slice(0, 10);
-                eventStartInput.value = '09:00';
-                eventEndInput.value = '10:00';
-                eventPriorityInput.value = 'medium';
-                eventColorInput.value = 'primary';
-                eventGoalInput.value = '';
-                eventGoalCompletedInput.checked = false;
-                eventDescriptionInput.value = '';
-            };
-
-            const openEventForm = (id = null, dateString = null) => {
-                if (id) {
-                    const event = events.find((item) => item.id === id);
-                    if (!event) {
-                        return;
-                    }
-                    editingEventId = id;
-                    formTitle.textContent = 'Edit event';
-                    eventTitleInput.value = event.title;
-                    eventDateInput.value = event.date;
-                    eventStartInput.value = event.start;
-                    eventEndInput.value = event.end;
-                    eventPriorityInput.value = event.priority;
-                    eventColorInput.value = event.color;
-                    eventGoalInput.value = event.goal;
-                    eventGoalCompletedInput.checked = Boolean(event.goalCompleted);
-                    eventDescriptionInput.value = event.description;
-                } else {
-                    editingEventId = null;
-                    formTitle.textContent = 'New event';
-                    resetForm();
-                    if (dateString) {
-                        eventDateInput.value = dateString;
-                    }
-                }
-                showForm();
-                eventTitleInput.focus();
-            };
-
-            const getFormPayload = () => ({
-                title: eventTitleInput.value.trim(),
-                date: eventDateInput.value,
-                start: eventStartInput.value,
-                end: eventEndInput.value,
-                priority: eventPriorityInput.value,
-                color: eventColorInput.value,
-                goal: eventGoalInput.value.trim(),
-                goalCompleted: eventGoalCompletedInput.checked,
-                description: eventDescriptionInput.value.trim(),
             });
+        }, { threshold: 0.12 });
 
-            const handleSaveEvent = async (event) => {
-                event.preventDefault();
-                const payload = getFormPayload();
-                if (!payload.title || !payload.date || !payload.start || !payload.end) {
-                    return;
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', (e) => {
+                const target = document.querySelector(anchor.getAttribute('href'));
+                if (target) {
+                    e.preventDefault();
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-
-                if (editingEventId) {
-                    await apiRequest(`/api/calendar/${editingEventId}`, 'PUT', payload);
-                } else {
-                    await apiRequest('/api/calendar', 'POST', payload);
-                }
-
-                await loadEvents();
-                await loadProgress();
-                resetForm();
-                hideForm();
-            };
-
-            const handleDeleteEvent = async (id) => {
-                if (!confirm('Delete this event?')) {
-                    return;
-                }
-                await apiRequest(`/api/calendar/${id}`, 'DELETE');
-                await loadEvents();
-                await loadProgress();
-            };
-
-            // Open event details modal
-            const openEventModal = (id) => {
-                const event = events.find((ev) => ev.id === id);
-                if (!event) return;
-
-                const modalEl = document.getElementById('eventModal');
-                if (!modalEl) return;
-
-                modalEl.querySelector('.modal-title').textContent = event.title;
-                modalEl.querySelector('#modalDateTime').textContent = `${event.date} · ${event.start} — ${event.end}`;
-                modalEl.querySelector('#modalDescription').textContent = event.description || 'No description';
-                modalEl.querySelector('#modalPriority').textContent = event.priority;
-                modalEl.querySelector('#modalGoal').textContent = event.goal || 'No goal';
-                const colorBadge = modalEl.querySelector('#modalColorBadge');
-                colorBadge.className = `badge bg-${event.color} text-white`;
-
-                const editBtn = modalEl.querySelector('#modalEditButton');
-                const deleteBtn = modalEl.querySelector('#modalDeleteButton');
-
-                editBtn.onclick = () => {
-                    openEventForm(event.id);
-                    const bs = bootstrap.Modal.getInstance(modalEl);
-                    if (bs) bs.hide();
-                };
-                deleteBtn.onclick = async () => {
-                    if (!confirm('Delete this event?')) return;
-                    await handleDeleteEvent(event.id);
-                    const bs = bootstrap.Modal.getInstance(modalEl);
-                    if (bs) bs.hide();
-                };
-
-                const bsModal = new bootstrap.Modal(modalEl);
-                bsModal.show();
-            };
-
-            addEventButton.addEventListener('click', () => openEventForm(null, new Date().toISOString().slice(0, 10)));
-            cancelFormButton.addEventListener('click', () => {
-                resetForm();
-                hideForm();
             });
-            eventForm.addEventListener('submit', handleSaveEvent);
-            prevMonth.addEventListener('click', () => {
-                currentMonth.setMonth(currentMonth.getMonth() - 1);
-                renderCalendar();
-            });
-            nextMonth.addEventListener('click', () => {
-                currentMonth.setMonth(currentMonth.getMonth() + 1);
-                renderCalendar();
-            });
-
-            // Progress tracking
-            const updateProgressUI = (progressData, type) => {
-                if (type === 'overall') {
-                    document.getElementById('progressOverallCompleted').textContent = progressData.completed;
-                    document.getElementById('progressOverallTotal').textContent = progressData.total;
-                    document.getElementById('progressOverallPercent').textContent = progressData.percentage;
-                    document.getElementById('progressOverallBar').style.width = `${progressData.percentage}%`;
-                } else if (type === 'today') {
-                    document.getElementById('progressTodayCompleted').textContent = progressData.completed;
-                    document.getElementById('progressTodayTotal').textContent = progressData.total;
-                    document.getElementById('progressTodayPercent').textContent = progressData.percentage;
-                    document.getElementById('progressTodayBar').style.width = `${progressData.percentage}%`;
-                } else if (type === 'goals') {
-                    document.getElementById('progressGoalsCompleted').textContent = progressData.completed;
-                    document.getElementById('progressGoalsTotal').textContent = progressData.total;
-                    document.getElementById('progressGoalsPercent').textContent = progressData.percentage;
-                    document.getElementById('progressGoalsBar').style.width = `${progressData.percentage}%`;
-                }
-            };
-
-            const loadProgress = async () => {
-                try {
-                    const overallResponse = await apiRequest('/api/progress/summary');
-                    const todayResponse = await apiRequest('/api/progress/today');
-                    const goalsResponse = await apiRequest('/api/progress/goals');
-
-                    if (overallResponse && overallResponse.progress) {
-                        updateProgressUI(overallResponse.progress, 'overall');
-                    }
-                    if (todayResponse && todayResponse.progress) {
-                        updateProgressUI(todayResponse.progress, 'today');
-                    }
-                    if (goalsResponse && goalsResponse.progress) {
-                        updateProgressUI(goalsResponse.progress, 'goals');
-                    }
-                } catch (error) {
-                    console.error('Error loading progress:', error);
-                }
-            };
-
-            resetForm();
-            await loadEvents();
-            await loadProgress();
         });
     </script>
 </body>
-
 </html>

@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!res.user.institution_id || !res.user.diploma_id) {
           window.location.href = 'onboarding.html';
         } else {
-          window.location.href = 'index.html';
+          window.location.href = 'home.html';
         }
       } else {
         showError('errPassword', res.message || 'Login failed. Please check your credentials.');
