@@ -486,9 +486,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (isViewProfilePage && pageUserData?.is_private && !isOwnProfile) {
-    if (profileVisibleContent) profileVisibleContent.classList.add('profile-private-blur');
+    if (profileVisibleContent) profileVisibleContent.replaceChildren();
     if (profileActions) profileActions.style.display = 'none';
-    if (profileFriendsList) profileFriendsList.innerHTML = 'Profile hidden.';
     privateProfileModal?.show();
     return;
   }
@@ -515,6 +514,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await updateProfileUI(pageUserData);
+  if (profileVisibleContent) profileVisibleContent.hidden = false;
 
   const name = pageUserData?.name || 'User';
   const username = pageUserData?.username || 'user';

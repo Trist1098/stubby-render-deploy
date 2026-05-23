@@ -135,7 +135,6 @@ CREATE TABLE "User" (
     friend_request_private BOOLEAN DEFAULT FALSE,
     theme              VARCHAR(20) DEFAULT 'Light',
     language           VARCHAR(30) DEFAULT 'English',
-    default_landing_page VARCHAR(30) DEFAULT 'Dashboard',
     is_online          BOOLEAN DEFAULT FALSE,
     push_notif         BOOLEAN DEFAULT TRUE,
     email_notif        BOOLEAN DEFAULT TRUE,

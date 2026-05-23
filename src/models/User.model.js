@@ -28,7 +28,6 @@ module.exports.updateProfile = async function updateProfile(data) {
   const isPrivate = data.isPrivate ?? data.is_private ?? false;
   const friendRequestPrivate = data.friendRequestPrivate ?? data.friend_request_private ?? false;
   const pushNotif = data.pushNotif ?? data.push_notif ?? true;
-  const defaultLandingPage = data.defaultLandingPage ?? data.default_landing_page ?? 'Dashboard';
   const profileText = data.profileText ?? data.profile_text ?? null;
   const fields = [
     'name = $1',
@@ -42,7 +41,6 @@ module.exports.updateProfile = async function updateProfile(data) {
     'theme = $9',
     'language = $10',
     'push_notif = $11',
-    'default_landing_page = $12',
   ];
   const values = [
     data.name,
@@ -56,7 +54,6 @@ module.exports.updateProfile = async function updateProfile(data) {
     data.theme || 'Light',
     data.language || 'English',
     pushNotif !== false,
-    defaultLandingPage,
   ];
 
   if (data.password) {

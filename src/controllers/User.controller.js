@@ -173,7 +173,6 @@ module.exports.updateProfile = async (req, res, next) => {
     isPrivate,
     friendRequestPrivate,
     pushNotif,
-    defaultLandingPage,
   } = req.body;
 
   if (!userId) {
@@ -200,8 +199,6 @@ module.exports.updateProfile = async (req, res, next) => {
 
     const finalTheme = theme || currentUser.theme || 'Light';
     const finalLanguage = language || currentUser.language || 'English';
-    const finalDefaultLandingPage =
-      defaultLandingPage || currentUser.default_landing_page || 'Dashboard';
     const finalIsPrivate = isPrivate ?? currentUser.is_private;
     const finalFriendRequestPrivate = friendRequestPrivate ?? currentUser.friend_request_private;
     const finalPushNotif = pushNotif ?? currentUser.push_notif;
@@ -212,10 +209,6 @@ module.exports.updateProfile = async (req, res, next) => {
 
     if (!isValidChoice(finalLanguage, ['English', 'Japanese', 'Chinese'])) {
       return res.status(400).json({ error: 'Language must be English, Japanese, or Chinese' });
-    }
-
-    if (!isValidChoice(finalDefaultLandingPage, ['Dashboard', 'Profile', 'Chat', 'Matchmaking'])) {
-      return res.status(400).json({ error: 'Please choose a valid landing page' });
     }
 
     if (institutionId) {
@@ -245,7 +238,6 @@ module.exports.updateProfile = async (req, res, next) => {
       isPrivate: finalIsPrivate,
       friendRequestPrivate: finalFriendRequestPrivate,
       pushNotif: finalPushNotif,
-      defaultLandingPage: finalDefaultLandingPage,
     });
 
     if (!updatedUser) {

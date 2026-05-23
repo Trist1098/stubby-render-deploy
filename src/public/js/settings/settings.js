@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const aboutInput = document.getElementById('settings-personal-info');
   const themeToggle = document.getElementById('settings-theme-toggle');
   const languageSelect = document.getElementById('settings-language');
-  const defaultPageSelect = document.getElementById('settings-default-page');
   const notificationsToggle = document.getElementById('settings-notifications');
   const privateProfileToggle = document.getElementById('settings-private-profile');
   const friendPrivateToggle = document.getElementById('settings-friend-private');
@@ -87,7 +86,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     aboutInput.value = user.profile_text || '';
     themeToggle.checked = user.theme === 'Dark';
     languageSelect.value = user.language || 'English';
-    defaultPageSelect.value = user.default_landing_page || 'Dashboard';
     notificationsToggle.checked = user.push_notif !== false;
     privateProfileToggle.checked = user.is_private === true;
     friendPrivateToggle.checked = user.friend_request_private === true;
@@ -138,7 +136,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       profileText: aboutInput.value.trim(),
       theme: themeToggle.checked ? 'Dark' : 'Light',
       language: languageSelect.value,
-      defaultLandingPage: defaultPageSelect.value,
       pushNotif: notificationsToggle.checked,
       isPrivate: privateProfileToggle.checked,
       friendRequestPrivate: friendPrivateToggle.checked,
