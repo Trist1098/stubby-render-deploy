@@ -8,4 +8,7 @@ export const chatState = {
   messageRefreshTimer: null,
   messageRefreshInFlight: false,
   animatedMessageIds: new Set(),
+  isTyping: false,
+  typingTimeout: null,
+  typingUsers: [],
 };

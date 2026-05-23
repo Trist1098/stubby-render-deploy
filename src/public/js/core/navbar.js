@@ -36,12 +36,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
       authLink.innerHTML = `
                 <div class="dropdown">
-                    <button class="btn btn-white fw-bold dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                    <button class="btn btn-white fw-bold dropdown-toggle d-flex align-items-center gap-2 text-primary"
+                            type="button"
+                            data-bs-toggle="dropdown">
                         <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center user-avatar-sm">
                             ${(user.name || 'U').charAt(0).toUpperCase()}
                         </div>
                         Hi, ${user.name || 'User'}!
                     </button>
+
                     <div class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
                         <a href="profile.html" class="dropdown-item py-2">
                             <i class="fas fa-user-circle me-2"></i> Profile
@@ -52,12 +55,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         </a>
 
                         <hr class="dropdown-divider">
-                        <button id="logoutButton" class="dropdown-item py-2 text-danger"><i class="fas fa-sign-out-alt me-2"></i> Logout</button>
+
+                        <button id="logoutButton" class="dropdown-item py-2 text-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i> Logout
+                        </button>
                     </div>
                 </div>
             `;
 
-      // LOGOUT BUTTON
       document.getElementById('logoutButton')?.addEventListener('click', () => {
         if (typeof auth !== 'undefined' && typeof auth.logout === 'function') {
           auth.logout();
@@ -75,7 +80,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   };
 
-  // Run navbar render
   renderNavbar();
 
   // 3. SCROLL EVENT FOR TRANSPARENT NAVBAR

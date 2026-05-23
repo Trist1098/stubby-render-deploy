@@ -186,14 +186,15 @@ const users = [
   { username: 'ethan', email: 'ethan@nyp.edu.sg', name: 'Ethan Koh', inst: 2, dip: 1, year: 2, bio: 'NYP student passionate about web dev.', is_online: false, has_completed_quiz: false },
   { username: 'ava', email: 'ava@np.edu.sg', name: 'Ava Low', inst: 3, dip: 1, year: 3, bio: 'NP final year student.', is_online: false, has_completed_quiz: false },
   { username: 'lucas', email: 'lucas@rp.edu.sg', name: 'Lucas Teo', inst: 4, dip: 1, year: 1, bio: 'RP student learning back-end.', is_online: false, has_completed_quiz: false },
-  { username: 'mia', email: 'mia@tp.edu.sg', name: 'Mia Lim', inst: 5, dip: 1, year: 2, bio: 'TP student interested in UI/UX.', is_online: false, has_completed_quiz: false }
+  { username: 'mia', email: 'mia@tp.edu.sg', name: 'Mia Lim', inst: 5, dip: 1, year: 2, bio: 'TP student interested in UI/UX.', is_online: false, has_completed_quiz: false },
+  { username: 'sam', email: 'sam@ichat.sp.edu.sg', name: 'Sam', inst: 1, dip: 1, year: 2, bio: 'Study session member taking a short break.', is_online: true, has_completed_quiz: true }
 ];
 
 const matchRequests = [
-  { s: 2, r: 4, m: 2, t: '16/05/2026 15:00', l: 'Online (Zoom)', ty: 'one-on-one', st: 'Accepted', msg: 'Hey Marcus! Want to work on the BED project together?', tp: 'BED Project Assignment' },
-  { s: 2, r: 5, m: 1, t: '17/05/2026 10:00', l: 'Library Level 6', ty: 'one-on-one', st: 'Pending', msg: 'Hi Emily, would you like to prep for the FOP2 mock test?', tp: 'FOP2 Mock Test Prep' },
-  { s: 9, r: 2, m: 4, t: '18/05/2026 14:00', l: 'Campus Lab 3', ty: 'one-on-one', st: 'Pending', msg: 'Hi James! I need help with DF assignments.', tp: 'Digital Forensics Help' },
-  { s: 3, r: 5, m: 1, t: '19/05/2026 11:00', l: 'Library Level 3', ty: 'group', st: 'Accepted', msg: 'Group study for FOP2 exam prep!', tp: 'FOP2 Group Study' }
+  { s: 2, r: 4, m: 2, t: '14/05/2026 15:00', l: 'Online', is_online: true, ty: 'one-on-one', st: 'Accepted', msg: 'Hey Marcus! Want to work on the BED project together?', tp: 'BED Project Assignment', co: [] },
+  { s: 2, r: 5, m: 1, t: '18/05/2026 10:00', l: 'Library Level 6', is_online: false, ty: 'one-on-one', st: 'Pending', msg: 'Hi Emily, would you like to prep for the FOP2 mock test?', tp: 'FOP2 Mock Test Prep', co: [] },
+  { s: 9, r: 2, m: 4, t: '20/05/2026 14:00', l: 'Campus Lab 3', is_online: false, ty: 'one-on-one', st: 'Pending', msg: 'Hi James! I need help with DF assignments.', tp: 'Data Fluency Help', co: [] },
+  { s: 3, r: 5, m: 1, t: '22/05/2026 11:00', l: 'Library Level 3', is_online: false, ty: 'group', st: 'Accepted', msg: 'Group study for FOP2 exam prep!', tp: 'FOP2 Group Study', co: [2, 4] }
 ];
 
 const badges = [
@@ -257,7 +258,7 @@ const friendRequests = [
 ];
 
 const userModules = [
-  {u: 2, m: 1}, {u: 2, m: 2}, {u: 3, m: 2}, {u: 4, m: 1}, {u: 5, m: 2}, 
+  {u: 2, m: 1}, {u: 2, m: 2}, {u: 2, m: 3}, {u: 3, m: 2}, {u: 4, m: 1}, {u: 5, m: 2}, 
   {u: 6, m: 5}, {u: 7, m: 2}, {u: 8, m: 1}, {u: 9, m: 5}, {u: 10, m: 2}, 
   {u: 11, m: 4}, {u: 12, m: 4}, {u: 13, m: 4}, {u: 14, m: 4}, {u: 15, m: 1},
   {u: 17, m: 1}, {u: 18, m: 1}, {u: 20, m: 1}, {u: 20, m: 3}
@@ -276,12 +277,6 @@ const userInterests = [
   {u: 4, i: 7}, {u: 4, i: 10}, {u: 4, i: 11}, {u: 5, i: 2}, {u: 6, i: 1}, 
   {u: 7, i: 2}, {u: 8, i: 3}, {u: 10, i: 2}, {u: 12, i: 4}, {u: 13, i: 1}, 
   {u: 15, i: 1}, {u: 16, i: 5}, {u: 18, i: 9}, {u: 19, i: 13}, {u: 20, i: 3}
-];
-
-const matchPrefs = [
-  {u:2, mods:'[1, 2, 3]', sched:true, auto:false, days:'["mon", "wed", "fri"]', modes:'["online", "campus"]', times:'["morning", "afternoon"]', st:'09:00', en:'17:00', rate:'High', style:'collaborative', langs:'[1, 3]', dur:60, pri:1, gen:'any', lvl:'same'},
-  {u:3, mods:'[1, 2]', sched:true, auto:false, days:'["tue", "thu"]', modes:'["campus"]', times:'["afternoon"]', st:'13:00', en:'18:00', rate:'Medium', style:'discussion', langs:'[1]', dur:45, pri:1, gen:'any', lvl:'same'},
-  {u:4, mods:'[2, 3]', sched:true, auto:true, days:'["mon", "tue", "wed"]', modes:'["online"]', times:'["morning"]', st:'08:00', en:'12:00', rate:'High', style:'quiet', langs:'[1]', dur:90, pri:2, gen:'any', lvl:'higher'}
 ];
 
 const conversations = [
@@ -315,27 +310,37 @@ const messages = [
 
 const sessions = [
   {h: 2, title:'BED Project Sprint', goal:'Finish Tutorial Q1-Q3', dur:3600, focus:2700, brk:900, status:'completed'},
-  {h: 2, title:'FOP2 Exam Prep', goal:'Review Chapter 5-7', dur:5400, focus:4500, brk:900, status:'active'}
+  {h: 2, title:'FOP2 Exam Prep', goal:'Complete the Mathematics Textbook Q1', dur:5400, focus:4500, brk:900, status:'active'}
 ];
 
 const sessMembers = [
-  {sid: 1, u: 3, st: 'focus', timer: 2700, prog: 80},
-  {sid: 1, u: 2, st: 'focus', timer: 2400, prog: 60},
-  {sid: 1, u: 5, st: 'break', timer: 900, prog: 45},
-  {sid: 2, u: 3, st: 'focus', timer: 4500, prog: 0},
-  {sid: 2, u: 4, st: 'focus', timer: 4500, prog: 0}
+  { sid: 2, u: 2, st: 'focus', timer: 0, prog: 60 },
+  { sid: 2, u: 12, st: 'need_help', timer: 0, prog: 75 },
+  { sid: 2, u: 22, st: 'break', timer: 0, prog: 45 }
+];
+
+const microGoals = [
+  { sid: 2, u: 2, title: 'Complete the Mathematics Textbook Q1', desc: '12 x 96 / 12', pos: 1, st: 'active' }
+];
+
+const microGoalProgress = [
+  { goal: 1, u: 2, progress: 60, completed: false },
+  { goal: 1, u: 12, progress: 75, completed: false },
+  { goal: 1, u: 22, progress: 45, completed: false }
 ];
 
 const events = [
-  {cr: 2, name: 'Marcus Tan', topic: 'BED Project Discussion', loc: 'Online (Zoom)', date: '2025-11-14', time: '3:00 PM - 5:00 PM', type: 'Study Session'},
-  {cr: 2, name: 'Emily Wong', topic: 'FOP2 Mock Test Prep', loc: 'Library Level 6', date: '2025-11-18', time: '10:00 AM - 12:00 PM', type: 'Exam Prep'},
-  {cr: 2, name: 'Sarah Lim', topic: 'DF Design Review', loc: 'Campus Lab 2', date: '2025-11-20', time: '2:00 PM - 4:00 PM', type: 'Study Session'},
-  {cr: 3, name: 'James Lee', topic: 'PDS Group Consultation', loc: 'Online (Teams)', date: '2025-11-22', time: '9:00 AM - 10:30 AM', type: 'Consultation'}
+  {cr: 2, req: 1, mod: 2, name: 'Marcus Tan', topic: 'BED Project Discussion', loc: 'Online', is_online: true, meeting_url: '/api/chats/call/1', date: '2026-05-14', time: '3:00 PM - 5:00 PM', type: 'Study Session', st: 'Confirmed', notes: 'Review BED notes'},
+  {cr: 2, req: null, mod: 1, name: 'Emily Wong', topic: 'FOP2 Mock Test Prep', loc: 'Library Level 6', is_online: false, meeting_url: null, date: '2026-05-18', time: '10:00 AM - 12:00 PM', type: 'Study Session', st: 'Confirmed', notes: 'Bring laptops'},
+  {cr: 2, req: null, mod: null, name: 'Sarah Lim', topic: 'DF Design Review', loc: 'Campus Lab 2', is_online: false, meeting_url: null, date: '2026-05-20', time: '2:00 PM - 4:00 PM', type: 'Study Session', st: 'Confirmed', notes: ''},
+  {cr: 3, req: 4, mod: 1, name: 'James Lee', topic: 'PDS Group Consultation', loc: 'Online', is_online: true, meeting_url: '/api/chats/call/4', date: '2026-05-22', time: '9:00 AM - 10:30 AM', type: 'Consultation', st: 'Confirmed', notes: 'Group study'}
 ];
 
 const eventParts = [
-  {e: 1, u: 3}, {e: 1, u: 2}, {e: 2, u: 3}, {e: 2, u: 4},
-  {e: 3, u: 3}, {e: 3, u: 2}, {e: 4, u: 3}, {e: 4, u: 2}, {e: 4, u: 4}
+  {e: 1, u: 3, st: 'Accepted'}, {e: 1, u: 2, st: 'Accepted'}, 
+  {e: 2, u: 3, st: 'Accepted'}, {e: 2, u: 4, st: 'Accepted'},
+  {e: 3, u: 3, st: 'Accepted'}, {e: 3, u: 2, st: 'Accepted'}, 
+  {e: 4, u: 3, st: 'Accepted'}, {e: 4, u: 2, st: 'Accepted'}, {e: 4, u: 4, st: 'Pending'}
 ];
 
 const eventComments = [
@@ -409,9 +414,9 @@ async function seed() {
 
   // 8. Match Requests
   if (matchRequests.length > 0) {
-    const placeholders = matchRequests.map((_, i) => `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`).join(', ');
-    const values = matchRequests.flatMap(r => [r.s, r.r, r.m, r.tp, r.t, r.l, r.ty, r.st, r.msg]);
-    await pool.query(`INSERT INTO MatchRequest ("sender_id", "receiver_id", "module_id", "topic", "time_slot", "location", "type", "status", "message") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+    const placeholders = matchRequests.map((_, i) => `($${i * 11 + 1}, $${i * 11 + 2}, $${i * 11 + 3}, $${i * 11 + 4}, $${i * 11 + 5}, $${i * 11 + 6}, $${i * 11 + 7}, $${i * 11 + 8}, $${i * 11 + 9}, $${i * 11 + 10}, $${i * 11 + 11})`).join(', ');
+    const values = matchRequests.flatMap(r => [r.s, r.r, r.m, r.tp, r.t, r.l, r.is_online || false, r.ty, r.co || [], r.st, r.msg]);
+    await pool.query(`INSERT INTO MatchRequest ("sender_id", "receiver_id", "module_id", "topic", "time_slot", "location", "is_online", "type", "co_participants", "status", "message") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
   // 9. Badges
@@ -463,70 +468,77 @@ async function seed() {
     await pool.query(`INSERT INTO UserInterest ("user_id", "interest_id") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 15. MatchPreference
-  if (matchPrefs.length > 0) {
-    const placeholders = matchPrefs.map((_, i) => `($${i * 16 + 1}, $${i * 16 + 2}, $${i * 16 + 3}, $${i * 16 + 4}, $${i * 16 + 5}, $${i * 16 + 6}, $${i * 16 + 7}, $${i * 16 + 8}, $${i * 16 + 9}, $${i * 16 + 10}, $${i * 16 + 11}, $${i * 16 + 12}, $${i * 16 + 13}, $${i * 16 + 14}, $${i * 16 + 15}, $${i * 16 + 16})`).join(', ');
-    const values = matchPrefs.flatMap(p => [p.u, p.mods, p.sched, p.auto, p.days, p.modes, p.times, p.st, p.en, p.rate, p.style, p.langs, p.dur, p.pri, p.gen, p.lvl]);
-    await pool.query(`INSERT INTO MatchPreference ("user_id", "selected_modules", "schedule_set", "auto_match_enabled", "availability_days", "selected_modes", "selected_times", "start_time", "end_time", "match_rate", "style", "selected_languages", "duration", "priority", "gender_pref", "partner_level") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
-  }
-
-  // 16. ChatConversation
+  // 15. ChatConversation
   if (conversations.length > 0) {
     const placeholders = conversations.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ');
     const values = conversations.flatMap(c => [c.name, c.type]);
     await pool.query(`INSERT INTO ChatConversation ("name", "type") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 17. ConversationMember
+  // 16. ConversationMember
   if (convMembers.length > 0) {
     const placeholders = convMembers.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ');
     const values = convMembers.flatMap(cm => [cm.c, cm.u]);
     await pool.query(`INSERT INTO ConversationMember ("conversation_id", "user_id") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 18. ChatMessage
+  // 17. ChatMessage
   if (messages.length > 0) {
     const placeholders = messages.map((_, i) => `($${i * 5 + 1},$${i * 5 + 2},$${i * 5 + 3},$${i * 5 + 4},$${i * 5 + 5})`).join(', ');
     const values = messages.flatMap(m => [m.c, m.s, m.t, m.a, m.ca]);
     await pool.query(`INSERT INTO ChatMessage ("conversation_id","sender_id","text","is_announcement","created_at") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 19. StudySession
+  // 18. StudySession
   if (sessions.length > 0) {
     const placeholders = sessions.map((_, i) => `($${i*7+1},$${i*7+2},$${i*7+3},$${i*7+4},$${i*7+5},$${i*7+6},$${i*7+7})`).join(', ');
     const values = sessions.flatMap(s => [s.h, s.title, s.goal, s.dur, s.focus, s.brk, s.status]);
     await pool.query(`INSERT INTO StudySession ("host_id","title","micro_goal","duration","focus_duration","break_duration","status") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 20. SessionMember
+  // 19. SessionMember
   if (sessMembers.length > 0) {
     const placeholders = sessMembers.map((_, i) => `($${i*5+1},$${i*5+2},$${i*5+3},$${i*5+4},$${i*5+5})`).join(', ');
     const values = sessMembers.flatMap(sm => [sm.sid, sm.u, sm.st, sm.timer, sm.prog]);
     await pool.query(`INSERT INTO SessionMember ("session_id","user_id","status","status_timer","progress") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
+  // 20a. Micro-goals
+  if (microGoals.length > 0) {
+    const placeholders = microGoals.map((_, i) => `($${i*6+1},$${i*6+2},$${i*6+3},$${i*6+4},$${i*6+5},$${i*6+6}, CASE WHEN $${i*6+6}::VARCHAR = 'active' THEN CURRENT_TIMESTAMP ELSE NULL END)`).join(', ');
+    const values = microGoals.flatMap(mg => [mg.sid, mg.u, mg.title, mg.desc, mg.pos, mg.st]);
+    await pool.query(`INSERT INTO micro_goals ("study_session_id","created_by_user_id","title","description","queue_position","status","activated_at") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+  }
+
+  // 20b. Micro-goal progress
+  if (microGoalProgress.length > 0) {
+    const placeholders = microGoalProgress.map((_, i) => `($${i*4+1},$${i*4+2},$${i*4+3},$${i*4+4})`).join(', ');
+    const values = microGoalProgress.flatMap(mgp => [mgp.goal, mgp.u, mgp.progress, mgp.completed]);
+    await pool.query(`INSERT INTO micro_goal_progress ("micro_goal_id","user_id","progress_percent","is_completed") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+  }
+
   // 21. CalendarEvent
   if (events.length > 0) {
-    const placeholders = events.map((_, i) => `($${i*7+1},$${i*7+2},$${i*7+3},$${i*7+4},$${i*7+5},$${i*7+6},$${i*7+7})`).join(', ');
-    const values = events.flatMap(e => [e.cr, e.name, e.topic, e.loc, e.date, e.time, e.type]);
-    await pool.query(`INSERT INTO CalendarEvent ("creator_id","name","topic","location","event_date","booking_time","type") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+    const placeholders = events.map((_, i) => `($${i*12+1},$${i*12+2},$${i*12+3},$${i*12+4},$${i*12+5},$${i*12+6},$${i*12+7},$${i*12+8},$${i*12+9},$${i*12+10},$${i*12+11},$${i*12+12})`).join(', ');
+    const values = events.flatMap(e => [e.cr, e.req || null, e.mod || null, e.name, e.topic, e.loc, e.is_online || false, e.meeting_url || null, e.date, e.time, e.type, e.notes || '']);
+    await pool.query(`INSERT INTO CalendarEvent ("creator_id","request_id","module_id","name","topic","location","is_online","meeting_url","event_date","booking_time","type","notes") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 22. EventParticipant
+  // 21. EventParticipant
   if (eventParts.length > 0) {
-    const placeholders = eventParts.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ');
-    const values = eventParts.flatMap(ep => [ep.e, ep.u]);
-    await pool.query(`INSERT INTO EventParticipant ("event_id", "user_id") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+    const placeholders = eventParts.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(', ');
+    const values = eventParts.flatMap(ep => [ep.e, ep.u, ep.st || 'Accepted']);
+    await pool.query(`INSERT INTO EventParticipant ("event_id", "user_id", "status") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 23. EventComment
+  // 22. EventComment
   if (eventComments.length > 0) {
     const placeholders = eventComments.map((_, i) => `($${i*3+1},$${i*3+2},$${i*3+3})`).join(', ');
     const values = eventComments.flatMap(ec => [ec.e, ec.u, ec.t]);
     await pool.query(`INSERT INTO EventComment ("event_id","user_id","text") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
   }
 
-  // 24. Notification
+  // 23. Notification
   if (notifications.length > 0) {
     const placeholders = notifications.map((_, i) => `($${i*6+1},$${i*6+2},$${i*6+3},$${i*6+4},$${i*6+5},$${i*6+6})`).join(', ');
     const values = notifications.flatMap(n => [n.u, n.title, n.msg, n.type, n.read, n.nav]);

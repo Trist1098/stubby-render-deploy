@@ -33,34 +33,42 @@ CREATE UNIQUE INDEX "Person_email_key" ON "Person"("email");
 -- =============================================
 -- DROP EXISTING TABLES
 -- =============================================
-DROP TABLE IF EXISTS EventComment;
-DROP TABLE IF EXISTS EventParticipant;
-DROP TABLE IF EXISTS CalendarEvent;
-DROP TABLE IF EXISTS Notification;
-DROP TABLE IF EXISTS MessagePin;
-DROP TABLE IF EXISTS MessageReaction;
-DROP TABLE IF EXISTS ChatMessage;
-DROP TABLE IF EXISTS ConversationMember;
-DROP TABLE IF EXISTS SessionReflection;
-DROP TABLE IF EXISTS SessionMember;
-DROP TABLE IF EXISTS MatchRequest;
-DROP TABLE IF EXISTS MatchPreference;
-DROP TABLE IF EXISTS UserBadge;
-DROP TABLE IF EXISTS Friendship;
-DROP TABLE IF EXISTS FriendRequest;
-DROP TABLE IF EXISTS UserInterest;
-DROP TABLE IF EXISTS UserLanguage;
-DROP TABLE IF EXISTS UserModule;
-DROP TABLE IF EXISTS ChatConversation;
-DROP TABLE IF EXISTS StudySession;
-DROP TABLE IF EXISTS Badge;
-DROP TABLE IF EXISTS Module;
-DROP TABLE IF EXISTS "User";
-DROP TABLE IF EXISTS Interest;
-DROP TABLE IF EXISTS Language;
-DROP TABLE IF EXISTS Diploma;
-DROP TABLE IF EXISTS Institution;
-DROP TABLE IF EXISTS Country;
+DROP TABLE IF EXISTS EventComment CASCADE;
+DROP TABLE IF EXISTS EventParticipant CASCADE;
+DROP TABLE IF EXISTS CalendarEvent CASCADE;
+DROP TABLE IF EXISTS Notification CASCADE;
+DROP TABLE IF EXISTS MessagePin CASCADE;
+DROP TABLE IF EXISTS MessageReaction CASCADE;
+DROP TABLE IF EXISTS ChatMessage CASCADE;
+DROP TABLE IF EXISTS ConversationMember CASCADE;
+DROP TABLE IF EXISTS micro_goal_ai_checks CASCADE;
+DROP TABLE IF EXISTS micro_goal_workings CASCADE;
+DROP TABLE IF EXISTS micro_goal_progress CASCADE;
+DROP TABLE IF EXISTS micro_goals CASCADE;
+DROP TABLE IF EXISTS status_events CASCADE;
+DROP TABLE IF EXISTS consultation_reflections CASCADE;
+DROP TABLE IF EXISTS consultation_notes CASCADE;
+DROP TABLE IF EXISTS consultation_sessions CASCADE;
+DROP TABLE IF EXISTS SessionReflection CASCADE;
+DROP TABLE IF EXISTS SessionMember CASCADE;
+DROP TABLE IF EXISTS MatchRequest CASCADE;
+DROP TABLE IF EXISTS MatchPreference CASCADE;
+DROP TABLE IF EXISTS UserBadge CASCADE;
+DROP TABLE IF EXISTS Friendship CASCADE;
+DROP TABLE IF EXISTS FriendRequest CASCADE;
+DROP TABLE IF EXISTS UserInterest CASCADE;
+DROP TABLE IF EXISTS UserLanguage CASCADE;
+DROP TABLE IF EXISTS UserModule CASCADE;
+DROP TABLE IF EXISTS ChatConversation CASCADE;
+DROP TABLE IF EXISTS StudySession CASCADE;
+DROP TABLE IF EXISTS Badge CASCADE;
+DROP TABLE IF EXISTS Module CASCADE;
+DROP TABLE IF EXISTS "User" CASCADE;
+DROP TABLE IF EXISTS Interest CASCADE;
+DROP TABLE IF EXISTS Language CASCADE;
+DROP TABLE IF EXISTS Diploma CASCADE;
+DROP TABLE IF EXISTS Institution CASCADE;
+DROP TABLE IF EXISTS Country CASCADE;
 
 -- PostgreSQL trigger function for auto-updating updated_at
 CREATE OR REPLACE FUNCTION trigger_set_updated_at()
@@ -208,18 +216,20 @@ CREATE TABLE MatchPreference (
 );
 
 CREATE TABLE MatchRequest (
-    request_id  SERIAL PRIMARY KEY,
-    sender_id   INT NOT NULL,
-    receiver_id INT NOT NULL,
-    module_id   INT,
-    topic       VARCHAR(255),
-    time_slot   VARCHAR(100),
-    location    VARCHAR(255),
-    type        VARCHAR(20) DEFAULT 'one-on-one',
-    status      VARCHAR(20) DEFAULT 'Pending',
-    message     TEXT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    request_id      SERIAL PRIMARY KEY,
+    sender_id       INT NOT NULL,
+    receiver_id     INT NOT NULL,
+    module_id       INT,
+    topic           VARCHAR(255),
+    time_slot       VARCHAR(100),
+    location        VARCHAR(255),
+    is_online       BOOLEAN DEFAULT FALSE,
+    type            VARCHAR(20) DEFAULT 'one-on-one',
+    co_participants INT[] DEFAULT '{}',
+    status          VARCHAR(20) DEFAULT 'Pending',
+    message         TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (sender_id)   REFERENCES "User"(user_id) ON DELETE CASCADE,
     FOREIGN KEY (receiver_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
     FOREIGN KEY (module_id)   REFERENCES Module(module_id) ON DELETE SET NULL
@@ -238,9 +248,12 @@ CREATE TABLE StudySession (
     title          VARCHAR(255),
     micro_goal     VARCHAR(255),
     duration       INT DEFAULT 0,
+    planned_duration_seconds INT,
     focus_duration INT DEFAULT 0,
     break_duration INT DEFAULT 0,
     status         VARCHAR(20) DEFAULT 'active',
+    started_at     TIMESTAMP,
+    ended_at       TIMESTAMP,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at   TIMESTAMP,
     FOREIGN KEY (host_id) REFERENCES "User"(user_id) ON DELETE CASCADE
@@ -254,8 +267,10 @@ CREATE TABLE SessionMember (
     status_timer INT DEFAULT 0,
     progress     INT DEFAULT 0,
     joined_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    left_at      TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(session_id, user_id)
 );
 
 CREATE TABLE SessionReflection (
@@ -264,9 +279,12 @@ CREATE TABLE SessionReflection (
     user_id       INT NOT NULL,
     content       TEXT,
     rating        INT,
+    quick_rating  VARCHAR(50),
+    notes         TEXT,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(session_id, user_id)
 );
 
 -- =============================================
@@ -304,8 +322,10 @@ CREATE TABLE ChatMessage (
     is_deleted      BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     edited_at       TIMESTAMP,
+    parent_message_id INT,
     FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (sender_id)       REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_message_id) REFERENCES ChatMessage(message_id) ON DELETE SET NULL
 );
 
 CREATE TABLE MessagePin (
@@ -328,21 +348,38 @@ CREATE TABLE MessageReaction (
     UNIQUE(message_id, user_id, emoji)
 );
 
+CREATE TABLE UserPresence (
+    user_id         INT PRIMARY KEY,
+    typing_status   BOOLEAN DEFAULT FALSE,
+    conversation_id INT,
+    last_seen       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (conversation_id) REFERENCES ChatConversation(conversation_id) ON DELETE SET NULL
+);
+
 -- =============================================
 -- CALENDAR & EVENTS
 -- =============================================
 CREATE TABLE CalendarEvent (
     event_id     SERIAL PRIMARY KEY,
     creator_id   INT NOT NULL,
+    request_id   INT,
+    module_id    INT,
     name         VARCHAR(255) NOT NULL,
     topic        VARCHAR(255),
     location     VARCHAR(255),
+    is_online    BOOLEAN DEFAULT FALSE,
+    meeting_url  VARCHAR(255),
     event_date   DATE NOT NULL,
     booking_time VARCHAR(100),
     type         VARCHAR(100) DEFAULT 'Study Session',
+    status       VARCHAR(20) DEFAULT 'Confirmed',
+    notes        TEXT,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (creator_id) REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (creator_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (request_id) REFERENCES MatchRequest(request_id) ON DELETE SET NULL,
+    FOREIGN KEY (module_id)  REFERENCES Module(module_id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER set_updated_at_calendar_event
@@ -350,9 +387,11 @@ CREATE TRIGGER set_updated_at_calendar_event
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 CREATE TABLE EventParticipant (
-    id       SERIAL PRIMARY KEY,
-    event_id INT NOT NULL,
-    user_id  INT NOT NULL,
+    id         SERIAL PRIMARY KEY,
+    event_id   INT NOT NULL,
+    user_id    INT NOT NULL,
+    status     VARCHAR(20) DEFAULT 'Accepted',
+    joined_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES CalendarEvent(event_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)  REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(event_id, user_id)
