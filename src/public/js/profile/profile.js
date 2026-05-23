@@ -39,8 +39,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const badgeDetailEarned = document.getElementById('badge-detail-earned');
   const badgeDetailIcon = document.getElementById('badge-detail-icon');
   const profilePictureContainer = document.querySelector('.profile-picture');
+  const profileBannerContainer = document.querySelector('.profile-banner');
   const profileUploadButton = document.getElementById('profile-upload-button');
   const profileUploadInput = document.getElementById('profile-upload-input');
+  const bannerUploadButton = document.getElementById('banner-upload-button');
+  const bannerUploadInput = document.getElementById('banner-upload-input');
   const profileFeedback = document.getElementById('profile-feedback');
   const studentSearchInput = document.getElementById('student-search-input');
   const studentSearchResults = document.getElementById('student-search-results');
@@ -81,11 +84,57 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allBadgesModal = allBadgesModalEl
     ? bootstrap.Modal.getOrCreateInstance(allBadgesModalEl)
     : null;
+  const imageEditorModalEl = document.getElementById('imageEditorModal');
+  const imageEditorModal = imageEditorModalEl
+    ? bootstrap.Modal.getOrCreateInstance(imageEditorModalEl)
+    : null;
+  const imageEditorTitle = document.getElementById('imageEditorModalLabel');
+  const imageEditorCanvas = document.getElementById('image-editor-canvas');
+  const imageEditorFeedback = document.getElementById('image-editor-feedback');
+  const imageEditorSaveButton = document.getElementById('image-editor-save');
+  const imageEditorResetButton = document.getElementById('image-editor-reset');
+  const imageEditorInputs = {
+    zoom: document.getElementById('image-editor-zoom'),
+    horizontal: document.getElementById('image-editor-horizontal'),
+    vertical: document.getElementById('image-editor-vertical'),
+    brightness: document.getElementById('image-editor-brightness'),
+    contrast: document.getElementById('image-editor-contrast'),
+    rotation: document.getElementById('image-editor-rotation'),
+  };
+  const imageEditorValues = {
+    zoom: document.getElementById('image-editor-zoom-value'),
+    horizontal: document.getElementById('image-editor-horizontal-value'),
+    vertical: document.getElementById('image-editor-vertical-value'),
+    brightness: document.getElementById('image-editor-brightness-value'),
+    contrast: document.getElementById('image-editor-contrast-value'),
+    rotation: document.getElementById('image-editor-rotation-value'),
+  };
 
   const profileAboutInstitutionEl = document.getElementById('profile-about-institution');
   const profileAboutDiplomaEl = document.getElementById('profile-about-diploma');
   const profileAboutYearEl = document.getElementById('profile-about-year');
   const SETTINGS_STORAGE_KEY = 'stubbyProfileSettings';
+  const PROFILE_MEDIA_CONFIG = {
+    avatar: {
+      title: 'Edit profile picture',
+      endpoint: '/api/users/profile-picture',
+      fieldName: 'profilePic',
+      responseField: 'profile_pic',
+      width: 480,
+      height: 480,
+      successMessage: 'Profile picture updated.',
+    },
+    banner: {
+      title: 'Edit profile banner',
+      endpoint: '/api/users/profile-banner',
+      fieldName: 'profileBanner',
+      responseField: 'profile_banner',
+      width: 1200,
+      height: 420,
+      successMessage: 'Profile banner updated.',
+    },
+  };
+  let imageEditorState = null;
 
   const escapeHtml = (value) => {
     const div = document.createElement('div');
@@ -382,14 +431,127 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  const uploadProfileImage = async (file) => {
-    if (!file) return;
+  const setProfileBanner = (url) => {
+    if (!profileBannerContainer) return;
+    profileBannerContainer.style.backgroundImage = url ? `url('${url}')` : '';
+  };
+
+  const getEditorValue = (name) => Number(imageEditorInputs[name]?.value || 0);
+
+  const formatPositionValue = (value) => {
+    if (value === 0) return 'Center';
+    return `${Math.abs(value)}% ${value < 0 ? 'left' : 'right'}`;
+  };
+
+  const updateImageEditorLabels = () => {
+    if (!imageEditorValues.zoom) return;
+    imageEditorValues.zoom.textContent = `${getEditorValue('zoom')}%`;
+    imageEditorValues.horizontal.textContent = formatPositionValue(getEditorValue('horizontal'));
+    const vertical = getEditorValue('vertical');
+    imageEditorValues.vertical.textContent =
+      vertical === 0 ? 'Center' : `${Math.abs(vertical)}% ${vertical < 0 ? 'up' : 'down'}`;
+    imageEditorValues.brightness.textContent = `${getEditorValue('brightness')}%`;
+    imageEditorValues.contrast.textContent = `${getEditorValue('contrast')}%`;
+    imageEditorValues.rotation.textContent = `${getEditorValue('rotation')} deg`;
+  };
+
+  const resetImageEditor = () => {
+    const defaults = {
+      zoom: 100,
+      horizontal: 0,
+      vertical: 0,
+      brightness: 100,
+      contrast: 100,
+      rotation: 0,
+    };
+    Object.entries(defaults).forEach(([key, value]) => {
+      if (imageEditorInputs[key]) imageEditorInputs[key].value = value;
+    });
+    updateImageEditorLabels();
+  };
+
+  const renderEditedImage = () => {
+    if (!imageEditorState || !imageEditorCanvas) return;
+    const { image, type } = imageEditorState;
+    const config = PROFILE_MEDIA_CONFIG[type];
+    const context = imageEditorCanvas.getContext('2d');
+    const angle = (getEditorValue('rotation') * Math.PI) / 180;
+    const rotatedWidth =
+      Math.abs(config.width * Math.cos(angle)) + Math.abs(config.height * Math.sin(angle));
+    const rotatedHeight =
+      Math.abs(config.width * Math.sin(angle)) + Math.abs(config.height * Math.cos(angle));
+    const scale =
+      Math.max(rotatedWidth / image.naturalWidth, rotatedHeight / image.naturalHeight) *
+      (getEditorValue('zoom') / 100);
+
+    imageEditorCanvas.width = config.width;
+    imageEditorCanvas.height = config.height;
+    context.clearRect(0, 0, config.width, config.height);
+    context.save();
+    context.filter = `brightness(${getEditorValue('brightness')}%) contrast(${getEditorValue('contrast')}%)`;
+    context.translate(
+      config.width / 2 + (getEditorValue('horizontal') / 100) * config.width * 0.28,
+      config.height / 2 + (getEditorValue('vertical') / 100) * config.height * 0.28,
+    );
+    context.rotate(angle);
+    context.drawImage(
+      image,
+      (-image.naturalWidth * scale) / 2,
+      (-image.naturalHeight * scale) / 2,
+      image.naturalWidth * scale,
+      image.naturalHeight * scale,
+    );
+    context.restore();
+  };
+
+  const openImageEditor = (file, type) => {
+    if (!file || !imageEditorModal || !imageEditorCanvas) return;
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+      showFeedback('Choose a JPEG, PNG, or WebP image.', 'error');
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      imageEditorState = { image, type };
+      if (imageEditorTitle) imageEditorTitle.textContent = PROFILE_MEDIA_CONFIG[type].title;
+      if (imageEditorFeedback) imageEditorFeedback.textContent = '';
+      resetImageEditor();
+      renderEditedImage();
+      imageEditorModal.show();
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      showFeedback('Unable to read this image.', 'error');
+    };
+    image.src = objectUrl;
+  };
+
+  const canvasToBlob = () =>
+    new Promise((resolve) => {
+      imageEditorCanvas.toBlob(resolve, 'image/jpeg', 0.92);
+    });
+
+  const uploadEditedImage = async () => {
+    if (!imageEditorState || !imageEditorCanvas) return;
+    const config = PROFILE_MEDIA_CONFIG[imageEditorState.type];
+    const blob = await canvasToBlob();
+    if (!blob) {
+      if (imageEditorFeedback) imageEditorFeedback.textContent = 'Unable to prepare image.';
+      return;
+    }
 
     const formData = new FormData();
-    formData.append('profilePic', file);
+    formData.append(config.fieldName, blob, `${imageEditorState.type}.jpg`);
+    if (imageEditorSaveButton) {
+      imageEditorSaveButton.disabled = true;
+      imageEditorSaveButton.textContent = 'Uploading...';
+    }
 
     try {
-      const response = await fetch(`${API_URL}/api/users/profile-picture`, {
+      const response = await fetch(`${API_URL}${config.endpoint}`, {
         method: 'POST',
         headers: {
           ...requestHeaders,
@@ -398,28 +560,50 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       if (!response.ok) {
-        console.error('Failed to upload profile picture', response.status);
-        showFeedback('Unable to upload profile picture.', 'error');
+        const errorData = await response.json().catch(() => null);
+        if (imageEditorFeedback) {
+          imageEditorFeedback.textContent = errorData?.error || 'Unable to upload image.';
+        }
         return;
       }
 
       const result = await response.json();
-      if (result?.profile_pic) {
-        setProfilePicture(result.profile_pic);
-        const updatedUser = result.user || { ...userData, profile_pic: result.profile_pic };
+      if (result?.[config.responseField]) {
+        if (imageEditorState.type === 'avatar') {
+          setProfilePicture(result.profile_pic);
+        } else {
+          setProfileBanner(result.profile_banner);
+        }
+        const updatedUser = result.user || {
+          ...userData,
+          [config.responseField]: result[config.responseField],
+        };
+        Object.assign(userData, updatedUser);
         auth.setUser(updatedUser);
-        showFeedback('Profile picture updated.');
+        imageEditorModal.hide();
+        showFeedback(config.successMessage);
       }
     } catch (error) {
-      console.error('Upload error', error);
-      showFeedback('Unable to upload profile picture.', 'error');
+      console.error('Profile media upload error', error);
+      if (imageEditorFeedback) imageEditorFeedback.textContent = 'Unable to upload image.';
+    } finally {
+      if (imageEditorSaveButton) {
+        imageEditorSaveButton.disabled = false;
+        imageEditorSaveButton.textContent = 'Save image';
+      }
     }
   };
 
-  const onProfileImageSelected = async () => {
+  const onProfileImageSelected = () => {
     const file = profileUploadInput?.files?.[0];
-    if (!file) return;
-    await uploadProfileImage(file);
+    openImageEditor(file, 'avatar');
+    if (profileUploadInput) profileUploadInput.value = '';
+  };
+
+  const onBannerImageSelected = () => {
+    const file = bannerUploadInput?.files?.[0];
+    openImageEditor(file, 'banner');
+    if (bannerUploadInput) bannerUploadInput.value = '';
   };
 
   if (profileUploadButton) {
@@ -429,6 +613,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (profileUploadInput) {
     profileUploadInput.addEventListener('change', onProfileImageSelected);
   }
+
+  if (bannerUploadButton) {
+    bannerUploadButton.addEventListener('click', () => bannerUploadInput?.click());
+  }
+
+  if (bannerUploadInput) {
+    bannerUploadInput.addEventListener('change', onBannerImageSelected);
+  }
+
+  Object.values(imageEditorInputs).forEach((input) => {
+    input?.addEventListener('input', () => {
+      updateImageEditorLabels();
+      renderEditedImage();
+    });
+  });
+
+  imageEditorResetButton?.addEventListener('click', () => {
+    resetImageEditor();
+    renderEditedImage();
+  });
+  imageEditorSaveButton?.addEventListener('click', uploadEditedImage);
 
   async function fetchJson(endpoint) {
     try {
@@ -475,12 +680,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     messageButton.style.display = 'none';
   }
 
-  if (messageButton && !isOwnProfile) {
-    messageButton.addEventListener('click', () => {
-      window.location.href = 'chat.html';
-    });
-  }
-
   if (profileTitleEl) {
     profileTitleEl.textContent = isOwnProfile ? 'My Profile' : 'Friend Profile';
   }
@@ -494,6 +693,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const profilePicUrl = pageUserData?.profile_pic;
   setProfilePicture(profilePicUrl);
+  setProfileBanner(pageUserData?.profile_banner);
 
   window.dropDownHelpers = await loadInstitutionsAndDiplomas();
   const savedProfileSettings = loadProfileSettings();
@@ -510,6 +710,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentUserId &&
       currentUserId.toString() === pageUserId.toString()
         ? 'flex'
+        : 'none';
+  }
+
+  if (bannerUploadButton) {
+    bannerUploadButton.style.display =
+      !isViewProfilePage &&
+      pageUserId &&
+      currentUserId &&
+      currentUserId.toString() === pageUserId.toString()
+        ? 'block'
         : 'none';
   }
 
@@ -627,7 +837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       .join('');
   };
 
-  const requestWithBody = async (endpoint, method = 'GET') => {
+  const requestWithBody = async (endpoint, method = 'GET', body = null) => {
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
         method,
@@ -635,6 +845,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           'Content-Type': 'application/json',
           ...requestHeaders,
         },
+        ...(body ? { body: JSON.stringify(body) } : {}),
       });
 
       if (response.status === 204) return { status: 204 };
@@ -642,10 +853,41 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await response.json();
       return { status: response.status, data };
     } catch (error) {
-      console.error('Friend request API error:', error);
+      console.error('Profile action API error:', error);
       return { status: 500, data: null };
     }
   };
+
+  const openDirectChat = async (targetUserId, button = null) => {
+    const targetId = Number(targetUserId);
+    if (!Number.isInteger(targetId) || targetId <= 0 || targetId === Number(userId)) return;
+
+    const originalText = button?.textContent;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Opening...';
+    }
+
+    const response = await requestWithBody('/api/chats', 'POST', {
+      type: 'friend',
+      friendId: targetId,
+    });
+
+    if (response.data?.conversation_id) {
+      window.location.href = 'chat.html';
+      return;
+    }
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText || 'Message';
+    }
+    showFeedback(response.data?.message || 'Unable to open chat.', 'error');
+  };
+
+  if (messageButton && !isOwnProfile) {
+    messageButton.addEventListener('click', () => openDirectChat(pageUserId, messageButton));
+  }
 
   const setConnectButton = (text, disabled = false) => {
     if (!connectButton) return;
@@ -656,7 +898,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const updateConnectButtonState = async () => {
     if (!connectButton || isOwnProfile || !pageUserId || !userId) return;
 
-    const ownFriends = (await fetchJson('/api/friends')) || [];
+    const ownFriends = (await fetchJson('/api/friend')) || [];
     const isAlreadyFriend = ownFriends.some(
       (friend) => friend.friend_id?.toString() === pageUserId.toString(),
     );
@@ -789,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let discoveryIncoming = [];
 
     const loadDiscoveryStatus = async () => {
-      discoveryFriends = (await fetchJson('/api/friends')) || [];
+      discoveryFriends = (await fetchJson('/api/friend')) || [];
       discoveryOutgoing = (await fetchJson(`/api/friendrequest/outgoing/${userId}`)) || [];
       discoveryIncoming = (await fetchJson(`/api/friendrequest/incoming/${userId}`)) || [];
     };
@@ -906,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (profileFriendsList) {
     const friendsEndpoint =
-      isViewProfilePage && friendId ? `/api/friends/${friendId}` : '/api/friends';
+      isViewProfilePage && friendId ? `/api/friend/${friendId}` : '/api/friend';
 
     let friends = (await fetchJson(friendsEndpoint)) || [];
 
@@ -934,7 +1176,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           const removeButton = isOwnProfile
             ? `<button class="btn btn-sm btn-outline-danger" data-action="remove-friend" data-friend-id="${friend.friend_id}">Remove</button>`
             : '';
-          const friendMessageLink = `<a href="chat.html" class="btn btn-sm btn-white">Message</a>`;
+          const friendMessageButton = isOwnProfile
+            ? `<button type="button" class="btn btn-sm btn-white" data-action="message-friend" data-friend-id="${friend.friend_id}">Message</button>`
+            : '';
 
           return `
                     <div class="connection-item">
@@ -947,7 +1191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                         <div class="connection-actions">
                             <a href="viewProfile.html?friendId=${friend.friend_id}" class="btn btn-sm btn-white">View</a>
-                            ${friendMessageLink}
+                            ${friendMessageButton}
                             ${removeButton}
                         </div>
                     </div>
@@ -973,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmRemoveFriendBtn.textContent = 'Removing...';
       }
 
-      const response = await requestWithBody(`/api/friends/${selectedFriendId}`, 'DELETE');
+      const response = await requestWithBody(`/api/friend/${selectedFriendId}`, 'DELETE');
 
       if (confirmRemoveFriendBtn) {
         confirmRemoveFriendBtn.disabled = false;
@@ -1005,6 +1249,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     profileFriendsList.addEventListener('click', (event) => {
+      const messageFriendButton = event.target.closest('button[data-action="message-friend"]');
+      if (messageFriendButton) {
+        openDirectChat(messageFriendButton.dataset.friendId, messageFriendButton);
+        return;
+      }
+
       const button = event.target.closest('button[data-action="remove-friend"]');
       if (!button) return;
 

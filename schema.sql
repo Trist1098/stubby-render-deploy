@@ -138,6 +138,7 @@ CREATE TABLE "User" (
     diploma_id         INT,
     year               INT DEFAULT 1,
     profile_pic        VARCHAR(255),
+    profile_banner     VARCHAR(255),
     profile_text       TEXT,
     is_private         BOOLEAN DEFAULT FALSE,
     friend_request_private BOOLEAN DEFAULT FALSE,

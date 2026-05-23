@@ -99,6 +99,18 @@ module.exports.updateProfilePicture = async function updateProfilePicture(data) 
   return rows[0];
 };
 
+module.exports.updateProfileBanner = async function updateProfileBanner(data) {
+  const SQLSTATEMENT = `
+        UPDATE "User"
+        SET profile_banner = $1
+        WHERE user_id = $2
+        RETURNING *
+    `;
+  const VALUES = [data.profileBanner, data.userId];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows[0];
+};
+
 module.exports.updatePassword = async function updatePassword(data) {
   const SQLSTATEMENT = `
         UPDATE "User"
@@ -128,6 +140,7 @@ module.exports.selectPublicUserById = async function selectPublicUserById(data) 
                username,
                name,
                profile_pic,
+               profile_banner,
                is_private,
                friend_request_private
         FROM "User"

@@ -10,6 +10,8 @@ const allowedTextMimeTypes =
   /(text\/plain|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|application\/octet-stream)/;
 const allowedWorkCheckExtensions = /\.(txt|docx)$/i;
 const allowedWorkCheckMimeTypes = allowedTextMimeTypes;
+const allowedImageExtensions = /\.(jpg|jpeg|png|webp)$/i;
+const allowedImageMimeTypes = /^image\/(jpeg|png|webp)$/i;
 
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -49,10 +51,29 @@ const workCheckFileFilter = (req, file, callback) => {
   }
 };
 
+const imageFileFilter = (req, file, callback) => {
+  const extname = allowedImageExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedImageMimeTypes.test(file.mimetype);
+
+  if (extname && mimetype) {
+    callback(null, true);
+  } else {
+    const error = new Error('Only JPEG, PNG, or WebP images are allowed');
+    error.status = 400;
+    callback(error);
+  }
+};
+
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter,
+});
+
+upload.image = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: imageFileFilter,
 });
 
 upload.memoryText = multer({
