@@ -15,7 +15,8 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     const validateEmail = (email) => {
-        return email.toLowerCase().endsWith('.edu.sg');
+        const domain = email.toLowerCase().split('@')[1] || '';
+        return /(^|\.)edu(\.|$)/.test(domain);
     };
 
     const validatePassword = (password) => {
@@ -46,7 +47,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (!validateEmail(email)) {
-            showError('errEmail', 'Please use a valid institution email (.edu.sg)');
+            showError('errEmail', 'Please use a valid institution email');
             hasError = true;
         }
 

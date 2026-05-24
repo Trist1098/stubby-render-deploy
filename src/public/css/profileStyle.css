@@ -1,10 +1,14 @@
 :root {
   --primary: #6366f1;
   --primary-hover: #4f46e5;
+  --danger: #ef4444;
   --navy: #0f172a;
   --bg-slate: #f8fafc;
   --text-dark: #1e293b;
+  --text-muted: #64748b;
   --border: #e2e8f0;
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
 }
 
 * {
@@ -20,42 +24,107 @@ body {
 }
 
 header {
-  background: white;
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 1000;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.04);
+    backdrop-filter: blur(12px);
 }
 
 .text-primary {
-  color: var(--primary) !important;
+    color: var(--primary) !important;
 }
 
 .nav-link {
-  font-weight: 600;
-  color: var(--text-dark) !important;
-  padding: 0.5rem 1rem !important;
-  border-radius: 0.5rem;
+    font-weight: 500;
+    color: var(--text-muted) !important;
+    padding: 0.5rem 1rem !important;
+    transition: color var(--transition-fast);
+    font-size: 0.92rem;
+    position: relative;
 }
 
 .nav-link:hover,
 .nav-link.active {
-  color: var(--primary) !important;
-  background: rgba(99, 102, 241, 0.05);
+    color: var(--primary) !important;
+    background: transparent !important;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 1rem;
+    right: 1rem;
+    height: 2px;
+    background-color: var(--primary);
+    transform: scaleX(0);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-link.active::after,
+.nav-link:hover::after {
+    transform: scaleX(1);
+}
+
+/* Custom Dropdown Chevron Icon */
+.nav-dropdown-icon {
+    font-size: 9px !important;
+    transition: transform var(--transition-base);
+    opacity: 0.7;
+}
+
+.dropdown-toggle::after {
+    display: none !important;
+}
+
+.show>.dropdown-toggle .nav-dropdown-icon,
+.dropdown:hover .nav-dropdown-icon {
+    transform: rotate(180deg);
+    opacity: 1;
+}
+
+.nav-link.dropdown-toggle::after {
+    content: '' !important;
+    display: block !important;
+    position: absolute;
+    bottom: -2px;
+    left: 1rem;
+    right: 2.25rem !important;
+    height: 2px;
+    background-color: var(--primary);
+    transform: scaleX(0);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.nav-link.dropdown-toggle.active::after {
+    transform: scaleX(1) !important;
+}
+
+.nav-link.dropdown-toggle:not(.active):hover::after {
+    transform: scaleX(0) !important;
 }
 
 .dropdown-menu {
-  border-radius: 0.75rem;
-  padding: 0.4rem;
+  background: #ffffff !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+  box-shadow: 0 10px 30px -10px rgba(9, 13, 22, 0.08) !important;
+  border-radius: 16px !important;
+  padding: 8px !important;
+  animation: dropdown-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .dropdown-item {
-  border-radius: 0.55rem;
-  font-weight: 600;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease;
+  font-weight: 500 !important;
+  font-size: 0.88rem !important;
+  color: var(--text-muted) !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  transition: all var(--transition-fast) ease !important;
 }
 
 .dropdown-item i {
@@ -64,16 +133,32 @@ header {
 
 .dropdown-item:hover,
 .dropdown-item:focus {
-  background: var(--primary) !important;
-  color: white !important;
-  transform: translateX(2px);
+  background-color: rgba(99, 102, 241, 0.04) !important;
+  color: var(--primary) !important;
 }
 
-.dropdown-item:hover i,
-.dropdown-item:focus i,
 .dropdown-item.text-danger:hover,
 .dropdown-item.text-danger:focus {
-  color: white !important;
+  background-color: rgba(239, 68, 68, 0.04) !important;
+  color: var(--danger) !important;
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+  color: var(--primary) !important;
+  font-weight: 600 !important;
+}
+
+@keyframes dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .request-notification-count {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stubby — Complete Your Profile</title>
+    <title>Stubby - Complete Your Profile</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -29,8 +29,8 @@
                 </div>
             </div>
 
-            <h1 class="ob-title" id="obTitle">Academic Details</h1>
-            <p class="ob-subtitle" id="obSubtitle">Tell Stubby about the current academic situation.</p>
+            <h1 class="ob-title" id="obTitle">Build Your Profile</h1>
+            <p class="ob-subtitle" id="obSubtitle">Add your academic details so Stubby can recommend better study partners.</p>
         </div>
 
         <!-- Card -->
@@ -41,13 +41,13 @@
                 <div class="mb-4">
                     <label class="ob-section-label">Institution</label>
                     <select id="institutionId" class="ob-select">
-                        <option value="" selected disabled>Select a school</option>
+                        <option value="" selected disabled>Select an institution</option>
                     </select>
                     <div class="error-message" id="errInstitution"></div>
                 </div>
 
                 <div class="mb-4">
-                    <label class="ob-section-label">Diploma / Major</label>
+                    <label class="ob-section-label">Course / Major</label>
                     <select id="diplomaId" class="ob-select" disabled>
                         <option value="" selected disabled>Select a diploma</option>
                     </select>
@@ -74,7 +74,7 @@
             <div id="step2" class="d-none">
                 <div class="mb-4">
                     <label class="ob-section-label">Enrolled Modules</label>
-                    <p class="ob-hint">Select all modules currently being studied.</p>
+                    <p class="ob-hint">Stubby uses them to rank compatible partners.</p>
 
                     <div id="moduleList" class="module-grid">
                         <div class="ob-spinner-wrap">
@@ -106,7 +106,7 @@
                     <i class="fas fa-check-circle text-success" style="font-size: 80px;"></i>
                 </div>
                 <h3 class="fw-bold mb-2">Profile Ready!</h3>
-                <p class="text-muted mb-4">The profile is set up. Stubby will now surface the most compatible study partners.</p>
+                <p class="text-muted mb-4">Your academic profile is ready. Stubby can now recommend study partners based on your course and modules.</p>
                 <button type="button" id="btnGoToDashboard" class="btn btn-accent w-100 py-3 rounded-4 fw-bold">
                     Go to Dashboard
                     <i class="fas fa-arrow-right fa-sm ms-1"></i>

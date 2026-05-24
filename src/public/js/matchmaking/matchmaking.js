@@ -8,6 +8,8 @@ document.addEventListener("DOMContentLoaded", function () {
     let masterModules = []; 
     let availableLanguages = [];
     let visibleMatchesCount = 7;
+    const MAX_COMPARE_STUDENTS = 3;
+    let compareSelection = [];
     let userPreferences = {
         selected_modules: [],
         availability_days: [],
@@ -154,6 +156,49 @@ document.addEventListener("DOMContentLoaded", function () {
             modal.hide();
             modalEl.addEventListener('hidden.bs.modal', () => callback(), { once: true });
         };
+        modal.show();
+    }
+
+    function showThemedAlert(message, options = {}) {
+        const title = options.title || 'Heads up';
+        const tone = options.tone || 'warning';
+        const toneMap = {
+            danger: {
+                icon: 'fa-exclamation-circle text-danger',
+                button: 'btn-danger',
+            },
+            warning: {
+                icon: 'fa-exclamation-triangle text-warning',
+                button: 'btn-accent',
+            },
+            info: {
+                icon: 'fa-circle-info text-primary',
+                button: 'btn-accent',
+            },
+        };
+        const selectedTone = toneMap[tone] || toneMap.warning;
+
+        const modalHtml = `
+            <div class="modal fade" id="dynamicAlertModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 rounded-4 shadow-lg">
+                        <div class="modal-body p-5 text-center">
+                            <i class="fas ${selectedTone.icon} fa-3x mb-4"></i>
+                            <h4 class="fw-bold mb-3">${escapeHTML(title)}</h4>
+                            <p class="text-muted mb-4">${escapeHTML(message)}</p>
+                            <button type="button" class="btn ${selectedTone.button} px-5 py-2 rounded-pill fw-bold" data-bs-dismiss="modal">OK</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+
+        const old = document.getElementById('dynamicAlertModal');
+        if (old) old.remove();
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modalEl = document.getElementById('dynamicAlertModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove(), { once: true });
         modal.show();
     }
 
@@ -328,9 +373,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 showSuccess(successMsg);
             } else {
                 const errData = await res.json();
-                alert("Save Error: " + (errData.error || res.status));
+                showThemedAlert(`Save Error: ${errData.error || res.status}`, {
+                    title: 'Preferences Not Saved',
+                    tone: 'danger',
+                });
             }
-        } catch (err) { alert("Network error saving preferences"); }
+        } catch (err) {
+            showThemedAlert('Network error saving preferences.', {
+                title: 'Connection Issue',
+                tone: 'danger',
+            });
+        }
     }
 
     async function loadStudents() {
@@ -350,10 +403,16 @@ document.addEventListener("DOMContentLoaded", function () {
                     livePeersEl.innerText = onlineCount.toString();
                 }
 
-                // Dynamic Match Success Rate Hero Stat
+                // Dynamic average match quality hero stat
                 const successRateEl = document.getElementById('stat-success-rate');
                 if (successRateEl) {
-                    successRateEl.innerText = '96.2%';
+                    const scores = allStudents.map(getMatchScore).filter(score => score > 0);
+                    if (scores.length > 0) {
+                        const averageScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+                        successRateEl.innerText = `${averageScore}% avg`;
+                    } else {
+                        successRateEl.innerText = 'Set prefs';
+                    }
                 }
             }
             window.filterStudents();
@@ -457,6 +516,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const selectedModuleIds = Array.from(document.querySelectorAll('#filterModules input:checked')).map(el => el.value);
 
         let filtered = allStudents.filter(s => {
+            const isUnavailable = isUnavailableMatchStatus(s.request_status);
             const matchesSearch = s.name.toLowerCase().includes(search) || (s.modules && s.modules.toLowerCase().includes(search));
             const matchesOnline = !onlineOnly || s.is_online;
             const studentModules = (s.modules || '').split(',').map(m => m.trim());
@@ -465,14 +525,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 return m && studentModules.includes(m.code);
             });
 
-            return matchesSearch && matchesOnline && matchesModules;
+            return !isUnavailable && matchesSearch && matchesOnline && matchesModules;
         });
 
         if (sortBy === 'match') {
             filtered.sort((a, b) => {
-                const scoreA = a.match_percentage !== undefined ? a.match_percentage : ((a.shared_modules_count || 0) * 25);
-                const scoreB = b.match_percentage !== undefined ? b.match_percentage : ((b.shared_modules_count || 0) * 25);
-                return scoreB - scoreA;
+                return getMatchScore(b) - getMatchScore(a);
             });
         } else if (sortBy === 'name') {
             filtered.sort((a, b) => a.name.localeCompare(b.name));
@@ -494,9 +552,42 @@ document.addEventListener("DOMContentLoaded", function () {
         return parts[0][0].toUpperCase();
     }
 
+    function escapeHTML(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[char]);
+    }
+
+    function normalizeList(value) {
+        if (!value) return [];
+        if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return [];
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) return parsed.map(item => String(item).trim()).filter(Boolean);
+            } catch (e) {
+                // Comma-separated values are used by a few older preference fields.
+            }
+            return trimmed.split(',').map(item => item.trim()).filter(Boolean);
+        }
+        return [String(value).trim()].filter(Boolean);
+    }
+
+    function cap(value) {
+        if (!value) return '';
+        const text = String(value).replace(/-/g, ' ');
+        return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
     function getAvatarHTML(profilePic, name, sizeClass = '') {
         if (profilePic) {
-            return `<img src="${profilePic}" alt="${name}" class="avatar-img rounded-circle w-100 h-100 object-fit-cover">`;
+            return `<img src="${escapeHTML(profilePic)}" alt="${escapeHTML(name)}" class="avatar-img rounded-circle w-100 h-100 object-fit-cover">`;
         }
         const initials = getInitials(name);
         const colors = [
@@ -512,7 +603,319 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         const colorClass = colors[Math.abs(hash) % colors.length];
 
-        return `<div class="avatar-initials rounded-circle w-100 h-100 d-flex align-items-center justify-content-center fw-bold ${colorClass} ${sizeClass}" style="font-size: 40%; letter-spacing: 0.5px;">${initials}</div>`;
+        return `<div class="avatar-initials rounded-circle w-100 h-100 d-flex align-items-center justify-content-center fw-bold ${colorClass} ${sizeClass}" style="font-size: 40%; letter-spacing: 0.5px;">${escapeHTML(initials)}</div>`;
+    }
+
+    function getMatchScore(student) {
+        const explicitScore = Number(student?.match_percentage);
+        if (!Number.isNaN(explicitScore)) return Math.min(Math.max(Math.round(explicitScore), 0), 100);
+        const sharedCount = Number(student?.shared_modules_count) || 0;
+        return Math.min(sharedCount * 25, 100);
+    }
+
+    function isUnavailableMatchStatus(status) {
+        return ['accepted', 'pending'].includes(String(status || '').toLowerCase());
+    }
+
+    function getStudentModules(student) {
+        return (student?.modules || '').split(',').map(m => m.trim()).filter(Boolean);
+    }
+
+    function getSharedModuleCodes(student) {
+        const myModuleCodes = masterModules.map(m => String(m.code || '').trim().toUpperCase()).filter(Boolean);
+        return getStudentModules(student).filter(code => myModuleCodes.includes(code.toUpperCase()));
+    }
+
+    function getOverlap(myValues, peerValues) {
+        const peerLower = peerValues.map(value => value.toLowerCase());
+        return myValues.filter(value => peerLower.includes(String(value).toLowerCase()));
+    }
+
+    function summarizeList(values, fallback = 'Not set') {
+        return values.length > 0 ? values.map(cap).join(', ') : fallback;
+    }
+
+    function getStudentById(userId) {
+        return allStudents.find(student => Number(student.user_id) === Number(userId));
+    }
+
+    function getComparedStudents() {
+        return compareSelection
+            .map(getStudentById)
+            .filter(student => student && !isUnavailableMatchStatus(student.request_status));
+    }
+
+    function getCompareButtonHTML(student, className) {
+        return `
+            <button type="button"
+                class="${className} compare-toggle-btn"
+                data-compare-id="${student.user_id}"
+                aria-pressed="false"
+                onclick="event.stopPropagation(); window.toggleCompareStudent(${student.user_id})">
+                <i class="fas fa-code-compare me-1"></i>Compare
+            </button>
+        `;
+    }
+
+    function getProfileButtonHTML(userId, className, label = 'Profile') {
+        return `
+            <button class="${className}" onclick="event.stopPropagation(); window.openProfileModal(${userId})">
+                <i class="fas fa-user-circle me-1"></i>${label}
+            </button>
+        `;
+    }
+
+    function getConnectButtonHTML(student, className, label = 'Connect') {
+        if (student.request_status === 'Pending') {
+            return `<button class="${className.replace('btn-primary', 'btn-secondary').replace('btn-accent', 'btn-secondary')} text-white" disabled>Request Sent</button>`;
+        }
+
+        if (student.request_status === 'Accepted') {
+            return `<button class="${className.replace('btn-primary', 'btn-success').replace('btn-accent', 'btn-success')} text-white" disabled>Matched</button>`;
+        }
+
+        return `
+            <button class="${className}" onclick="event.stopPropagation(); window.openMatchModal(${student.user_id})">
+                <i class="fas fa-paper-plane me-1"></i>${label}
+            </button>
+        `;
+    }
+
+    function getCompareRows(student) {
+        const sharedModules = getSharedModuleCodes(student);
+        const peerDays = normalizeList(student.availability_days);
+        const peerTimes = normalizeList(student.selected_times);
+        const peerModes = normalizeList(student.selected_modes);
+        const peerStyles = normalizeList(student.style);
+        const peerLanguages = normalizeList(student.selected_languages);
+
+        const myDays = normalizeList(userPreferences.availability_days);
+        const myTimes = normalizeList(userPreferences.selected_times);
+        const myModes = normalizeList(userPreferences.selected_modes);
+        const myStyles = normalizeList(userPreferences.style);
+        const myLanguages = normalizeList(userPreferences.selected_languages);
+
+        const sharedDays = getOverlap(myDays, peerDays);
+        const sharedTimes = getOverlap(myTimes, peerTimes);
+        const sharedModes = getOverlap(myModes, peerModes);
+        const sharedStyles = getOverlap(myStyles, peerStyles);
+        const sharedLanguages = getOverlap(myLanguages, peerLanguages);
+
+        return [
+            {
+                icon: 'fa-book-open',
+                label: 'Shared modules',
+                value: sharedModules.length ? sharedModules.join(', ') : 'No shared modules',
+                positive: sharedModules.length > 0
+            },
+            {
+                icon: 'fa-calendar-check',
+                label: 'Schedule overlap',
+                value: sharedDays.length || sharedTimes.length
+                    ? [summarizeList(sharedDays, ''), summarizeList(sharedTimes, '')].filter(Boolean).join(' / ')
+                    : 'No overlap set',
+                positive: sharedDays.length > 0 || sharedTimes.length > 0
+            },
+            {
+                icon: 'fa-house-laptop',
+                label: 'Preferred mode',
+                value: sharedModes.length ? summarizeList(sharedModes) : summarizeList(peerModes, 'Flexible'),
+                positive: sharedModes.length > 0
+            },
+            {
+                icon: 'fa-brain',
+                label: 'Study style',
+                value: sharedStyles.length ? summarizeList(sharedStyles) : summarizeList(peerStyles, 'Flexible'),
+                positive: sharedStyles.length > 0
+            },
+            {
+                icon: 'fa-language',
+                label: 'Languages',
+                value: sharedLanguages.length ? summarizeList(sharedLanguages) : summarizeList(peerLanguages, 'Not set'),
+                positive: sharedLanguages.length > 0
+            }
+        ];
+    }
+
+    function renderCompareCard(student) {
+        const matchScore = getMatchScore(student);
+        const modules = getStudentModules(student);
+        const moduleTags = modules.slice(0, 5).map(m => `<span class="module-tag">${escapeHTML(m)}</span>`).join(' ');
+        const rows = getCompareRows(student);
+        const statusLabel = student.request_status ? escapeHTML(student.request_status) : 'Available';
+        const statusClass = student.request_status === 'Accepted'
+            ? 'compare-status-success'
+            : student.request_status === 'Pending'
+                ? 'compare-status-pending'
+                : 'compare-status-neutral';
+
+        return `
+            <div class="compare-student-card">
+                <button type="button" class="compare-remove-btn" onclick="window.removeCompareStudent(${student.user_id})" aria-label="Remove ${escapeHTML(student.name)} from comparison">
+                    <i class="fas fa-times"></i>
+                </button>
+
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <div class="compare-card-avatar rounded-circle overflow-hidden">
+                        ${getAvatarHTML(student.profile_pic, student.name)}
+                    </div>
+                    <div class="min-w-0">
+                        <h5 class="fw-bold mb-1 text-truncate">${escapeHTML(student.name)}</h5>
+                        <p class="text-muted small fw-bold uppercase tracking-wider mb-0">
+                            Year ${escapeHTML(student.year || 2)} - ${escapeHTML(student.diploma_code || 'DIT')}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="compare-score-wrap mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small fw-bold text-muted uppercase">Match score</span>
+                        <span class="compare-score-value">${matchScore}%</span>
+                    </div>
+                    <div class="compare-score-track">
+                        <div class="compare-score-fill" style="width: ${matchScore}%"></div>
+                    </div>
+                </div>
+
+                <div class="compare-module-block mb-4">
+                    <div class="small fw-bold text-muted uppercase mb-2">Modules</div>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${moduleTags || '<span class="text-muted small">No modules listed</span>'}
+                    </div>
+                </div>
+
+                <div class="compare-fact-list mb-4">
+                    ${rows.map(row => `
+                        <div class="compare-fact-row ${row.positive ? 'is-positive' : ''}">
+                            <i class="fas ${row.icon}"></i>
+                            <div>
+                                <div class="compare-fact-label">${escapeHTML(row.label)}</div>
+                                <div class="compare-fact-value">${escapeHTML(row.value)}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="compare-status ${statusClass} mb-3">${statusLabel}</div>
+
+                <div class="d-flex gap-2 mt-auto">
+                    ${getProfileButtonHTML(student.user_id, 'btn btn-white flex-grow-1 py-2 rounded-4 fw-bold small')}
+                    ${getConnectButtonHTML(student, 'btn btn-primary flex-grow-1 py-2 rounded-4 fw-bold small')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCompareModal() {
+        const content = document.getElementById('compareModalContent');
+        if (!content) return;
+        const selectedStudents = getComparedStudents();
+
+        if (selectedStudents.length < 2) {
+            content.innerHTML = `
+                <div class="compare-empty-state text-center py-5">
+                    <div class="compare-empty-icon mx-auto mb-3">
+                        <i class="fas fa-code-compare"></i>
+                    </div>
+                    <h4 class="fw-bold mb-2">Pick at least two students</h4>
+                    <p class="text-muted mb-0">Use the Compare button on student cards to build a short list.</p>
+                </div>
+            `;
+            return;
+        }
+
+        content.innerHTML = selectedStudents.map(renderCompareCard).join('');
+    }
+
+    function refreshCompareUI() {
+        compareSelection = getComparedStudents().map(student => Number(student.user_id));
+
+        document.querySelectorAll('[data-compare-id]').forEach(button => {
+            const isSelected = compareSelection.includes(Number(button.dataset.compareId));
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+            button.innerHTML = isSelected
+                ? '<i class="fas fa-check me-1"></i>Selected'
+                : '<i class="fas fa-code-compare me-1"></i>Compare';
+        });
+
+        const tray = document.getElementById('compareTray');
+        if (!tray) return;
+
+        const selectedStudents = getComparedStudents();
+        tray.style.display = selectedStudents.length > 0 ? 'flex' : 'none';
+
+        const namesEl = document.getElementById('compareTrayNames');
+        if (namesEl) {
+            namesEl.innerText = selectedStudents.length
+                ? selectedStudents.map(student => student.name).join(', ')
+                : 'Select 2 to 3 students';
+        }
+
+        const avatarEl = document.getElementById('compareTrayAvatars');
+        if (avatarEl) {
+            avatarEl.innerHTML = selectedStudents.map(student => `
+                <div class="compare-tray-avatar rounded-circle overflow-hidden" title="${escapeHTML(student.name)}">
+                    ${getAvatarHTML(student.profile_pic, student.name)}
+                </div>
+            `).join('');
+        }
+
+        const openBtn = document.getElementById('compareOpenBtn');
+        if (openBtn) {
+            const canCompare = selectedStudents.length >= 2;
+            openBtn.disabled = !canCompare;
+            openBtn.innerText = canCompare ? `Compare ${selectedStudents.length}` : 'Pick 1 more';
+        }
+
+        const modalEl = document.getElementById('compareModal');
+        if (modalEl && modalEl.classList.contains('show')) renderCompareModal();
+    }
+
+    window.toggleCompareStudent = function(userId) {
+        const numericId = Number(userId);
+        if (compareSelection.includes(numericId)) {
+            compareSelection = compareSelection.filter(id => id !== numericId);
+        } else if (compareSelection.length >= MAX_COMPARE_STUDENTS) {
+            showThemedAlert(`You can compare up to ${MAX_COMPARE_STUDENTS} students at once.`, {
+                title: 'Compare Limit Reached',
+                tone: 'info',
+            });
+            return;
+        } else {
+            compareSelection.push(numericId);
+        }
+
+        refreshCompareUI();
+    };
+
+    window.removeCompareStudent = function(userId) {
+        compareSelection = compareSelection.filter(id => id !== Number(userId));
+        refreshCompareUI();
+    };
+
+    window.clearCompareSelection = function() {
+        compareSelection = [];
+        refreshCompareUI();
+    };
+
+    window.openCompareModal = function() {
+        renderCompareModal();
+        const modal = new bootstrap.Modal(document.getElementById('compareModal'));
+        modal.show();
+    };
+
+    function closeCompareModalIfOpen() {
+        const compareModalEl = document.getElementById('compareModal');
+        if (!compareModalEl || !compareModalEl.classList.contains('show')) {
+            return Promise.resolve();
+        }
+
+        return new Promise(resolve => {
+            compareModalEl.addEventListener('hidden.bs.modal', resolve, { once: true });
+            const compareModal = bootstrap.Modal.getInstance(compareModalEl) || new bootstrap.Modal(compareModalEl);
+            compareModal.hide();
+        });
     }
 
     function renderStudents(students) {
@@ -520,15 +923,14 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!grid) return;
         grid.innerHTML = '';
         if (students.length === 0) {
-            grid.innerHTML = '<div class="col-12 text-center py-5"><p class="text-muted">No matches found. Try adjusting your preferences.</p></div>';
+            grid.innerHTML = '<div class="col-12 text-center py-5"><p class="text-muted">No available matches found. Try adjusting your preferences.</p></div>';
+            refreshCompareUI();
             return;
         }
 
         // Sort students: highest match percentage or shared modules first
         const sorted = [...students].sort((a, b) => {
-            const scoreA = a.match_percentage !== undefined ? a.match_percentage : (a.shared_modules_count ? Math.min(a.shared_modules_count * 25, 100) : 0);
-            const scoreB = b.match_percentage !== undefined ? b.match_percentage : (b.shared_modules_count ? Math.min(b.shared_modules_count * 25, 100) : 0);
-            return scoreB - scoreA;
+            return getMatchScore(b) - getMatchScore(a);
         });
 
         const bestMatch = sorted[0];
@@ -537,13 +939,13 @@ document.addEventListener("DOMContentLoaded", function () {
         let html = '';
 
         if (bestMatch) {
-            const matchScore = bestMatch.match_percentage !== undefined ? bestMatch.match_percentage : (bestMatch.shared_modules_count ? Math.min(bestMatch.shared_modules_count * 25, 100) : 0);
+            const matchScore = getMatchScore(bestMatch);
             const studentModules = (bestMatch.modules || '').split(',').filter(m => m.trim().length > 0);
-            const moduleTagsHTML = studentModules.map(m => `<span class="module-tag">${m.trim()}</span>`).join(' ');
+            const moduleTagsHTML = studentModules.map(m => `<span class="module-tag">${escapeHTML(m.trim())}</span>`).join(' ');
             
             html += `
                 <div class="col-12 mb-4">
-                    <div class="match-hero-card position-relative overflow-hidden cursor-pointer" onclick="window.openProfileModal(${bestMatch.user_id})">
+                    <div class="match-hero-card position-relative overflow-hidden">
                         <div class="match-hero-halo"></div>
                         
                         <div class="row g-4 position-relative match-hero-content">
@@ -562,8 +964,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                         ${bestMatch.is_online ? '<span class="online-dot"></span>' : ''}
                                     </div>
                                     <div class="match-hero-info">
-                                        <h3 class="fw-bold mb-1 match-hero-name">${bestMatch.name}</h3>
-                                        <p class="fw-bold small uppercase tracking-wider mb-0 match-hero-course">Year ${bestMatch.year || 2} • ${bestMatch.diploma_name || 'Diploma in IT'}</p>
+                                        <h3 class="fw-bold mb-1 match-hero-name">${escapeHTML(bestMatch.name)}</h3>
+                                        <p class="fw-bold small uppercase tracking-wider mb-0 match-hero-course">Year ${escapeHTML(bestMatch.year || 2)} - ${escapeHTML(bestMatch.diploma_name || 'Diploma in IT')}</p>
                                     </div>
                                 </div>
                             </div>
@@ -579,14 +981,9 @@ document.addEventListener("DOMContentLoaded", function () {
                             
                             <!-- Actions Column -->
                             <div class="col-lg-3 d-flex flex-column justify-content-center gap-2 match-hero-actions">
-                                <button class="btn btn-white w-100 py-3 rounded-4 fw-bold shadow-xs" onclick="event.stopPropagation(); window.openProfileModal(${bestMatch.user_id})">View Profile</button>
-                                ${
-                                    bestMatch.request_status === 'Pending'
-                                        ? `<button class="btn btn-secondary w-100 py-3 rounded-4 fw-bold text-white shadow-xs" disabled>REQUEST SENT</button>`
-                                        : bestMatch.request_status === 'Accepted'
-                                          ? `<button class="btn btn-success w-100 py-3 rounded-4 fw-bold text-white shadow-xs" disabled>MATCHED</button>`
-                                          : `<button class="btn btn-accent w-100 py-3 rounded-4 fw-bold shadow-soft" onclick="event.stopPropagation(); window.openMatchModal(${bestMatch.user_id}, '${bestMatch.name}')"><i class="fas fa-paper-plane me-1"></i> CONNECT</button>`
-                                }
+                                ${getProfileButtonHTML(bestMatch.user_id, 'btn btn-white w-100 py-2 rounded-4 fw-bold shadow-xs', 'View Profile')}
+                                ${getCompareButtonHTML(bestMatch, 'btn btn-outline-primary w-100 py-2 rounded-4 fw-bold shadow-xs')}
+                                ${getConnectButtonHTML(bestMatch, 'btn btn-accent w-100 py-2 rounded-4 fw-bold shadow-soft')}
                             </div>
                         </div>
                     </div>
@@ -603,20 +1000,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const slicedRecommended = recommended.slice(0, visibleMatchesCount - 1);
             slicedRecommended.forEach((s) => {
-                const matchScore = s.match_percentage !== undefined
-                    ? s.match_percentage
-                    : (s.shared_modules_count ? Math.min(s.shared_modules_count * 25, 100) : 0);
+                const matchScore = getMatchScore(s);
                 const studentModules = (s.modules || '')
                     .split(',')
                     .filter((m) => m.trim().length > 0);
                 const moduleTagsHTML = studentModules
                     .slice(0, 3)
-                    .map((m) => `<span class="module-tag">${m.trim()}</span>`)
+                    .map((m) => `<span class="module-tag">${escapeHTML(m.trim())}</span>`)
                     .join(' ');
 
                 html += `
                     <div class="col-md-6 col-xl-4">
-                        <div class="student-card h-100 d-flex flex-column justify-content-between cursor-pointer" onclick="window.openProfileModal(${s.user_id})">
+                        <div class="student-card h-100 d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex align-items-start justify-content-between mb-3 gap-2">
                                     <div class="d-flex align-items-center gap-3">
@@ -627,8 +1022,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                             ${s.is_online ? '<span class="online-dot"></span>' : ''}
                                         </div>
                                         <div>
-                                            <h5 class="fw-bold text-dark mb-1 fs-6">${s.name}</h5>
-                                            <p class="text-muted fw-bold small uppercase tracking-wider mb-0" style="font-size: 9px; letter-spacing: 0.02em;">Year ${s.year || 2} • ${s.diploma_code || 'DIT'}</p>
+                                            <h5 class="fw-bold text-dark mb-1 fs-6">${escapeHTML(s.name)}</h5>
+                                            <p class="text-muted fw-bold small uppercase tracking-wider mb-0" style="font-size: 9px; letter-spacing: 0.02em;">Year ${escapeHTML(s.year || 2)} - ${escapeHTML(s.diploma_code || 'DIT')}</p>
                                         </div>
                                     </div>
                                     <div class="match-score">${matchScore}%</div>
@@ -642,15 +1037,12 @@ document.addEventListener("DOMContentLoaded", function () {
                                 </div>
                             </div>
 
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-white py-2 rounded-4 fw-bold flex-grow-1 small" onclick="event.stopPropagation(); window.openProfileModal(${s.user_id})">Profile</button>
-                                ${
-                                    s.request_status === 'Pending'
-                                        ? `<button class="btn btn-secondary py-2 rounded-4 fw-bold text-white flex-grow-1 small" disabled>SENT</button>`
-                                        : s.request_status === 'Accepted'
-                                          ? `<button class="btn btn-success py-2 rounded-4 fw-bold flex-grow-1 small" disabled>MATCHED</button>`
-                                          : `<button class="btn btn-primary py-2 rounded-4 fw-bold flex-grow-1 small" onclick="event.stopPropagation(); window.openMatchModal(${s.user_id}, '${s.name}')">CONNECT</button>`
-                                }
+                            <div class="d-grid gap-2">
+                                <div class="d-flex gap-2">
+                                    ${getProfileButtonHTML(s.user_id, 'btn btn-white py-1 rounded-4 fw-bold flex-grow-1 small match-card-mini-btn')}
+                                    ${getCompareButtonHTML(s, 'btn btn-white py-1 rounded-4 fw-bold flex-grow-1 small match-card-mini-btn')}
+                                </div>
+                                ${getConnectButtonHTML(s, 'btn btn-primary py-1 rounded-4 fw-bold w-100 small')}
                             </div>
                         </div>
                     </div>
@@ -669,6 +1061,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         grid.innerHTML = html;
+        refreshCompareUI();
     }
 
     function toggleAutoMatchVisibility() {
@@ -1131,13 +1524,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 loadRequests();
                 if (typeof showSuccess === 'function') showSuccess(`Request ${status.toLowerCase()} successfully!`);
             }
-        } catch (err) { alert("Error updating status"); }
+        } catch (err) {
+            showThemedAlert('Error updating status.', {
+                title: 'Request Not Updated',
+                tone: 'danger',
+            });
+        }
     };
 
     window.openMatchModal = async function(id, name) {
+        await closeCompareModalIfOpen();
         clearMatchErrors();
+        const targetStudent = getStudentById(id);
+        const displayName = name || targetStudent?.name || 'this student';
         document.getElementById('targetId').value = id;
-        document.getElementById('targetName').innerText = name;
+        document.getElementById('targetName').innerText = displayName;
         
         // Reset and show loading state
         const moduleSelect = document.getElementById('reqModuleId');
@@ -1199,7 +1600,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 loadRequests();
                 showSuccess(`Request ${status.toLowerCase()} successfully!`);
             }
-        } catch (err) { alert("Error updating status"); }
+        } catch (err) {
+            showThemedAlert('Error updating status.', {
+                title: 'Request Not Updated',
+                tone: 'danger',
+            });
+        }
     };
 
     function clearMatchErrors() {
@@ -1341,10 +1747,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 document.getElementById('matchRequestForm').reset();
             } else {
                 const err = await res.json();
-                alert("Error: " + (err.message || res.status));
+                showThemedAlert(`Error: ${err.message || res.status}`, {
+                    title: 'Request Not Sent',
+                    tone: 'danger',
+                });
             }
         } catch (err) {
-            alert("Network error sending request");
+            showThemedAlert('Network error sending request.', {
+                title: 'Connection Issue',
+                tone: 'danger',
+            });
         }
     }
 
@@ -1686,7 +2098,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 const profModalEl = document.getElementById('studentProfileModal');
                 const profModal = bootstrap.Modal.getInstance(profModalEl);
                 if (profModal) profModal.hide();
-                window.openMatchModal(student.user_id, student.name);
+                window.openMatchModal(student.user_id);
             };
         }
 
