@@ -11,6 +11,7 @@ async function refreshExpiredSessionState() {
 }
 
 async function loadSession(options = {}) {
+  if (!options.force && (activeProgressDrag || progressUpdateInFlight)) return;
   if (sessionLoadInFlight) return;
   sessionLoadInFlight = true;
   if (!options.silent) clearMessage();
@@ -156,7 +157,6 @@ function updateRejoinButton() {
 
   page.rejoinConsultationButton.classList.toggle('d-none', !shouldShow);
 }
-
 
 async function exitSession() {
   try {

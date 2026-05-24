@@ -54,6 +54,7 @@ let workspaceSaveInFlight = false;
 let workspaceRevision = 0;
 let savedWorkspaceRevision = 0;
 let lastWorkspaceUpdatedAt = null;
+let progressUpdateInFlight = false;
 
 function currentUserIdFromAuth() {
   try {
