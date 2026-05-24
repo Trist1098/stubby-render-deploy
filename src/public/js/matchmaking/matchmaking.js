@@ -1186,7 +1186,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     window.updateStatus = async function(id, status) {
         try {
-            const res = await fetch(`/api/matches/requests/${id}/status`, {
+            const res = await fetch(`/api/matches/request/${id}/status`, {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',

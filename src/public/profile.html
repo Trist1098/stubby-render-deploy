@@ -57,7 +57,7 @@
                 </li>
 
                 <li class="nav-item">
-                  <a href="sessions.html" class="nav-link">Sessions</a>
+                  <a href="study-session.html" class="nav-link">Sessions</a>
                 </li>
 
                 <li class="nav-item">
@@ -85,7 +85,31 @@
         aria-live="polite"
       ></div>
 
-      <h2 class="fw-bold mb-4">My Profile</h2>
+      <h2 class="fw-bold mb-3">My Profile</h2>
+      <nav class="profile-quick-links mb-4" aria-label="Profile shortcuts">
+        <a href="#profile-experience-section" class="profile-quick-link">
+          <i class="fas fa-briefcase"></i>
+          Experience
+        </a>
+        <a href="#profile-activity-section" class="profile-quick-link">
+          <i class="fas fa-chart-line"></i>
+          Activity
+        </a>
+        <a href="#friend-requests-card" class="profile-quick-link">
+          <i class="fas fa-user-plus"></i>
+          Friend Requests
+          <span class="request-notification-count d-none" data-incoming-request-count>0</span>
+        </a>
+        <a href="#match-requests-card" class="profile-quick-link">
+          <i class="fas fa-handshake"></i>
+          Match Requests
+          <span class="request-notification-count d-none" data-match-request-count>0</span>
+        </a>
+        <a href="settings.html" class="profile-quick-link">
+          <i class="fas fa-cog"></i>
+          Settings
+        </a>
+      </nav>
       <div class="row g-4">
         <!-- LEFT -->
         <div class="col-lg-8">
@@ -177,7 +201,7 @@
           </div>
 
           <!-- EXPERIENCE -->
-          <div class="premium-card profile-hover-card mt-4">
+          <div id="profile-experience-section" class="premium-card profile-hover-card mt-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h4 class="fw-bold mb-0">Experience</h4>
               <button id="add-experience-button" type="button" class="btn btn-sm btn-primary">
@@ -208,7 +232,7 @@
           </div>
 
           <!-- ACTIVITY -->
-          <div class="premium-card profile-hover-card mt-4">
+          <div id="profile-activity-section" class="premium-card profile-hover-card mt-4">
             <h4 class="fw-bold mb-3">Activity Summary</h4>
 
             <div id="profile-activity-summary">
@@ -246,8 +270,11 @@
           </div>
 
           <!-- FRIEND REQUESTS -->
-          <div class="sidebar-card profile-hover-card">
-            <h5 class="fw-bold mb-3">Friend Requests</h5>
+          <div id="friend-requests-card" class="sidebar-card profile-hover-card">
+            <div class="friend-request-heading mb-3">
+              <h5 class="fw-bold mb-0">Friend Requests</h5>
+              <span class="request-notification-count d-none" data-incoming-request-count>0</span>
+            </div>
 
             <div class="d-flex gap-2 mb-3">
               <button id="incoming-requests-btn" class="btn btn-sm btn-primary flex-fill">
@@ -261,6 +288,22 @@
             <p id="friend-request-hint" class="text-secondary mb-0">
               View your pending incoming or outgoing friend requests.
             </p>
+          </div>
+
+          <!-- MATCH REQUESTS -->
+          <div id="match-requests-card" class="sidebar-card profile-hover-card">
+            <div class="friend-request-heading mb-3">
+              <h5 class="fw-bold mb-0">Match Requests</h5>
+              <span class="request-notification-count d-none" data-match-request-count>0</span>
+            </div>
+
+            <p id="match-request-hint" class="text-secondary mb-3">
+              Review incoming study match requests from other students.
+            </p>
+
+            <a href="matchmaking.html?tab=requests" class="btn btn-sm btn-primary w-100">
+              Browse Requests
+            </a>
           </div>
 
           <!-- FRIENDS -->

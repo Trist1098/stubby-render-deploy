@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileFriendsList = document.getElementById('profile-friends-list');
   const profileBadgesList = document.getElementById('profile-badges-list');
   const profileActivitySummary = document.getElementById('profile-activity-summary');
-  const profileMatchList = document.getElementById('profile-match-list');
   const profileExperienceList = document.getElementById('profile-experience-list');
   const profileActions = document.querySelector('.profile-action-buttons');
   const connectButton = document.getElementById('profile-connect-button');
@@ -841,46 +840,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   let profileExperiences = [];
   let editingExperienceId = null;
 
-  const loadProfileMatches = async () => {
-    if (!profileMatchList || !pageUserId) return;
-
-    const matches = await fetchJson(`/api/matches/profile/${pageUserId}`);
-    if (!Array.isArray(matches) || matches.length === 0) {
-      profileMatchList.innerHTML = `
-        <div class="profile-empty-state compact">
-          <i class="fas fa-handshake"></i>
-          <span>No confirmed study matches to display.</span>
-        </div>
-      `;
-      return;
-    }
-
-    profileMatchList.innerHTML = matches
-      .map((match) => {
-        const initial = (match.name || 'S').charAt(0).toUpperCase();
-        const avatar = match.profile_pic
-          ? `<img class="profile-match-avatar" src="${escapeHtml(match.profile_pic)}" alt="" />`
-          : `<div class="profile-match-avatar placeholder">${escapeHtml(initial)}</div>`;
-        const context = match.module_code
-          ? `${match.module_code}${match.topic ? ` - ${match.topic}` : ''}`
-          : match.topic || 'Accepted study match';
-        const course = match.diploma_name || match.institution_name || 'Study partner';
-
-        return `
-          <div class="profile-match-item">
-            ${avatar}
-            <div class="profile-match-copy">
-              <div class="fw-bold">${escapeHtml(match.name || 'Study partner')}</div>
-              <div class="profile-match-meta">${escapeHtml(course)}</div>
-              <div class="profile-match-reason"><i class="fas fa-book-open"></i>${escapeHtml(context)}</div>
-            </div>
-            <a href="viewProfile.html?friendId=${match.user_id}" class="btn btn-sm btn-white">View Profile</a>
-          </div>
-        `;
-      })
-      .join('');
-  };
-
   const renderExperiences = () => {
     if (!profileExperienceList) return;
 
@@ -978,47 +937,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!profileActivitySummary || !pageUserId) return;
 
     if (!isOwnProfile) {
-      const friends = await fetchJson(`/api/friends/${pageUserId}`);
-      if (!Array.isArray(friends)) {
+      const [friends, matches] = await Promise.all([
+        fetchJson(`/api/friends/${pageUserId}`),
+        fetchJson(`/api/matches/profile/${pageUserId}`),
+      ]);
+      if (!Array.isArray(friends) || !Array.isArray(matches)) {
         renderActivityUnavailable();
         return;
       }
 
-      if (friends.length === 0) {
-        profileActivitySummary.innerHTML = `
-          <div class="profile-empty-state">
-            <i class="fas fa-user-group"></i>
-            <div>
-              <h6 class="fw-bold mb-1">No visible connections yet</h6>
-              <p class="text-secondary mb-0">This profile has no friends to display right now.</p>
-            </div>
-          </div>
-        `;
-        return;
-      }
-
-      const recentFriends = friends
-        .slice(0, 3)
-        .map((friend) => {
-          const addedOn = formatActivityDate(friend.created_at);
-          const detail = addedOn ? `Connected ${addedOn}` : 'Study connection';
-          return renderActivityItem(
-            'fa-user-group',
-            friend.name || friend.username || 'Study friend',
-            detail,
-          );
-        })
-        .join('');
+      const recentFriends = friends.map((friend) => {
+        const addedOn = formatActivityDate(friend.created_at);
+        const detail = addedOn ? `Connected ${addedOn}` : 'Study connection';
+        return renderActivityItem(
+          'fa-user-group',
+          friend.name || friend.username || 'Study friend',
+          detail,
+        );
+      });
+      const recentMatches = matches.map((match) => {
+        const matchedOn = formatActivityDate(match.updated_at);
+        const context = match.module_code || match.topic || 'Accepted study match';
+        const detail = matchedOn ? `${context} - ${matchedOn}` : context;
+        return renderActivityItem(
+          'fa-handshake',
+          match.name || match.username || 'Study partner',
+          detail,
+        );
+      });
 
       profileActivitySummary.innerHTML = `
-        <div class="activity-stats">
+        <div class="activity-stats activity-stats-compact">
+          <div class="activity-stat">
+            <div class="activity-stat-number">${matches.length}</div>
+            <div class="activity-stat-label">Matches</div>
+          </div>
           <div class="activity-stat">
             <div class="activity-stat-number">${friends.length}</div>
             <div class="activity-stat-label">Visible friends</div>
           </div>
         </div>
-        <h6 class="fw-bold mb-2">Recent Connections</h6>
-        <div class="activity-list">${recentFriends}</div>
+        <div class="activity-section">
+          <h6 class="fw-bold mb-2">Recent Study Matches</h6>
+          ${
+            recentMatches.length > 0
+              ? renderExpandableActivityList(recentMatches, 'view-matches')
+              : '<div class="activity-section-empty">No study matches to display.</div>'
+          }
+        </div>
+        <div class="activity-section">
+          <h6 class="fw-bold mb-2">Recent Connections</h6>
+          ${
+            recentFriends.length > 0
+              ? renderExpandableActivityList(recentFriends, 'view-connections')
+              : '<div class="activity-section-empty">No visible connections to display.</div>'
+          }
+        </div>
       `;
       return;
     }
@@ -1161,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await updateProfileUI(pageUserData);
   if (profileVisibleContent) profileVisibleContent.hidden = false;
-  await Promise.all([loadProfileMatches(), loadExperiences()]);
+  await loadExperiences();
 
   const name = pageUserData?.name || 'User';
   const username = pageUserData?.username || 'user';
@@ -1204,6 +1178,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const friendRequestEmpty = document.getElementById('friend-request-empty');
   const incomingRequestsBtn = document.getElementById('incoming-requests-btn');
   const outgoingRequestsBtn = document.getElementById('outgoing-requests-btn');
+  const incomingRequestCounts = document.querySelectorAll('[data-incoming-request-count]');
+  const friendRequestHint = document.getElementById('friend-request-hint');
+  const matchRequestCounts = document.querySelectorAll('[data-match-request-count]');
+  const matchRequestHint = document.getElementById('match-request-hint');
   const removeFriendModalElement = document.getElementById('removeFriendModal');
   const removeFriendSuccessModalElement = document.getElementById('removeFriendSuccessModal');
   const removeFriendMessage = document.getElementById('remove-friend-message');
@@ -1296,6 +1274,59 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { status: 500, data: null };
     }
   };
+
+  const updateIncomingRequestCount = async () => {
+    if (!isOwnProfile || !userId || incomingRequestCounts.length === 0) return;
+
+    const response = await requestWithBody(`/api/friendrequest/incoming/${userId}`, 'GET');
+    if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) return;
+
+    const count = response.data.length;
+    incomingRequestCounts.forEach((countElement) => {
+      countElement.textContent = count > 99 ? '99+' : String(count);
+      countElement.classList.toggle('d-none', count === 0);
+      countElement.setAttribute(
+        'aria-label',
+        `${count} pending incoming friend request${count === 1 ? '' : 's'}`,
+      );
+    });
+    incomingRequestsBtn?.classList.toggle('has-notification', count > 0);
+    if (friendRequestHint) {
+      friendRequestHint.textContent =
+        count > 0
+          ? `${count} incoming request${count === 1 ? '' : 's'} waiting for your response.`
+          : 'View your pending incoming or outgoing friend requests.';
+    }
+  };
+
+  const updateIncomingMatchRequestCount = async () => {
+    if (!isOwnProfile || matchRequestCounts.length === 0) return;
+
+    const response = await requestWithBody('/api/matches/requests/received', 'GET');
+    if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) return;
+
+    const count = Number(
+      response.data[0]?.pending_count ||
+        response.data.filter((request) => request.status === 'Pending').length,
+    );
+    matchRequestCounts.forEach((countElement) => {
+      countElement.textContent = count > 99 ? '99+' : String(count);
+      countElement.classList.toggle('d-none', count === 0);
+      countElement.setAttribute(
+        'aria-label',
+        `${count} pending incoming match request${count === 1 ? '' : 's'}`,
+      );
+    });
+    if (matchRequestHint) {
+      matchRequestHint.textContent =
+        count > 0
+          ? `${count} study match request${count === 1 ? '' : 's'} waiting for your response.`
+          : 'Review incoming study match requests from other students.';
+    }
+  };
+
+  await updateIncomingRequestCount();
+  await updateIncomingMatchRequestCount();
 
   addExperienceButton?.addEventListener('click', () => openExperienceForm());
 
@@ -1487,6 +1518,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         : 'outgoing';
       await loadFriendRequests(currentType);
       await loadProfileActivity();
+      await updateIncomingRequestCount();
       showFeedback('Friend request updated.');
     } else {
       console.error('Failed to update friend request', response.data);
