@@ -15,11 +15,19 @@ import {
   fetchTypingUsers,
   searchMessagesRequest,
   getMentionSuggestionsRequest,
+  markConversationAsRead,
+  updateConversationRequest,
+  addMemberRequest,
+  removeMemberRequest,
+  leaveConversationRequest,
+  fetchConversationDetails,
 } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
   formatTime,
+  formatTimeOnly,
+  formatDayLabel,
   getActiveConversation,
   getConversationName,
   getCurrentUserId,
@@ -99,6 +107,7 @@ export function renderChatPanel() {
         <button class="btn btn-outline-secondary btn-sm" id="searchBtn" type="button" title="Search messages">
           <i class="fas fa-search"></i>
         </button>
+        ${conv.type === 'group' ? `<button class="btn btn-outline-secondary btn-sm" id="groupSettingsBtn" type="button" title="Group settings"><i class="fas fa-cog"></i></button>` : ''}
       </div>
     </div>
     <div class="search-bar border-bottom d-none" id="searchBar">
@@ -159,6 +168,9 @@ export function renderChatPanel() {
   document.getElementById('searchType').addEventListener('change', executeSearch);
   document.getElementById('searchDateFrom').addEventListener('change', executeSearch);
   document.getElementById('searchDateTo').addEventListener('change', executeSearch);
+
+  document.getElementById('groupSettingsBtn')?.addEventListener('click', openGroupSettings);
+
   if (messageInput) {
     messageInput.addEventListener('input', handleMentionInput);
   }
@@ -210,6 +222,7 @@ function renderMessages() {
   }
 
   const currentUserId = getCurrentUserId();
+  let lastDayLabel = null;
   return chatState.activeMessages
     .map((message) => {
       const isSent = Number(message.sender_id) === Number(currentUserId);
@@ -220,6 +233,12 @@ function renderMessages() {
       const editedLabel = message.edited_at && !message.is_deleted
         ? `<span class="msg-edited" title="Edited ${formatTime(message.edited_at)}">(edited)</span>`
         : '';
+
+      const dayLabel = formatDayLabel(message.created_at);
+      const daySeparator = dayLabel !== lastDayLabel
+        ? `<div class="day-separator"><span class="day-separator-label">${escapeHtml(dayLabel)}</span></div>`
+        : '';
+      lastDayLabel = dayLabel;
 
       const isPinned = chatState.pinnedMessages.some((p) => p.message_id === message.message_id);
 
@@ -247,13 +266,16 @@ function renderMessages() {
       const reactionWrap = !message.is_deleted
         ? `<div class="msg-reaction-wrap"><button class="msg-action-btn reaction-toggle-btn" data-message-id="${message.message_id}" title="React"><i class="far fa-smile"></i></button></div>`
         : '';
+      const ticks = isSent && !message.is_deleted ? renderTicks(message) : '';
 
       return `
+      ${daySeparator}
       <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}" data-message-id="${message.message_id}">
         ${isSent ? reactionWrap : ''}
         <div class="message-bubble">
           <div class="message-meta d-flex align-items-center gap-2 mb-1">
-            <span class="flex-grow-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</span>
+            <span class="flex-grow-1">${escapeHtml(message.sender_username)} | ${formatTimeOnly(message.created_at)}</span>
+            ${ticks}
             ${moreBtn}
           </div>
           ${dropdown}
@@ -634,6 +656,7 @@ export async function loadMessages(conversationId) {
   chatState.activeMessages = Array.isArray(data) ? data : [];
   chatState.pinnedMessages = Array.isArray(pinned) ? pinned : [];
   renderChatPanel();
+  markConversationAsRead(conversationId).catch(() => {});
   startMessageRefresh();
 }
 
@@ -973,6 +996,12 @@ function jumpToMessage(messageId) {
   }
 }
 
+function renderTicks(message) {
+  const isRead = (message.read_by_count || 0) > 0;
+  return `<div class="msg-ticks ${isRead ? 'read' : ''}" title="${isRead ? 'Read' : 'Sent'}">
+    <i class="fas fa-check"></i>${isRead ? '<i class="fas fa-check"></i>' : ''}
+  </div>`;
+}
 
 function highlightMentions(escapedText) {
   return escapedText.replace(/@(\w+)/g, '<span class="mention-highlight">@$1</span>');
@@ -1036,6 +1065,96 @@ function closeMentionDropdown() {
   if (dropdown) dropdown.classList.add('d-none');
 }
 
+async function openGroupSettings() {
+  const conv = getActiveConversation();
+  if (!conv || conv.type !== 'group') return;
+  const currentUserId = getCurrentUserId();
+  const details = await fetchConversationDetails(conv.conversation_id);
+  if (!details || !details.members) return;
+
+  const currentMember = details.members.find((m) => Number(m.user_id) === Number(currentUserId));
+  const isAdmin = currentMember?.role === 'admin';
+
+  const panel = document.getElementById('chatPanel');
+  const existing = document.getElementById('groupSettingsPanel');
+  if (existing) { existing.remove(); return; }
+
+  const el = document.createElement('div');
+  el.id = 'groupSettingsPanel';
+  el.className = 'group-settings-panel border-start';
+  el.innerHTML = `
+    <div class="group-settings-header d-flex align-items-center justify-content-between p-3 border-bottom">
+      <span class="fw-bold">Group Settings</span>
+      <button class="btn-close" id="groupSettingsClose" type="button"></button>
+    </div>
+    <div class="p-3">
+      <div class="mb-3">
+        <label class="form-label fw-semibold small">Group Name</label>
+        <div class="d-flex gap-2">
+          <input class="form-control form-control-sm" id="groupNameInput" value="${escapeHtml(conv.name || '')}" ${isAdmin ? '' : 'disabled'}>
+          ${isAdmin ? '<button class="btn btn-sm btn-primary" id="groupRenameBtn" type="button">Save</button>' : ''}
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="fw-semibold small mb-2">Members (${details.members.length})</div>
+        <div class="group-members-list">
+          ${details.members.map((m) => `
+            <div class="group-member-row d-flex align-items-center gap-2 py-1" data-user-id="${m.user_id}">
+              <i class="fas fa-user-circle text-muted"></i>
+              <span class="flex-grow-1 small">${escapeHtml(m.username)}</span>
+              <span class="badge ${m.role === 'admin' ? 'bg-primary' : 'bg-secondary'} small">${m.role}</span>
+              ${isAdmin && Number(m.user_id) !== Number(currentUserId)
+                ? `<button class="btn btn-sm btn-outline-danger py-0 px-1 group-remove-btn" data-user-id="${m.user_id}" type="button"><i class="fas fa-times"></i></button>`
+                : ''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <button class="btn btn-outline-danger btn-sm w-100" id="leaveConvBtn" type="button">
+        <i class="fas fa-sign-out-alt me-1"></i>Leave conversation
+      </button>
+    </div>`;
+
+  panel.appendChild(el);
+
+  el.querySelector('#groupSettingsClose').addEventListener('click', () => el.remove());
+  el.querySelector('#groupRenameBtn')?.addEventListener('click', () => renameGroup(conv.conversation_id));
+  el.querySelector('#leaveConvBtn').addEventListener('click', () => leaveGroup(conv.conversation_id));
+  el.querySelectorAll('.group-remove-btn').forEach((btn) => {
+    btn.addEventListener('click', () => removeGroupMember(conv.conversation_id, Number(btn.dataset.userId)));
+  });
+}
+
+async function renameGroup(conversationId) {
+  const name = document.getElementById('groupNameInput')?.value.trim();
+  if (!name) return;
+  const result = await updateConversationRequest(conversationId, name);
+  if (!result || !result.conversation_id) { alert(result?.message || 'Failed to rename.'); return; }
+  const conv = getActiveConversation();
+  if (conv) conv.name = name;
+  renderChatPanel();
+  scrollMessagesToBottom('auto');
+}
+
+async function removeGroupMember(conversationId, userId) {
+  if (!confirm('Remove this member?')) return;
+  const result = await removeMemberRequest(conversationId, userId);
+  if (!result || !result.user_id) { alert(result?.message || 'Failed to remove member.'); return; }
+  openGroupSettings();
+}
+
+async function leaveGroup(conversationId) {
+  if (!confirm('Leave this conversation?')) return;
+  const result = await leaveConversationRequest(conversationId);
+  if (!result || !result.success) { alert(result?.message || 'Failed to leave.'); return; }
+  chatState.conversations = chatState.conversations.filter((c) => c.conversation_id !== conversationId);
+  chatState.activeConversationId = null;
+  chatState.activeMessages = [];
+  chatState.pinnedMessages = [];
+  if (chatState.messageRefreshTimer) { clearInterval(chatState.messageRefreshTimer); chatState.messageRefreshTimer = null; }
+  const { renderConversationList } = await import('./conversations.js');
+  renderConversationList(loadMessages);
+  renderEmptyChat();
+}
 
 function renderTypingIndicator() {
   const list = document.getElementById('messagesList');

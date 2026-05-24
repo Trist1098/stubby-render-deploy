@@ -101,10 +101,35 @@ export function searchMessagesRequest(conversationId, params) {
   const qs = new URLSearchParams(params).toString();
   return apiRequest(`/api/chats/${conversationId}/search?${qs}`);
 }
+
 export function searchConversationsRequest(q) {
   return apiRequest(`/api/chats/search?q=${encodeURIComponent(q)}`);
 }
 
 export function getMentionSuggestionsRequest(conversationId, q) {
   return apiRequest(`/api/chats/${conversationId}/mentions?q=${encodeURIComponent(q)}`);
+}
+
+export function markConversationAsRead(conversationId) {
+  return apiRequest(`/api/chats/${conversationId}/read`, 'PATCH');
+}
+
+export function updateConversationRequest(conversationId, name) {
+  return apiRequest(`/api/chats/${conversationId}`, 'PATCH', { name });
+}
+
+export function addMemberRequest(conversationId, userId) {
+  return apiRequest(`/api/chats/${conversationId}/members`, 'POST', { userId });
+}
+
+export function removeMemberRequest(conversationId, userId) {
+  return apiRequest(`/api/chats/${conversationId}/members/${userId}`, 'DELETE');
+}
+
+export function leaveConversationRequest(conversationId) {
+  return apiRequest(`/api/chats/${conversationId}/leave`, 'DELETE');
+}
+
+export function fetchConversationDetails(conversationId) {
+  return apiRequest(`/api/chats/${conversationId}`);
 }

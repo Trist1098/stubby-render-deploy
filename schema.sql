@@ -38,6 +38,7 @@ DROP TABLE IF EXISTS EventParticipant CASCADE;
 DROP TABLE IF EXISTS CalendarEvent CASCADE;
 DROP TABLE IF EXISTS Notification CASCADE;
 DROP TABLE IF EXISTS MessageMention CASCADE;
+DROP TABLE IF EXISTS MessageRead CASCADE;
 DROP TABLE IF EXISTS MessagePin CASCADE;
 DROP TABLE IF EXISTS MessageReaction CASCADE;
 DROP TABLE IF EXISTS ChatMessage CASCADE;
@@ -379,6 +380,7 @@ CREATE TABLE ChatMessage (
     duration        INT,
     is_announcement BOOLEAN DEFAULT FALSE,
     is_deleted      BOOLEAN DEFAULT FALSE,
+    delivery_status VARCHAR(20) DEFAULT 'sent',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     edited_at       TIMESTAMP,
     parent_message_id INT,
@@ -405,6 +407,15 @@ CREATE TABLE MessageReaction (
     FOREIGN KEY (message_id) REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(message_id, user_id, emoji)
+);
+
+CREATE TABLE MessageRead (
+    message_id  INT NOT NULL,
+    user_id     INT NOT NULL,
+    read_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id, user_id),
+    FOREIGN KEY (message_id) REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE MessageMention (

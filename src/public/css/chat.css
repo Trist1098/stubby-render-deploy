@@ -14,6 +14,7 @@
 .chat-panel {
   background: #f8f9fa;
   min-width: 0;
+  position: relative;
 }
 
 /* Sidebar header*/
@@ -625,6 +626,75 @@
   font-weight: 500;
   border-radius: 3px;
   padding: 0 2px;
+}
+
+/* Delivery tick marks */
+.msg-ticks {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: #adb5bd;
+  font-size: 0.65rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.msg-ticks.read {
+  color: #0d6efd;
+}
+
+/* Day separator */
+.day-separator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px;
+}
+
+.day-separator::before,
+.day-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #dee2e6;
+}
+
+.day-separator-label {
+  background: #e2e8f0;
+  color: #6c757d;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+/* Group settings panel */
+.group-settings-panel {
+  width: 260px;
+  flex-shrink: 0;
+  background: #fff;
+  overflow-y: auto;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  border-left: 1px solid #dee2e6;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+}
+
+.group-settings-header {
+  background: #f8f9fa;
+}
+
+.group-members-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.group-member-row {
+  border-bottom: 1px solid #f1f3f5;
 }
 
 /* Message search */

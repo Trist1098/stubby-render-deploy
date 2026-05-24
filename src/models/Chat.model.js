@@ -157,7 +157,12 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
            )
          ) FILTER (WHERE mr.reaction_id IS NOT NULL),
          '[]'
-       ) AS reactions
+       ) AS reactions,
+       (
+         SELECT COUNT(*)::INT
+         FROM MessageRead rd
+         WHERE rd.message_id = cm.message_id
+       ) AS read_by_count
      FROM ChatMessage cm
      JOIN "User" u ON u.user_id = cm.sender_id
      LEFT JOIN ChatMessage pm ON pm.message_id = cm.parent_message_id
@@ -430,6 +435,99 @@ module.exports.getMentionSuggestions = async (conversationId, q) => {
     [conversationId, `%${q || ''}%`]
   );
   return result.rows;
+};
+
+module.exports.markConversationAsRead = async (conversationId, userId) => {
+  await pool.query(
+    `INSERT INTO MessageRead (message_id, user_id)
+     SELECT message_id, $2
+     FROM ChatMessage
+     WHERE conversation_id = $1 AND sender_id != $2 AND is_deleted = FALSE
+     ON CONFLICT DO NOTHING`,
+    [conversationId, userId]
+  );
+};
+
+module.exports.getMessageReadBy = async (messageId) => {
+  const result = await pool.query(
+    `SELECT u.user_id, u.username, mr.read_at
+     FROM MessageRead mr
+     JOIN "User" u ON u.user_id = mr.user_id
+     WHERE mr.message_id = $1
+     ORDER BY mr.read_at`,
+    [messageId]
+  );
+  return result.rows;
+};
+
+module.exports.getMemberRole = async (conversationId, userId) => {
+  const result = await pool.query(
+    `SELECT role FROM ConversationMember WHERE conversation_id = $1 AND user_id = $2`,
+    [conversationId, userId]
+  );
+  return result.rows[0]?.role || null;
+};
+
+module.exports.updateConversationName = async (conversationId, name) => {
+  const result = await pool.query(
+    `UPDATE ChatConversation SET name = $1 WHERE conversation_id = $2 RETURNING *`,
+    [name, conversationId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.addConversationMember = async (conversationId, userId) => {
+  await pool.query(
+    `INSERT INTO ConversationMember (conversation_id, user_id, role)
+     VALUES ($1, $2, 'member')
+     ON CONFLICT DO NOTHING`,
+    [conversationId, userId]
+  );
+};
+
+module.exports.removeConversationMember = async (conversationId, targetUserId) => {
+  const result = await pool.query(
+    `DELETE FROM ConversationMember
+     WHERE conversation_id = $1 AND user_id = $2
+     RETURNING user_id`,
+    [conversationId, targetUserId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.leaveConversation = async (conversationId, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deleted = await client.query(
+      `DELETE FROM ConversationMember WHERE conversation_id = $1 AND user_id = $2 RETURNING role`,
+      [conversationId, userId]
+    );
+    if (deleted.rows[0]?.role === 'admin') {
+      await client.query(
+        `UPDATE ConversationMember SET role = 'admin'
+         WHERE conversation_id = $1
+           AND user_id = (
+             SELECT user_id FROM ConversationMember
+             WHERE conversation_id = $1
+             ORDER BY joined_at
+             LIMIT 1
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM ConversationMember
+             WHERE conversation_id = $1 AND role = 'admin'
+           )`,
+        [conversationId]
+      );
+    }
+    await client.query('COMMIT');
+    return deleted.rows[0] || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 module.exports.setTypingStatus = async (userId, conversationId, isTyping) => {
