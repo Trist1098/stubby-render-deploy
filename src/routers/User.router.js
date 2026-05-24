@@ -27,8 +27,14 @@ router.put('/onboarding', jwtMiddleware.verifyToken, userController.completeOnbo
 router.post(
   '/profile-picture',
   jwtMiddleware.verifyToken,
-  upload.single('profilePic'),
+  upload.image.single('profilePic'),
   userController.uploadProfilePicture,
+);
+router.post(
+  '/profile-banner',
+  jwtMiddleware.verifyToken,
+  upload.image.single('profileBanner'),
+  userController.uploadProfileBanner,
 );
 router.get('/me', jwtMiddleware.verifyToken, userController.getMe);
 router.get('/public/:userId', jwtMiddleware.verifyToken, userController.getPublicUser);

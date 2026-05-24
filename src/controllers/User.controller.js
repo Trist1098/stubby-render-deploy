@@ -3,6 +3,7 @@ const {
   create,
   updateProfile,
   updateProfilePicture,
+  updateProfileBanner,
   updatePassword,
   enrollModules,
   selectByUserId,
@@ -126,6 +127,38 @@ module.exports.uploadProfilePicture = async (req, res, next) => {
     res.status(200).json({
       message: 'Profile picture uploaded successfully',
       profile_pic: profilePicPath,
+      user: safeUser(updatedUser),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.uploadProfileBanner = async (req, res, next) => {
+  const userId = res.locals.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'Profile banner file is required' });
+  }
+
+  try {
+    const profileBannerPath = `/uploads/${req.file.filename}`;
+    const updatedUser = await updateProfileBanner({
+      userId,
+      profileBanner: profileBannerPath,
+    });
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.status(200).json({
+      message: 'Profile banner uploaded successfully',
+      profile_banner: profileBannerPath,
       user: safeUser(updatedUser),
     });
   } catch (error) {

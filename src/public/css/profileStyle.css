@@ -105,8 +105,30 @@ header {
 .profile-banner {
   height: 220px;
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 1rem 1rem 0 0;
   position: relative;
+}
+
+.banner-upload-button {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  z-index: 2;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.profile-banner:hover .banner-upload-button,
+.banner-upload-button:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .profile-picture {
@@ -147,6 +169,62 @@ header {
 
 .profile-content {
   padding: 110px 40px 40px;
+}
+
+.image-editor-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.image-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) 285px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.image-editor-preview-wrap {
+  background: #eef2ff;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  min-height: 370px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-editor-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  border-radius: 0.75rem;
+  background: #e2e8f0;
+}
+
+.image-editor-controls {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.image-editor-controls .form-label {
+  align-items: center;
+  color: #334155;
+  display: flex;
+  font-size: 0.9rem;
+  font-weight: 600;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.image-editor-controls .form-label:not(:first-child) {
+  margin-top: 0.65rem;
+}
+
+.image-editor-controls .form-label span {
+  color: #64748b;
+  font-weight: 500;
 }
 
 .profile-name {
@@ -1391,7 +1469,37 @@ header {
   color: #cbd5e1;
 }
 
+.theme-dark .image-editor-preview-wrap,
+.theme-dark .image-editor-controls {
+  background: #151c2a;
+  border-color: #334155;
+}
+
+.theme-dark .image-editor-controls .form-label {
+  color: #e2e8f0;
+}
+
+.theme-dark .image-editor-controls .form-label span {
+  color: #94a3b8;
+}
+
+@media (max-width: 720px) {
+  .banner-upload-button {
+    opacity: 1;
+    transform: none;
+  }
+
+  .image-editor-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 420px) {
+  .image-editor-preview-wrap {
+    min-height: 240px;
+    padding: 0.75rem;
+  }
+
   .profile-feedback-alert {
     top: 76px;
     right: 16px;
