@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const studySessionController = require('../controllers/StudySession.controller');
+const jwtMiddleware = require('../middlewares/jwt.middleware');
 const upload = require('../middlewares/upload');
 
+router.use(jwtMiddleware.verifyToken);
+
 router.get('/:sessionId', studySessionController.getSession);
+router.get('/:sessionId/focus-status-mix', studySessionController.getFocusStatusMix);
 router.post('/:sessionId/consultations', studySessionController.startConsultation);
 router.patch(
   '/:sessionId/consultations/:consultationId/finish',
@@ -21,6 +25,7 @@ router.patch(
   '/:sessionId/consultations/:consultationId/workspace',
   studySessionController.saveConsultationWorkspace,
 );
+router.post('/:sessionId/members/:memberUserId/chat', studySessionController.openMemberChat);
 router.post('/:sessionId/micro-goals', studySessionController.addMicroGoal);
 router.post(
   '/:sessionId/micro-goals/:microGoalId/evidence',
@@ -41,6 +46,9 @@ router.patch(
   studySessionController.updateMicroGoalProgress,
 );
 router.patch('/:sessionId/members/status', studySessionController.updateMemberStatus);
+router.patch('/:sessionId/time-expiry/extend', studySessionController.extendExpiredSession);
+router.patch('/:sessionId/time-expiry/stay', studySessionController.stayInExtendedSession);
+router.patch('/:sessionId/time-expiry/leave', studySessionController.leaveSessionMember);
 router.patch('/:sessionId/exit', studySessionController.exitSession);
 
 module.exports = router;

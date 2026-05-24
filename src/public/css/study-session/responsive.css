@@ -17,7 +17,8 @@
 
   .session-focus-card,
   .status-controls-box,
-  .members-box {
+  .members-box,
+  .status-mix-dashboard {
     grid-column: auto;
     grid-row: auto;
   }
@@ -46,5 +47,19 @@
 
   .timer-ring {
     width: 112px;
+  }
+
+  .status-mix-heading {
+    flex-direction: column;
+  }
+
+  .status-mix-summary {
+    align-self: flex-start;
+  }
+
+  .status-mix-member-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
   }
 }

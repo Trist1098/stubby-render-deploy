@@ -96,7 +96,7 @@ module.exports.updateStatus = async function updateStatus(data) {
 
 module.exports.autoMatch = async function autoMatch(data) {
     const SQLSTATEMENT = `
-        SELECT u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online, u.institution_id, u.diploma_id,
+        SELECT u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online, u.profile_text, u.institution_id, u.diploma_id,
         d.name as diploma_name, d.code as diploma_code,
         (
             SELECT STRING_AGG(m.code, ', ') 
@@ -119,7 +119,7 @@ module.exports.autoMatch = async function autoMatch(data) {
         JOIN UserModule um2 ON u.user_id = um2.user_id
         JOIN UserModule um1 ON um1.module_id = um2.module_id
         WHERE um1.user_id = $1 AND u.user_id != $2
-        GROUP BY u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online, u.institution_id, u.diploma_id, d.name, d.code,
+        GROUP BY u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online, u.profile_text, u.institution_id, u.diploma_id, d.name, d.code,
                  mp.availability_days, mp.selected_modes, mp.selected_times, mp.style, mp.duration, mp.priority, mp.gender_pref, mp.partner_level, mp.selected_languages
         ORDER BY shared_modules_count DESC
         LIMIT 30

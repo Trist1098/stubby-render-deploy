@@ -144,6 +144,26 @@ const getTodayProgress = (req, res, next) => {
     .catch(next);
 };
 
+const getActivity = (req, res, next) => {
+  const limit = Number(req.query.limit) || 20;
+  model.getActivity(req.user?.id, limit)
+    .then((activity) => res.status(200).json({ activity }))
+    .catch(next);
+};
+
+const getReminders = (req, res, next) => {
+  const limit = Number(req.query.limit) || 20;
+  model.getReminders(req.user?.id, limit)
+    .then((reminders) => res.status(200).json({ reminders }))
+    .catch(next);
+};
+
+const createReminder = (req, res, next) => {
+  model.createReminder(req.body)
+    .then((reminder) => res.status(201).json({ reminder }))
+    .catch((error) => res.status(400).json({ error: error.message }));
+};
+
 const getGoalProgress = (req, res, next) => {
   model.getGoalProgress()
     .then((progress) => res.status(200).json({ progress }))
@@ -159,4 +179,7 @@ module.exports = {
   getProgressSummary,
   getTodayProgress,
   getGoalProgress,
+  getActivity,
+  getReminders,
+  createReminder,
 };
