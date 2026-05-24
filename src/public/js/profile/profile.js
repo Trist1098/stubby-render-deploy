@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileFriendsList = document.getElementById('profile-friends-list');
   const profileBadgesList = document.getElementById('profile-badges-list');
   const profileActivitySummary = document.getElementById('profile-activity-summary');
+  const profileMatchList = document.getElementById('profile-match-list');
+  const profileExperienceList = document.getElementById('profile-experience-list');
   const profileActions = document.querySelector('.profile-action-buttons');
   const connectButton = document.getElementById('profile-connect-button');
   const messageButton = document.getElementById('profile-message-button');
@@ -34,6 +36,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allBadgesList = document.getElementById('all-badges-list');
   const activityMatchModalEl = document.getElementById('activityMatchModal');
   const activityMatchContent = document.getElementById('activity-match-content');
+  const experienceModalEl = document.getElementById('experienceModal');
+  const experienceModalLabel = document.getElementById('experienceModalLabel');
+  const experienceForm = document.getElementById('experience-form');
+  const addExperienceButton = document.getElementById('add-experience-button');
+  const experienceTypeInput = document.getElementById('experience-type');
+  const experienceTitleInput = document.getElementById('experience-title');
+  const experienceOrganizationInput = document.getElementById('experience-organization');
+  const experienceStartDateInput = document.getElementById('experience-start-date');
+  const experienceEndDateInput = document.getElementById('experience-end-date');
+  const experienceDescriptionInput = document.getElementById('experience-description');
+  const experienceFormFeedback = document.getElementById('experience-form-feedback');
   const badgeDetailsModalEl = document.getElementById('badgeDetailsModal');
   const allBadgesModalEl = document.getElementById('allBadgesModal');
   const badgeDetailName = document.getElementById('badge-detail-name');
@@ -83,6 +96,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     : null;
   const activityMatchModal = activityMatchModalEl
     ? bootstrap.Modal.getOrCreateInstance(activityMatchModalEl)
+    : null;
+  const experienceModal = experienceModalEl
+    ? bootstrap.Modal.getOrCreateInstance(experienceModalEl)
     : null;
   const badgeDetailsModal = badgeDetailsModalEl
     ? bootstrap.Modal.getOrCreateInstance(badgeDetailsModalEl)
@@ -712,11 +728,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     return date >= sevenDaysAgo && date <= new Date();
   };
 
+  const formatTimelineDate = (value) => {
+    if (!value) return 'Present';
+    const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+    return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  };
+
   const renderActivityItem = (icon, title, detail, matchId = '') => {
     const tag = matchId ? 'button' : 'div';
     const linkAttributes = matchId
-      ? ` type="button" data-match-id="${matchId}" class="activity-item activity-item-link"`
-      : ' class="activity-item"';
+      ? ` type="button" data-match-id="${matchId}" class="activity-item activity-item-hover activity-item-link"`
+      : ' class="activity-item activity-item-hover"';
 
     return `
         <${tag}${linkAttributes}>
@@ -814,6 +836,130 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>
     `;
+  };
+
+  let profileExperiences = [];
+  let editingExperienceId = null;
+
+  const loadProfileMatches = async () => {
+    if (!profileMatchList || !pageUserId) return;
+
+    const matches = await fetchJson(`/api/matches/profile/${pageUserId}`);
+    if (!Array.isArray(matches) || matches.length === 0) {
+      profileMatchList.innerHTML = `
+        <div class="profile-empty-state compact">
+          <i class="fas fa-handshake"></i>
+          <span>No confirmed study matches to display.</span>
+        </div>
+      `;
+      return;
+    }
+
+    profileMatchList.innerHTML = matches
+      .map((match) => {
+        const initial = (match.name || 'S').charAt(0).toUpperCase();
+        const avatar = match.profile_pic
+          ? `<img class="profile-match-avatar" src="${escapeHtml(match.profile_pic)}" alt="" />`
+          : `<div class="profile-match-avatar placeholder">${escapeHtml(initial)}</div>`;
+        const context = match.module_code
+          ? `${match.module_code}${match.topic ? ` - ${match.topic}` : ''}`
+          : match.topic || 'Accepted study match';
+        const course = match.diploma_name || match.institution_name || 'Study partner';
+
+        return `
+          <div class="profile-match-item">
+            ${avatar}
+            <div class="profile-match-copy">
+              <div class="fw-bold">${escapeHtml(match.name || 'Study partner')}</div>
+              <div class="profile-match-meta">${escapeHtml(course)}</div>
+              <div class="profile-match-reason"><i class="fas fa-book-open"></i>${escapeHtml(context)}</div>
+            </div>
+            <a href="viewProfile.html?friendId=${match.user_id}" class="btn btn-sm btn-white">View Profile</a>
+          </div>
+        `;
+      })
+      .join('');
+  };
+
+  const renderExperiences = () => {
+    if (!profileExperienceList) return;
+
+    if (profileExperiences.length === 0) {
+      profileExperienceList.innerHTML = `
+        <div class="profile-empty-state compact">
+          <i class="fas fa-briefcase"></i>
+          <span>${isOwnProfile ? 'Add academic or work experience to your profile.' : 'No experience shared yet.'}</span>
+        </div>
+      `;
+      return;
+    }
+
+    profileExperienceList.innerHTML = `
+      <div class="experience-timeline">
+        ${profileExperiences
+          .map(
+            (experience) => `
+              <div class="experience-item">
+                <div class="experience-dot">
+                  <i class="fas ${experience.type === 'work' ? 'fa-briefcase' : 'fa-graduation-cap'}"></i>
+                </div>
+                <div class="experience-content">
+                  <div class="experience-heading">
+                    <div>
+                      <h6 class="fw-bold mb-1">${escapeHtml(experience.title)}</h6>
+                      <div class="experience-organization">${escapeHtml(experience.organization)}</div>
+                    </div>
+                    ${
+                      isOwnProfile
+                        ? `
+                          <div class="experience-actions">
+                            <button type="button" class="experience-action-button edit" data-action="edit-experience" data-experience-id="${experience.experience_id}" aria-label="Edit ${escapeHtml(experience.title)}">
+                              <i class="fas fa-pen"></i>
+                              <span>Edit</span>
+                            </button>
+                            <button type="button" class="experience-action-button delete" data-action="delete-experience" data-experience-id="${experience.experience_id}" aria-label="Delete ${escapeHtml(experience.title)}">
+                              <i class="fas fa-trash-can"></i>
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        `
+                        : ''
+                    }
+                  </div>
+                  <div class="experience-period">
+                    ${formatTimelineDate(experience.start_date)} - ${formatTimelineDate(experience.end_date)}
+                    <span class="experience-type">${experience.type === 'work' ? 'Work' : 'Academic'}</span>
+                  </div>
+                  ${experience.description ? `<p class="experience-description">${escapeHtml(experience.description)}</p>` : ''}
+                </div>
+              </div>
+            `,
+          )
+          .join('')}
+      </div>
+    `;
+  };
+
+  const loadExperiences = async () => {
+    if (!profileExperienceList || !pageUserId) return;
+    const experiences = await fetchJson(`/api/experiences/${pageUserId}`);
+    profileExperiences = Array.isArray(experiences) ? experiences : [];
+    renderExperiences();
+  };
+
+  const openExperienceForm = (experience = null) => {
+    if (!experienceModal || !experienceForm) return;
+    editingExperienceId = experience?.experience_id || null;
+    experienceForm.reset();
+    experienceModalLabel.textContent = editingExperienceId ? 'Edit Experience' : 'Add Experience';
+    experienceTypeInput.value = experience?.type || 'academic';
+    experienceTitleInput.value = experience?.title || '';
+    experienceOrganizationInput.value = experience?.organization || '';
+    experienceStartDateInput.value = experience?.start_date?.slice(0, 10) || '';
+    experienceEndDateInput.value = experience?.end_date?.slice(0, 10) || '';
+    experienceDescriptionInput.value = experience?.description || '';
+    experienceFormFeedback.textContent = '';
+    experienceModal.show();
   };
 
   const renderActivityUnavailable = () => {
@@ -1015,6 +1161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await updateProfileUI(pageUserData);
   if (profileVisibleContent) profileVisibleContent.hidden = false;
+  await Promise.all([loadProfileMatches(), loadExperiences()]);
 
   const name = pageUserData?.name || 'User';
   const username = pageUserData?.username || 'user';
@@ -1149,6 +1296,60 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { status: 500, data: null };
     }
   };
+
+  addExperienceButton?.addEventListener('click', () => openExperienceForm());
+
+  experienceForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const body = {
+      type: experienceTypeInput.value,
+      title: experienceTitleInput.value,
+      organization: experienceOrganizationInput.value,
+      startDate: experienceStartDateInput.value,
+      endDate: experienceEndDateInput.value,
+      description: experienceDescriptionInput.value,
+    };
+    const endpoint = editingExperienceId
+      ? `/api/experiences/${editingExperienceId}`
+      : '/api/experiences';
+    const response = await requestWithBody(endpoint, editingExperienceId ? 'PUT' : 'POST', body);
+
+    if (response.status >= 200 && response.status < 300) {
+      experienceModal?.hide();
+      await loadExperiences();
+      showFeedback(editingExperienceId ? 'Experience updated.' : 'Experience added.');
+      return;
+    }
+
+    experienceFormFeedback.textContent =
+      response.data?.message || 'Unable to save experience. Please try again.';
+  });
+
+  profileExperienceList?.addEventListener('click', async (event) => {
+    const editButton = event.target.closest('button[data-action="edit-experience"]');
+    if (editButton) {
+      const experience = profileExperiences.find(
+        (item) => item.experience_id.toString() === editButton.dataset.experienceId,
+      );
+      if (experience) openExperienceForm(experience);
+      return;
+    }
+
+    const deleteButton = event.target.closest('button[data-action="delete-experience"]');
+    if (!deleteButton) return;
+    if (!window.confirm('Remove this experience from your profile?')) return;
+
+    const response = await requestWithBody(
+      `/api/experiences/${deleteButton.dataset.experienceId}`,
+      'DELETE',
+    );
+    if (response.status === 204) {
+      await loadExperiences();
+      showFeedback('Experience removed.');
+      return;
+    }
+    showFeedback(response.data?.message || 'Unable to remove experience.', 'error');
+  });
 
   const openDirectChat = async (targetUserId, button = null) => {
     const targetId = Number(targetUserId);
@@ -1471,10 +1672,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         .map((friend) => {
           const initials = friend.name ? friend.name.charAt(0).toUpperCase() : 'U';
           const removeButton = isOwnProfile
-            ? `<button class="btn btn-sm btn-outline-danger" data-action="remove-friend" data-friend-id="${friend.friend_id}">Remove</button>`
+            ? `<button type="button" class="connection-action-button remove" data-action="remove-friend" data-friend-id="${friend.friend_id}" aria-label="Remove ${escapeHtml(friend.name || 'friend')}">
+                <i class="fas fa-trash-can"></i><span>Remove</span>
+              </button>`
             : '';
           const friendMessageButton = isOwnProfile
-            ? `<button type="button" class="btn btn-sm btn-white" data-action="message-friend" data-friend-id="${friend.friend_id}">Message</button>`
+            ? `<button type="button" class="connection-action-button message" data-action="message-friend" data-friend-id="${friend.friend_id}">
+                <i class="fas fa-comment-dots"></i><span>Message</span>
+              </button>`
             : '';
 
           return `
@@ -1487,7 +1692,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                         </div>
                         <div class="connection-actions">
-                            <a href="viewProfile.html?friendId=${friend.friend_id}" class="btn btn-sm btn-white">View</a>
+                            <a href="viewProfile.html?friendId=${friend.friend_id}" class="connection-action-button view">
+                              <i class="fas fa-user"></i><span>View</span>
+                            </a>
                             ${friendMessageButton}
                             ${removeButton}
                         </div>

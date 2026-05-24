@@ -10,6 +10,7 @@ const chatRoutes = require('./routers/Chat.router');
 const homeRoutes = require('./routers/Home.router');
 const friendRoutes = require('./routers/Friend.router');
 const friendRequestRoutes = require('./routers/FriendRequest.router');
+const experienceRoutes = require('./routers/Experience.router');
 const institutionRoutes = require('./routers/Institution.router');
 const diplomaRoutes = require('./routers/Diploma.router');
 const badgeRoutes = require('./routers/Badge.router');
@@ -41,6 +42,7 @@ app.use('/api/chats', chatRoutes);
 
 app.use('/api/friends', friendRoutes);
 app.use('/api/friendrequest', friendRequestRoutes);
+app.use('/api/experiences', experienceRoutes);
 app.use('/api/institution', institutionRoutes);
 app.use('/api/diploma', diplomaRoutes);
 app.use('/api/badge', badgeRoutes);

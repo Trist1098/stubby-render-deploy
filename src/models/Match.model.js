@@ -77,6 +77,34 @@ module.exports.selectActiveMatches = async function selectActiveMatches(data) {
   return rows;
 };
 
+module.exports.selectProfileMatches = async function selectProfileMatches(data) {
+  const SQLSTATEMENT = `
+        SELECT mr.request_id,
+               mr.topic,
+               mr.updated_at,
+               u.user_id,
+               u.name,
+               u.username,
+               u.profile_pic,
+               m.code AS module_code,
+               m.name AS module_name,
+               d.name AS diploma_name,
+               i.name AS institution_name
+        FROM MatchRequest mr
+        JOIN "User" u
+          ON (mr.sender_id = $1 AND u.user_id = mr.receiver_id)
+          OR (mr.receiver_id = $1 AND u.user_id = mr.sender_id)
+        LEFT JOIN Module m ON m.module_id = mr.module_id
+        LEFT JOIN Diploma d ON d.diploma_id = u.diploma_id
+        LEFT JOIN Institution i ON i.institution_id = u.institution_id
+        WHERE (mr.sender_id = $1 OR mr.receiver_id = $1)
+          AND mr.status = 'Accepted'
+        ORDER BY mr.updated_at DESC, mr.request_id DESC
+    `;
+  const { rows } = await pool.query(SQLSTATEMENT, [data.user_id]);
+  return rows;
+};
+
 module.exports.insertRequest = async function insertRequest(data) {
   const SQLSTATEMENT = `
         INSERT INTO MatchRequest (sender_id, receiver_id, module_id, topic, time_slot, location, is_online, type, co_participants, message) 

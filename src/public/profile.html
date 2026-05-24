@@ -137,8 +137,8 @@
                   <p id="profile-institution" class="profile-subtitle">Institution loading...</p>
                 </div>
 
-                <a href="settings.html" class="btn btn-white">
-                  <i class="fas fa-pen me-2"></i>
+                <a href="settings.html" class="profile-edit-button">
+                  <i class="fas fa-pen"></i>
                   Edit Profile
                 </a>
               </div>
@@ -173,6 +173,21 @@
             <div class="profile-info-chip d-flex align-items-center gap-2">
               <i class="fas fa-calendar-alt text-primary"></i>
               <span id="profile-about-year">Year 1</span>
+            </div>
+          </div>
+
+          <!-- EXPERIENCE -->
+          <div class="premium-card profile-hover-card mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h4 class="fw-bold mb-0">Experience</h4>
+              <button id="add-experience-button" type="button" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus me-1"></i>
+                Add
+              </button>
+            </div>
+
+            <div id="profile-experience-list">
+              <div class="profile-loading-state">Loading experience...</div>
             </div>
           </div>
 
@@ -528,6 +543,84 @@
             <a href="matchmaking.html?tab=requests" class="btn btn-white">All Match Requests</a>
             <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="experienceModal"
+      tabindex="-1"
+      aria-labelledby="experienceModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="experienceModalLabel">Add Experience</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <form id="experience-form">
+            <div class="modal-body">
+              <div class="row g-3">
+                <div class="col-12">
+                  <label for="experience-type" class="form-label">Type</label>
+                  <select id="experience-type" class="form-select" required>
+                    <option value="academic">Academic</option>
+                    <option value="work">Work</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label for="experience-title" class="form-label">Title</label>
+                  <input
+                    id="experience-title"
+                    class="form-control"
+                    type="text"
+                    maxlength="150"
+                    required
+                  />
+                </div>
+                <div class="col-12">
+                  <label for="experience-organization" class="form-label">Organization</label>
+                  <input
+                    id="experience-organization"
+                    class="form-control"
+                    type="text"
+                    maxlength="180"
+                    required
+                  />
+                </div>
+                <div class="col-sm-6">
+                  <label for="experience-start-date" class="form-label">Start date</label>
+                  <input id="experience-start-date" class="form-control" type="date" required />
+                </div>
+                <div class="col-sm-6">
+                  <label for="experience-end-date" class="form-label">End date</label>
+                  <input id="experience-end-date" class="form-control" type="date" />
+                </div>
+                <div class="col-12">
+                  <label for="experience-description" class="form-label">Description</label>
+                  <textarea
+                    id="experience-description"
+                    class="form-control"
+                    rows="3"
+                    maxlength="500"
+                    placeholder="What did you do or learn?"
+                  ></textarea>
+                </div>
+              </div>
+              <p id="experience-form-feedback" class="profile-feedback mt-3 mb-0"></p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-white" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Experience</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
