@@ -55,6 +55,7 @@ DROP TABLE IF EXISTS SessionReflection CASCADE;
 DROP TABLE IF EXISTS SessionMember CASCADE;
 DROP TABLE IF EXISTS MatchRequest CASCADE;
 DROP TABLE IF EXISTS MatchPreference CASCADE;
+DROP TABLE IF EXISTS ProfileExperience CASCADE;
 DROP TABLE IF EXISTS UserBadge CASCADE;
 DROP TABLE IF EXISTS Friendship CASCADE;
 DROP TABLE IF EXISTS FriendRequest CASCADE;
@@ -159,6 +160,25 @@ CREATE TABLE "User" (
 
 CREATE TRIGGER set_updated_at_user
   BEFORE UPDATE ON "User"
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TABLE ProfileExperience (
+    experience_id SERIAL PRIMARY KEY,
+    user_id       INT NOT NULL,
+    type          VARCHAR(20) NOT NULL CHECK (type IN ('work', 'academic')),
+    title         VARCHAR(150) NOT NULL,
+    organization  VARCHAR(180) NOT NULL,
+    start_date    DATE NOT NULL,
+    end_date      DATE,
+    description   TEXT,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    CHECK (end_date IS NULL OR end_date >= start_date)
+);
+
+CREATE TRIGGER set_updated_at_profile_experience
+  BEFORE UPDATE ON ProfileExperience
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- =============================================

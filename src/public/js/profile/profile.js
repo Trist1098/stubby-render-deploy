@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileTitleEl = document.getElementById('profile-title');
   const profileFriendsList = document.getElementById('profile-friends-list');
   const profileBadgesList = document.getElementById('profile-badges-list');
+  const profileActivitySummary = document.getElementById('profile-activity-summary');
+  const profileExperienceList = document.getElementById('profile-experience-list');
   const profileActions = document.querySelector('.profile-action-buttons');
   const connectButton = document.getElementById('profile-connect-button');
   const messageButton = document.getElementById('profile-message-button');
@@ -31,6 +33,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allBadgesStatusFilter = document.getElementById('all-badges-status-filter');
   const allBadgesResetBtn = document.getElementById('all-badges-reset-btn');
   const allBadgesList = document.getElementById('all-badges-list');
+  const activityMatchModalEl = document.getElementById('activityMatchModal');
+  const activityMatchContent = document.getElementById('activity-match-content');
+  const experienceModalEl = document.getElementById('experienceModal');
+  const experienceModalLabel = document.getElementById('experienceModalLabel');
+  const experienceForm = document.getElementById('experience-form');
+  const addExperienceButton = document.getElementById('add-experience-button');
+  const experienceTypeInput = document.getElementById('experience-type');
+  const experienceTitleInput = document.getElementById('experience-title');
+  const experienceOrganizationInput = document.getElementById('experience-organization');
+  const experienceStartDateInput = document.getElementById('experience-start-date');
+  const experienceEndDateInput = document.getElementById('experience-end-date');
+  const experienceDescriptionInput = document.getElementById('experience-description');
+  const experienceFormFeedback = document.getElementById('experience-form-feedback');
   const badgeDetailsModalEl = document.getElementById('badgeDetailsModal');
   const allBadgesModalEl = document.getElementById('allBadgesModal');
   const badgeDetailName = document.getElementById('badge-detail-name');
@@ -77,6 +92,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     : null;
   const passwordSettingsModal = passwordSettingsModalEl
     ? bootstrap.Modal.getOrCreateInstance(passwordSettingsModalEl)
+    : null;
+  const activityMatchModal = activityMatchModalEl
+    ? bootstrap.Modal.getOrCreateInstance(activityMatchModalEl)
+    : null;
+  const experienceModal = experienceModalEl
+    ? bootstrap.Modal.getOrCreateInstance(experienceModalEl)
     : null;
   const badgeDetailsModal = badgeDetailsModalEl
     ? bootstrap.Modal.getOrCreateInstance(badgeDetailsModalEl)
@@ -691,6 +712,395 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  const formatActivityDate = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  };
+
+  const wasAddedWithinLastSevenDays = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return date >= sevenDaysAgo && date <= new Date();
+  };
+
+  const formatTimelineDate = (value) => {
+    if (!value) return 'Present';
+    const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+    return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  };
+
+  const renderActivityItem = (icon, title, detail, matchId = '') => {
+    const tag = matchId ? 'button' : 'div';
+    const linkAttributes = matchId
+      ? ` type="button" data-match-id="${matchId}" class="activity-item activity-item-hover activity-item-link"`
+      : ' class="activity-item activity-item-hover"';
+
+    return `
+        <${tag}${linkAttributes}>
+          <div class="activity-item-icon"><i class="fas ${icon}"></i></div>
+          <div>
+            <div class="activity-item-title">${escapeHtml(title)}</div>
+            <div class="activity-item-detail">${escapeHtml(detail)}</div>
+          </div>
+        </${tag}>
+      `;
+  };
+
+  const renderExpandableActivityList = (items, listName) => {
+    const visibleItems = items.slice(0, 3).join('');
+    const additionalItems = items.slice(3).join('');
+
+    return `
+      <div class="activity-list">${visibleItems}</div>
+      ${
+        additionalItems
+          ? `
+            <div class="activity-list activity-extra-list d-none" data-activity-extra="${listName}">
+              ${additionalItems}
+            </div>
+            <button
+              type="button"
+              class="activity-more-button"
+              data-activity-toggle="${listName}"
+              aria-expanded="false"
+            >
+              More <i class="fas fa-chevron-down"></i>
+            </button>
+          `
+          : ''
+      }
+    `;
+  };
+
+  const openMatchDetails = async (matchId) => {
+    if (!activityMatchModal || !activityMatchContent) return;
+
+    activityMatchContent.innerHTML =
+      '<div class="profile-loading-state">Loading match details...</div>';
+    activityMatchModal.show();
+
+    const match = await fetchJson(`/api/matches/request/${matchId}`);
+    if (!match) {
+      activityMatchContent.innerHTML =
+        '<div class="profile-empty-state compact"><i class="fas fa-circle-exclamation"></i><span>Unable to load match details.</span></div>';
+      return;
+    }
+
+    const isReceived = Number(match.receiver_id) === Number(userId);
+    const partnerName = isReceived ? match.sender_name : match.receiver_name;
+    const partnerInitial = (partnerName || 'S').charAt(0).toUpperCase();
+    const [studyDate, studyTime] = (match.time_slot || '').split(' ');
+
+    activityMatchContent.innerHTML = `
+      <div class="match-detail-hero">
+        <div class="match-detail-avatar">${escapeHtml(partnerInitial)}</div>
+        <div class="match-detail-hero-copy">
+          <h4 class="fw-bold mb-1">${escapeHtml(partnerName || 'Study partner')}</h4>
+          <p class="match-detail-topic">${escapeHtml(match.topic || 'Study Match')}</p>
+        </div>
+        <span class="match-detail-status">${escapeHtml(match.status || 'Accepted')}</span>
+      </div>
+      <div class="match-detail-grid">
+        <div class="match-detail-field">
+          <div class="match-detail-label">Module</div>
+          <div class="match-detail-value">${escapeHtml(match.module_code || 'General')}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Session Type</div>
+          <div class="match-detail-value">${match.type === 'group' ? 'Group Study' : 'One-on-One'}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Mode</div>
+          <div class="match-detail-value">${match.is_online ? 'Online' : 'In Person'}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Date</div>
+          <div class="match-detail-value">${escapeHtml(studyDate || 'Not scheduled')}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Time</div>
+          <div class="match-detail-value">${escapeHtml(studyTime || 'Not scheduled')}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Location</div>
+          <div class="match-detail-value">${escapeHtml(match.location || 'Not specified')}</div>
+        </div>
+        <div class="match-detail-note">
+          <div class="match-detail-label">Study Note</div>
+          <div class="match-detail-value">${escapeHtml(match.message || 'No note attached.')}</div>
+        </div>
+      </div>
+    `;
+  };
+
+  let profileExperiences = [];
+  let editingExperienceId = null;
+
+  const renderExperiences = () => {
+    if (!profileExperienceList) return;
+
+    if (profileExperiences.length === 0) {
+      profileExperienceList.innerHTML = `
+        <div class="profile-empty-state compact">
+          <i class="fas fa-briefcase"></i>
+          <span>${isOwnProfile ? 'Add academic or work experience to your profile.' : 'No experience shared yet.'}</span>
+        </div>
+      `;
+      return;
+    }
+
+    profileExperienceList.innerHTML = `
+      <div class="experience-timeline">
+        ${profileExperiences
+          .map(
+            (experience) => `
+              <div class="experience-item">
+                <div class="experience-dot">
+                  <i class="fas ${experience.type === 'work' ? 'fa-briefcase' : 'fa-graduation-cap'}"></i>
+                </div>
+                <div class="experience-content">
+                  <div class="experience-heading">
+                    <div>
+                      <h6 class="fw-bold mb-1">${escapeHtml(experience.title)}</h6>
+                      <div class="experience-organization">${escapeHtml(experience.organization)}</div>
+                    </div>
+                    ${
+                      isOwnProfile
+                        ? `
+                          <div class="experience-actions">
+                            <button type="button" class="experience-action-button edit" data-action="edit-experience" data-experience-id="${experience.experience_id}" aria-label="Edit ${escapeHtml(experience.title)}">
+                              <i class="fas fa-pen"></i>
+                              <span>Edit</span>
+                            </button>
+                            <button type="button" class="experience-action-button delete" data-action="delete-experience" data-experience-id="${experience.experience_id}" aria-label="Delete ${escapeHtml(experience.title)}">
+                              <i class="fas fa-trash-can"></i>
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        `
+                        : ''
+                    }
+                  </div>
+                  <div class="experience-period">
+                    ${formatTimelineDate(experience.start_date)} - ${formatTimelineDate(experience.end_date)}
+                    <span class="experience-type">${experience.type === 'work' ? 'Work' : 'Academic'}</span>
+                  </div>
+                  ${experience.description ? `<p class="experience-description">${escapeHtml(experience.description)}</p>` : ''}
+                </div>
+              </div>
+            `,
+          )
+          .join('')}
+      </div>
+    `;
+  };
+
+  const loadExperiences = async () => {
+    if (!profileExperienceList || !pageUserId) return;
+    const experiences = await fetchJson(`/api/experiences/${pageUserId}`);
+    profileExperiences = Array.isArray(experiences) ? experiences : [];
+    renderExperiences();
+  };
+
+  const openExperienceForm = (experience = null) => {
+    if (!experienceModal || !experienceForm) return;
+    editingExperienceId = experience?.experience_id || null;
+    experienceForm.reset();
+    experienceModalLabel.textContent = editingExperienceId ? 'Edit Experience' : 'Add Experience';
+    experienceTypeInput.value = experience?.type || 'academic';
+    experienceTitleInput.value = experience?.title || '';
+    experienceOrganizationInput.value = experience?.organization || '';
+    experienceStartDateInput.value = experience?.start_date?.slice(0, 10) || '';
+    experienceEndDateInput.value = experience?.end_date?.slice(0, 10) || '';
+    experienceDescriptionInput.value = experience?.description || '';
+    experienceFormFeedback.textContent = '';
+    experienceModal.show();
+  };
+
+  const renderActivityUnavailable = () => {
+    profileActivitySummary.innerHTML = `
+      <div class="profile-empty-state">
+        <i class="fas fa-circle-exclamation"></i>
+        <div>
+          <h6 class="fw-bold mb-1">Activity unavailable</h6>
+          <p class="text-secondary mb-0">Recent profile activity could not be loaded right now.</p>
+        </div>
+      </div>
+    `;
+  };
+
+  const loadProfileActivity = async () => {
+    if (!profileActivitySummary || !pageUserId) return;
+
+    if (!isOwnProfile) {
+      const [friends, matches] = await Promise.all([
+        fetchJson(`/api/friends/${pageUserId}`),
+        fetchJson(`/api/matches/profile/${pageUserId}`),
+      ]);
+      if (!Array.isArray(friends) || !Array.isArray(matches)) {
+        renderActivityUnavailable();
+        return;
+      }
+
+      const recentFriends = friends.map((friend) => {
+        const addedOn = formatActivityDate(friend.created_at);
+        const detail = addedOn ? `Connected ${addedOn}` : 'Study connection';
+        return renderActivityItem(
+          'fa-user-group',
+          friend.name || friend.username || 'Study friend',
+          detail,
+        );
+      });
+      const recentMatches = matches.map((match) => {
+        const matchedOn = formatActivityDate(match.updated_at);
+        const context = match.module_code || match.topic || 'Accepted study match';
+        const detail = matchedOn ? `${context} - ${matchedOn}` : context;
+        return renderActivityItem(
+          'fa-handshake',
+          match.name || match.username || 'Study partner',
+          detail,
+        );
+      });
+
+      profileActivitySummary.innerHTML = `
+        <div class="activity-stats activity-stats-compact">
+          <div class="activity-stat">
+            <div class="activity-stat-number">${matches.length}</div>
+            <div class="activity-stat-label">Matches</div>
+          </div>
+          <div class="activity-stat">
+            <div class="activity-stat-number">${friends.length}</div>
+            <div class="activity-stat-label">Visible friends</div>
+          </div>
+        </div>
+        <div class="activity-section">
+          <h6 class="fw-bold mb-2">Recent Study Matches</h6>
+          ${
+            recentMatches.length > 0
+              ? renderExpandableActivityList(recentMatches, 'view-matches')
+              : '<div class="activity-section-empty">No study matches to display.</div>'
+          }
+        </div>
+        <div class="activity-section">
+          <h6 class="fw-bold mb-2">Recent Connections</h6>
+          ${
+            recentFriends.length > 0
+              ? renderExpandableActivityList(recentFriends, 'view-connections')
+              : '<div class="activity-section-empty">No visible connections to display.</div>'
+          }
+        </div>
+      `;
+      return;
+    }
+
+    const [matches, incomingMatches, outgoingMatches, friends] = await Promise.all([
+      fetchJson('/api/matches/active'),
+      fetchJson('/api/matches/requests/received'),
+      fetchJson('/api/matches/requests/sent'),
+      fetchJson('/api/friends'),
+    ]);
+    if (
+      !Array.isArray(matches) ||
+      !Array.isArray(incomingMatches) ||
+      !Array.isArray(outgoingMatches) ||
+      !Array.isArray(friends)
+    ) {
+      renderActivityUnavailable();
+      return;
+    }
+    const activeMatches = matches;
+    const recentConnections = friends.filter((friend) =>
+      wasAddedWithinLastSevenDays(friend.created_at),
+    );
+    const getPendingCount = (requests) =>
+      Number(
+        requests[0]?.pending_count || requests.filter((match) => match.status === 'Pending').length,
+      );
+    const pendingIncoming = getPendingCount(incomingMatches);
+    const pendingOutgoing = getPendingCount(outgoingMatches);
+
+    let recentMatchesItems = [];
+    if (activeMatches.length > 0) {
+      recentMatchesItems = activeMatches.map((match) => {
+        const matchedOn = formatActivityDate(match.updated_at || match.created_at);
+        const detail = matchedOn ? `Match accepted - ${matchedOn}` : 'Accepted study match';
+        const requestId = Number(match.request_id);
+        return renderActivityItem(
+          'fa-handshake',
+          match.name || match.username || 'Study partner',
+          detail,
+          Number.isInteger(requestId) ? requestId : '',
+        );
+      });
+    }
+
+    const recentConnectionItems = recentConnections.map((friend) => {
+      const addedOn = formatActivityDate(friend.created_at);
+      const detail = addedOn ? `Connected ${addedOn}` : 'New study connection';
+      return renderActivityItem(
+        'fa-user-group',
+        friend.name || friend.username || 'Study friend',
+        detail,
+      );
+    });
+
+    profileActivitySummary.innerHTML = `
+      <div class="activity-stats">
+        <div class="activity-stat">
+          <div class="activity-stat-number">${activeMatches.length}</div>
+          <div class="activity-stat-label">Accepted matches</div>
+        </div>
+        <div class="activity-stat">
+          <div class="activity-stat-number">${pendingIncoming}</div>
+          <div class="activity-stat-label">Pending incoming</div>
+        </div>
+        <div class="activity-stat">
+          <div class="activity-stat-number">${pendingOutgoing}</div>
+          <div class="activity-stat-label">Pending outgoing</div>
+        </div>
+      </div>
+      ${
+        recentMatchesItems.length > 0
+          ? `<div class="activity-section"><h6 class="fw-bold mb-2">Recent Study Matches</h6>${renderExpandableActivityList(recentMatchesItems, 'matches')}</div>`
+          : ''
+      }
+      <div class="activity-section">
+        <h6 class="fw-bold mb-2">Recent Connections <span class="activity-range">Last 7 days</span></h6>
+        ${
+          recentConnectionItems.length > 0
+            ? renderExpandableActivityList(recentConnectionItems, 'connections')
+            : '<div class="activity-section-empty">No new connections in the last 7 days.</div>'
+        }
+      </div>
+    `;
+  };
+
+  profileActivitySummary?.addEventListener('click', (event) => {
+    const toggleButton = event.target.closest('[data-activity-toggle]');
+    if (toggleButton) {
+      const extraItems = profileActivitySummary.querySelector(
+        `[data-activity-extra="${toggleButton.dataset.activityToggle}"]`,
+      );
+      if (!extraItems) return;
+
+      const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+      extraItems.classList.toggle('d-none', isExpanded);
+      toggleButton.setAttribute('aria-expanded', String(!isExpanded));
+      toggleButton.innerHTML = !isExpanded
+        ? 'Less <i class="fas fa-chevron-up"></i>'
+        : 'More <i class="fas fa-chevron-down"></i>';
+      return;
+    }
+
+    const matchItem = event.target.closest('[data-match-id]');
+    if (!matchItem) return;
+    openMatchDetails(matchItem.dataset.matchId);
+  });
+
   const profilePicUrl = pageUserData?.profile_pic;
   setProfilePicture(profilePicUrl);
   setProfileBanner(pageUserData?.profile_banner);
@@ -725,6 +1135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await updateProfileUI(pageUserData);
   if (profileVisibleContent) profileVisibleContent.hidden = false;
+  await loadExperiences();
 
   const name = pageUserData?.name || 'User';
   const username = pageUserData?.username || 'user';
@@ -759,12 +1170,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  await loadProfileActivity();
+
   const friendRequestModalElement = document.getElementById('friendRequestModal');
   const friendRequestModalTitle = document.getElementById('friendRequestModalLabel');
   const friendRequestList = document.getElementById('friend-request-list');
   const friendRequestEmpty = document.getElementById('friend-request-empty');
   const incomingRequestsBtn = document.getElementById('incoming-requests-btn');
   const outgoingRequestsBtn = document.getElementById('outgoing-requests-btn');
+  const incomingRequestCounts = document.querySelectorAll('[data-incoming-request-count]');
+  const friendRequestHint = document.getElementById('friend-request-hint');
+  const matchRequestCounts = document.querySelectorAll('[data-match-request-count]');
+  const matchRequestHint = document.getElementById('match-request-hint');
   const removeFriendModalElement = document.getElementById('removeFriendModal');
   const removeFriendSuccessModalElement = document.getElementById('removeFriendSuccessModal');
   const removeFriendMessage = document.getElementById('remove-friend-message');
@@ -858,6 +1275,113 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  const updateIncomingRequestCount = async () => {
+    if (!isOwnProfile || !userId || incomingRequestCounts.length === 0) return;
+
+    const response = await requestWithBody(`/api/friendrequest/incoming/${userId}`, 'GET');
+    if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) return;
+
+    const count = response.data.length;
+    incomingRequestCounts.forEach((countElement) => {
+      countElement.textContent = count > 99 ? '99+' : String(count);
+      countElement.classList.toggle('d-none', count === 0);
+      countElement.setAttribute(
+        'aria-label',
+        `${count} pending incoming friend request${count === 1 ? '' : 's'}`,
+      );
+    });
+    incomingRequestsBtn?.classList.toggle('has-notification', count > 0);
+    if (friendRequestHint) {
+      friendRequestHint.textContent =
+        count > 0
+          ? `${count} incoming request${count === 1 ? '' : 's'} waiting for your response.`
+          : 'View your pending incoming or outgoing friend requests.';
+    }
+  };
+
+  const updateIncomingMatchRequestCount = async () => {
+    if (!isOwnProfile || matchRequestCounts.length === 0) return;
+
+    const response = await requestWithBody('/api/matches/requests/received', 'GET');
+    if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) return;
+
+    const count = Number(
+      response.data[0]?.pending_count ||
+        response.data.filter((request) => request.status === 'Pending').length,
+    );
+    matchRequestCounts.forEach((countElement) => {
+      countElement.textContent = count > 99 ? '99+' : String(count);
+      countElement.classList.toggle('d-none', count === 0);
+      countElement.setAttribute(
+        'aria-label',
+        `${count} pending incoming match request${count === 1 ? '' : 's'}`,
+      );
+    });
+    if (matchRequestHint) {
+      matchRequestHint.textContent =
+        count > 0
+          ? `${count} study match request${count === 1 ? '' : 's'} waiting for your response.`
+          : 'Review incoming study match requests from other students.';
+    }
+  };
+
+  await updateIncomingRequestCount();
+  await updateIncomingMatchRequestCount();
+
+  addExperienceButton?.addEventListener('click', () => openExperienceForm());
+
+  experienceForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const body = {
+      type: experienceTypeInput.value,
+      title: experienceTitleInput.value,
+      organization: experienceOrganizationInput.value,
+      startDate: experienceStartDateInput.value,
+      endDate: experienceEndDateInput.value,
+      description: experienceDescriptionInput.value,
+    };
+    const endpoint = editingExperienceId
+      ? `/api/experiences/${editingExperienceId}`
+      : '/api/experiences';
+    const response = await requestWithBody(endpoint, editingExperienceId ? 'PUT' : 'POST', body);
+
+    if (response.status >= 200 && response.status < 300) {
+      experienceModal?.hide();
+      await loadExperiences();
+      showFeedback(editingExperienceId ? 'Experience updated.' : 'Experience added.');
+      return;
+    }
+
+    experienceFormFeedback.textContent =
+      response.data?.message || 'Unable to save experience. Please try again.';
+  });
+
+  profileExperienceList?.addEventListener('click', async (event) => {
+    const editButton = event.target.closest('button[data-action="edit-experience"]');
+    if (editButton) {
+      const experience = profileExperiences.find(
+        (item) => item.experience_id.toString() === editButton.dataset.experienceId,
+      );
+      if (experience) openExperienceForm(experience);
+      return;
+    }
+
+    const deleteButton = event.target.closest('button[data-action="delete-experience"]');
+    if (!deleteButton) return;
+    if (!window.confirm('Remove this experience from your profile?')) return;
+
+    const response = await requestWithBody(
+      `/api/experiences/${deleteButton.dataset.experienceId}`,
+      'DELETE',
+    );
+    if (response.status === 204) {
+      await loadExperiences();
+      showFeedback('Experience removed.');
+      return;
+    }
+    showFeedback(response.data?.message || 'Unable to remove experience.', 'error');
+  });
+
   const openDirectChat = async (targetUserId, button = null) => {
     const targetId = Number(targetUserId);
     if (!Number.isInteger(targetId) || targetId <= 0 || targetId === Number(userId)) return;
@@ -898,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const updateConnectButtonState = async () => {
     if (!connectButton || isOwnProfile || !pageUserId || !userId) return;
 
-    const ownFriends = (await fetchJson('/api/friend')) || [];
+    const ownFriends = (await fetchJson('/api/friends')) || [];
     const isAlreadyFriend = ownFriends.some(
       (friend) => friend.friend_id?.toString() === pageUserId.toString(),
     );
@@ -993,6 +1517,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? 'incoming'
         : 'outgoing';
       await loadFriendRequests(currentType);
+      await loadProfileActivity();
+      await updateIncomingRequestCount();
       showFeedback('Friend request updated.');
     } else {
       console.error('Failed to update friend request', response.data);
@@ -1031,7 +1557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let discoveryIncoming = [];
 
     const loadDiscoveryStatus = async () => {
-      discoveryFriends = (await fetchJson('/api/friend')) || [];
+      discoveryFriends = (await fetchJson('/api/friends')) || [];
       discoveryOutgoing = (await fetchJson(`/api/friendrequest/outgoing/${userId}`)) || [];
       discoveryIncoming = (await fetchJson(`/api/friendrequest/incoming/${userId}`)) || [];
     };
@@ -1148,9 +1674,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (profileFriendsList) {
     const friendsEndpoint =
-      isViewProfilePage && friendId ? `/api/friend/${friendId}` : '/api/friend';
+      isViewProfilePage && friendId ? `/api/friends/${friendId}` : '/api/friends';
 
     let friends = (await fetchJson(friendsEndpoint)) || [];
+    let friendsExpanded = false;
 
     const renderFriends = () => {
       const searchTerm = friendSearchInput?.value?.trim().toLowerCase() || '';
@@ -1170,14 +1697,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      profileFriendsList.innerHTML = shownFriends
+      const visibleFriends = friendsExpanded ? shownFriends : shownFriends.slice(0, 3);
+      const hasMoreFriends = shownFriends.length > 3;
+
+      const friendItems = visibleFriends
         .map((friend) => {
           const initials = friend.name ? friend.name.charAt(0).toUpperCase() : 'U';
           const removeButton = isOwnProfile
-            ? `<button class="btn btn-sm btn-outline-danger" data-action="remove-friend" data-friend-id="${friend.friend_id}">Remove</button>`
+            ? `<button type="button" class="connection-action-button remove" data-action="remove-friend" data-friend-id="${friend.friend_id}" aria-label="Remove ${escapeHtml(friend.name || 'friend')}">
+                <i class="fas fa-trash-can"></i><span>Remove</span>
+              </button>`
             : '';
           const friendMessageButton = isOwnProfile
-            ? `<button type="button" class="btn btn-sm btn-white" data-action="message-friend" data-friend-id="${friend.friend_id}">Message</button>`
+            ? `<button type="button" class="connection-action-button message" data-action="message-friend" data-friend-id="${friend.friend_id}">
+                <i class="fas fa-comment-dots"></i><span>Message</span>
+              </button>`
             : '';
 
           return `
@@ -1190,7 +1724,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                         </div>
                         <div class="connection-actions">
-                            <a href="viewProfile.html?friendId=${friend.friend_id}" class="btn btn-sm btn-white">View</a>
+                            <a href="viewProfile.html?friendId=${friend.friend_id}" class="connection-action-button view">
+                              <i class="fas fa-user"></i><span>View</span>
+                            </a>
                             ${friendMessageButton}
                             ${removeButton}
                         </div>
@@ -1198,12 +1734,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
         })
         .join('');
+
+      profileFriendsList.innerHTML = `
+        ${friendItems}
+        ${
+          hasMoreFriends
+            ? `
+              <button type="button" class="activity-more-button friend-more-button" data-action="toggle-friends" aria-expanded="${friendsExpanded}">
+                ${friendsExpanded ? 'Less <i class="fas fa-chevron-up"></i>' : 'More <i class="fas fa-chevron-down"></i>'}
+              </button>
+            `
+            : ''
+        }
+      `;
     };
 
     renderFriends();
 
     if (friendSearchInput) {
-      friendSearchInput.addEventListener('input', renderFriends);
+      friendSearchInput.addEventListener('input', () => {
+        friendsExpanded = false;
+        renderFriends();
+      });
     }
 
     const removeSelectedFriend = async () => {
@@ -1217,7 +1769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmRemoveFriendBtn.textContent = 'Removing...';
       }
 
-      const response = await requestWithBody(`/api/friend/${selectedFriendId}`, 'DELETE');
+      const response = await requestWithBody(`/api/friends/${selectedFriendId}`, 'DELETE');
 
       if (confirmRemoveFriendBtn) {
         confirmRemoveFriendBtn.disabled = false;
@@ -1229,6 +1781,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           (friend) => friend.friend_id?.toString() !== selectedFriendId.toString(),
         );
         renderFriends();
+        await loadProfileActivity();
         removeFriendModal?.hide();
         if (removeFriendSuccessMessage) {
           removeFriendSuccessMessage.textContent = `${selectedFriendToRemove.name} has been removed from your friend list.`;
@@ -1249,6 +1802,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     profileFriendsList.addEventListener('click', (event) => {
+      const toggleFriendsButton = event.target.closest('button[data-action="toggle-friends"]');
+      if (toggleFriendsButton) {
+        friendsExpanded = !friendsExpanded;
+        renderFriends();
+        return;
+      }
+
       const messageFriendButton = event.target.closest('button[data-action="message-friend"]');
       if (messageFriendButton) {
         openDirectChat(messageFriendButton.dataset.friendId, messageFriendButton);
