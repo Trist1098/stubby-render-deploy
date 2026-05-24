@@ -56,6 +56,11 @@
     color: #047857;
 }
 
+.status-upcoming {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
 .status-expired {
     background: #fff7ed;
     color: #c2410c;

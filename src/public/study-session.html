@@ -124,6 +124,14 @@
               <h2 id="currentGoalTitle">Finish Tutorial Q1-Q3</h2>
               <div class="micro-goal-actions">
                 <button
+                  id="discussionButton"
+                  class="queue-goal-btn discussion-goal-btn"
+                  type="button"
+                  aria-label="Open discussion"
+                >
+                  <i class="fas fa-comments" aria-hidden="true"></i>
+                </button>
+                <button
                   id="viewQueueButton"
                   class="queue-goal-btn"
                   type="button"
@@ -316,7 +324,7 @@
     >
       <section class="session-modal-card exit-modal-card">
         <h2 id="exitModalTitle">Exit Session?</h2>
-        <p>This will exit the session and bring you to the Personal Summary page.</p>
+        <p>This will exit the session and bring you back to the home page.</p>
         <div class="session-modal-actions">
           <button id="cancelExitButton" class="btn btn-light" type="button">Cancel</button>
           <button id="confirmExitButton" class="btn btn-danger" type="button">Exit Session</button>

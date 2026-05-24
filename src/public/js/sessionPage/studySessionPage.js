@@ -379,7 +379,12 @@ function sessionIntentionKey() {
 }
 
 function readSessionIntention() {
-  return localStorage.getItem(sessionIntentionKey()) || '';
+  const localIntention = localStorage.getItem(sessionIntentionKey()) || '';
+  if (localIntention) return localIntention;
+
+  const memberMission = sessionMemberForViewer()?.session_mission || '';
+  if (memberMission) localStorage.setItem(sessionIntentionKey(), memberMission);
+  return memberMission;
 }
 
 function renderSessionIntention() {
@@ -399,7 +404,25 @@ function promptForSessionIntention() {
   if (!readSessionIntention()) openIntentionModal();
 }
 
-function saveSessionIntention(event) {
+async function saveMissionToServer(mission) {
+  try {
+    const member = await getJson(`${apiBase}/members/mission`, {
+      method: 'PATCH',
+      body: JSON.stringify({ mission }),
+    });
+
+    const currentMember = getCurrentMember();
+    if (currentMember) currentMember.session_mission = member.mission || mission;
+  } catch (error) {
+    showToast({
+      title: 'Mission saved locally',
+      message: 'It will stay on this browser, but could not sync to the session yet.',
+      type: 'danger',
+    });
+  }
+}
+
+async function saveSessionIntention(event) {
   event.preventDefault();
 
   const intention = page.intentionInput.value.trim();
@@ -409,8 +432,11 @@ function saveSessionIntention(event) {
   }
 
   localStorage.setItem(sessionIntentionKey(), intention);
+  const currentMember = getCurrentMember();
+  if (currentMember) currentMember.session_mission = intention;
   showModal(page.intentionModal, false);
   renderSessionIntention();
+  await saveMissionToServer(intention);
 }
 
 function showToast({ title, message, type = 'info', actionLabel = '', action = null }) {
@@ -2656,7 +2682,7 @@ async function exitSession() {
     console.info('Could not mark session as exited:', error.message);
   }
 
-  window.location.href = 'personal-summary.html';
+  window.location.href = 'index.html';
 }
 
 async function extendExpiredSession(event) {
@@ -2798,6 +2824,14 @@ function toggleMembersExpanded() {
   renderMembers();
 }
 
+function showDiscussionPlaceholder() {
+  showToast({
+    title: 'Discussion coming soon',
+    message: 'This button will open the session discussion add-on later.',
+    type: 'info',
+  });
+}
+
 function markScratchpadChanged() {
   markWorkspaceDirty();
   scheduleConsultationWorkspaceSave();
@@ -2810,6 +2844,7 @@ function resizeWorkspaceIfOpen() {
 }
 
 function bindGoalAndMemberEvents() {
+  bindClick('discussionButton', showDiscussionPlaceholder);
   bindClick('showGoalFormButton', toggleGoalForm);
   page.goalForm.addEventListener('submit', addMicroGoal);
   page.intentionForm.addEventListener('submit', saveSessionIntention);

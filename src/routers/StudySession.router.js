@@ -26,6 +26,7 @@ router.patch(
   '/:sessionId/consultations/:consultationId/workspace',
   studySessionController.saveConsultationWorkspace,
 );
+router.post('/:sessionId/chat', studySessionController.openSessionGroupChat);
 router.post('/:sessionId/members/:memberUserId/chat', studySessionController.openMemberChat);
 router.post('/:sessionId/micro-goals', studySessionController.addMicroGoal);
 router.post(
@@ -47,6 +48,7 @@ router.patch(
   studySessionController.updateMicroGoalProgress,
 );
 router.patch('/:sessionId/members/status', studySessionController.updateMemberStatus);
+router.patch('/:sessionId/members/mission', studySessionController.updateMemberMission);
 router.patch('/:sessionId/time-expiry/extend', studySessionController.extendExpiredSession);
 router.patch('/:sessionId/time-expiry/stay', studySessionController.stayInExtendedSession);
 router.patch('/:sessionId/time-expiry/leave', studySessionController.leaveSessionMember);

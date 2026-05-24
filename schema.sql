@@ -242,6 +242,7 @@ CREATE TRIGGER set_updated_at_match_request
 CREATE TABLE StudySession (
     session_id     SERIAL PRIMARY KEY,
     host_id        INT NOT NULL,
+    calendar_event_id INT,
     title          VARCHAR(255),
     micro_goal     VARCHAR(255),
     duration       INT DEFAULT 0,
@@ -253,7 +254,8 @@ CREATE TABLE StudySession (
     ended_at       TIMESTAMP,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at   TIMESTAMP,
-    FOREIGN KEY (host_id) REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (host_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(calendar_event_id)
 );
 
 CREATE TABLE SessionMember (
@@ -263,6 +265,7 @@ CREATE TABLE SessionMember (
     status       VARCHAR(20) DEFAULT 'focus',
     status_timer INT DEFAULT 0,
     progress     INT DEFAULT 0,
+    mission      TEXT,
     joined_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     left_at      TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
@@ -291,7 +294,9 @@ CREATE TABLE ChatConversation (
     conversation_id SERIAL PRIMARY KEY,
     name            VARCHAR(255),
     type            VARCHAR(20) DEFAULT 'friend',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    study_session_id INT UNIQUE,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE SET NULL
 );
 
 CREATE TABLE ConversationMember (
@@ -371,6 +376,10 @@ CREATE TABLE CalendarEvent (
 CREATE TRIGGER set_updated_at_calendar_event
   BEFORE UPDATE ON CalendarEvent
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+ALTER TABLE StudySession
+  ADD CONSTRAINT fk_study_session_calendar_event
+  FOREIGN KEY (calendar_event_id) REFERENCES CalendarEvent(event_id) ON DELETE SET NULL;
 
 CREATE TABLE EventParticipant (
     id         SERIAL PRIMARY KEY,

@@ -47,6 +47,7 @@ function escapeHtml(value) {
 function statusLabel(status) {
   const labels = {
     active: 'Live',
+    upcoming: 'Upcoming',
     expired: 'Needs action',
     completed: 'Completed',
   };
@@ -112,6 +113,17 @@ function formatDate(value) {
   return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function formatTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function sessionCardDate(session) {
+  return session.scheduled_start_at || session.started_at || '';
+}
+
 function normalizeSession(session, now = Date.now()) {
   const plannedSeconds = numericSeconds(session.planned_duration_seconds);
   const remainingSeconds = numericSeconds(session.remaining_seconds);
@@ -122,7 +134,11 @@ function normalizeSession(session, now = Date.now()) {
 
   return {
     ...session,
-    id: Number(session.id),
+    id: session.id,
+    session_key:
+      session.source === 'calendar'
+        ? `calendar-${session.calendar_event_id}`
+        : `session-${session.id}`,
     status: String(session.status || 'unknown').toLowerCase(),
     planned_duration_seconds: plannedSeconds,
     remaining_seconds: remainingSeconds,
@@ -134,12 +150,12 @@ function normalizeSession(session, now = Date.now()) {
 function mergeSessions(nextSessions) {
   const now = Date.now();
   const previousById = new Map(
-    sessionsState.sessions.map((session) => [String(session.id), session]),
+    sessionsState.sessions.map((session) => [session.session_key, session]),
   );
 
   return nextSessions.map((session) => {
     const nextSession = normalizeSession(session, now);
-    const previousSession = previousById.get(String(nextSession.id));
+    const previousSession = previousById.get(nextSession.session_key);
     const isSameLiveSession =
       previousSession &&
       previousSession.status === 'active' &&
@@ -161,6 +177,15 @@ function mergeSessions(nextSessions) {
 }
 
 function sessionAction(session) {
+  if (session.status === 'upcoming') {
+    return `
+      <button class="btn btn-outline-primary" type="button" disabled>
+        <i class="fas fa-clock me-2" aria-hidden="true"></i>
+        Starts automatically
+      </button>
+    `;
+  }
+
   if (session.status === 'active' || session.status === 'expired') {
     return `
       <a class="btn btn-primary" href="study-session.html?id=${session.id}">
@@ -177,7 +202,13 @@ function sessionAction(session) {
   `;
 }
 
+function sessionGroupChatUrl(sessionId) {
+  return `/api/sessions/${sessionId}/chat`;
+}
+
 function renderActiveTimeMeta(session) {
+  const key = escapeHtml(session.session_key);
+
   return `
     <div class="session-meta-item">
       <span>Duration</span>
@@ -185,12 +216,25 @@ function renderActiveTimeMeta(session) {
     </div>
     <div class="session-meta-item">
       <span>Remaining</span>
-      <strong data-session-remaining="${session.id}">${escapeHtml(formatTimer(liveRemainingSeconds(session)))}</strong>
+      <strong data-session-remaining="${key}">${escapeHtml(formatTimer(liveRemainingSeconds(session)))}</strong>
     </div>
   `;
 }
 
 function renderInactiveTimeMeta(session) {
+  if (session.status === 'upcoming') {
+    return `
+      <div class="session-meta-item">
+        <span>Duration</span>
+        <strong>${escapeHtml(formatDuration(session.planned_duration_seconds))}</strong>
+      </div>
+      <div class="session-meta-item">
+        <span>Starts</span>
+        <strong>${escapeHtml(formatTime(session.scheduled_start_at))}</strong>
+      </div>
+    `;
+  }
+
   return `
     <div class="session-meta-item">
       <span>Duration</span>
@@ -205,6 +249,7 @@ function renderInactiveTimeMeta(session) {
 
 function renderLiveMeter(session) {
   if (session.status !== 'active') return '';
+  const key = escapeHtml(session.session_key);
   const planned = numericSeconds(session.planned_duration_seconds);
   const elapsed = liveElapsedSeconds(session);
   const progress = liveProgress(session).toFixed(1);
@@ -217,7 +262,7 @@ function renderLiveMeter(session) {
       aria-valuemin="0"
       aria-valuemax="${planned}"
       aria-valuenow="${elapsed}"
-      data-session-progress="${session.id}"
+      data-session-progress="${key}"
     >
       <span class="session-live-fill" style="width: ${progress}%"></span>
     </div>
@@ -227,17 +272,18 @@ function renderLiveMeter(session) {
 function renderSessionCard(session) {
   const status = String(session.status || 'unknown').toLowerCase();
   const goal = session.micro_goal || 'No mission set yet';
+  const cardDate = sessionCardDate(session);
 
   return `
-    <article class="premium-card session-card" data-session-card="${session.id}" data-session-status="${escapeHtml(status)}">
+    <article class="premium-card session-card" data-session-card="${escapeHtml(session.session_key)}" data-session-status="${escapeHtml(status)}">
       <div class="session-card-header">
         <div>
           <span class="sessions-status-pill status-${escapeHtml(status)}">${escapeHtml(statusLabel(status))}</span>
           <h2 class="h4 fw-bold mb-1">${escapeHtml(session.title || 'Study session')}</h2>
           <p class="text-muted mb-0">${escapeHtml(goal)}</p>
         </div>
-        <time class="session-card-date" datetime="${escapeHtml(session.started_at || '')}">
-          ${escapeHtml(formatDate(session.started_at))}
+        <time class="session-card-date" datetime="${escapeHtml(cardDate)}">
+          ${escapeHtml(formatDate(cardDate))}
         </time>
       </div>
 
@@ -257,10 +303,14 @@ function renderSessionCard(session) {
 
       <div class="session-card-actions">
         ${sessionAction(session)}
-        <a class="btn btn-white" href="chat.html">
-          <i class="fas fa-comments me-2" aria-hidden="true"></i>
-          Chat
-        </a>
+        ${
+          status === 'upcoming'
+            ? ''
+            : `<button class="btn btn-white session-chat-button" type="button" data-session-chat-id="${escapeHtml(session.id)}">
+                <i class="fas fa-comments me-2" aria-hidden="true"></i>
+                Chat
+              </button>`
+        }
       </div>
     </article>
   `;
@@ -280,10 +330,11 @@ function renderLivePanel() {
   }
 
   sessionsPage.livePanel.dataset.sessionId = String(liveSession.id);
+  const liveKey = escapeHtml(liveSession.session_key);
   sessionsPage.liveTitle.textContent = liveSession.title || 'Current study session';
   sessionsPage.liveMeta.innerHTML = `
-    <span><strong data-live-elapsed="${liveSession.id}">${escapeHtml(formatTimer(liveElapsedSeconds(liveSession)))}</strong> elapsed</span>
-    <span><strong data-live-remaining="${liveSession.id}">${escapeHtml(formatTimer(liveRemainingSeconds(liveSession)))}</strong> remaining</span>
+    <span><strong data-live-elapsed="${liveKey}">${escapeHtml(formatTimer(liveElapsedSeconds(liveSession)))}</strong> elapsed</span>
+    <span><strong data-live-remaining="${liveKey}">${escapeHtml(formatTimer(liveRemainingSeconds(liveSession)))}</strong> remaining</span>
     <span>${escapeHtml(formatDuration(liveSession.planned_duration_seconds))} planned</span>
     <span>${Number(liveSession.member_count) || 0} members</span>
   `;
@@ -324,12 +375,13 @@ function updateLiveTimers() {
     const elapsed = liveElapsedSeconds(session, now);
     const remaining = liveRemainingSeconds(session, now);
     const progress = liveProgress(session, now);
+    const key = session.session_key;
 
-    updateTimedText(`[data-session-remaining="${session.id}"]`, formatTimer(remaining));
-    updateTimedText(`[data-live-elapsed="${session.id}"]`, formatTimer(elapsed));
-    updateTimedText(`[data-live-remaining="${session.id}"]`, formatTimer(remaining));
+    updateTimedText(`[data-session-remaining="${key}"]`, formatTimer(remaining));
+    updateTimedText(`[data-live-elapsed="${key}"]`, formatTimer(elapsed));
+    updateTimedText(`[data-live-remaining="${key}"]`, formatTimer(remaining));
 
-    document.querySelectorAll(`[data-session-progress="${session.id}"]`).forEach((meter) => {
+    document.querySelectorAll(`[data-session-progress="${key}"]`).forEach((meter) => {
       meter.setAttribute('aria-valuenow', String(elapsed));
       const fill = meter.querySelector('.session-live-fill');
       if (fill) fill.style.width = `${progress}%`;
@@ -355,6 +407,31 @@ async function fetchSessions(options = {}) {
   }
 }
 
+async function openSessionChat(event) {
+  const button = event.target.closest('.session-chat-button');
+  if (!button) return;
+
+  const sessionId = Number(button.dataset.sessionChatId);
+  if (!Number.isInteger(sessionId) || sessionId <= 0) return;
+
+  button.disabled = true;
+  const previousContent = button.innerHTML;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin me-2" aria-hidden="true"></i>Opening...';
+
+  try {
+    const chat = await window.apiRequest(sessionGroupChatUrl(sessionId), 'POST');
+    if (chat.error || chat.message) throw new Error(chat.error || chat.message);
+
+    const conversationId = chat.data?.conversation_id || chat.conversation_id;
+    if (!conversationId) throw new Error('Could not open session chat.');
+    window.location.href = `chat.html?conversationId=${encodeURIComponent(conversationId)}`;
+  } catch (error) {
+    button.disabled = false;
+    button.innerHTML = previousContent;
+    showSessionsAlert(error.message || 'Could not open session chat.');
+  }
+}
+
 function startLiveTracking() {
   clearInterval(sessionsState.tickTimer);
   clearInterval(sessionsState.syncTimer);
@@ -367,6 +444,7 @@ function bindSessionEvents() {
   sessionsPage.filters.forEach((button) => {
     button.addEventListener('click', () => setFilter(button.dataset.filter));
   });
+  sessionsPage.list.addEventListener('click', openSessionChat);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') fetchSessions({ silent: true });

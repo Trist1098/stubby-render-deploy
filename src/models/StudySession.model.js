@@ -24,6 +24,7 @@ const withTransaction = async (action) => {
 
 const sessionSummarySelect = `
   session_id AS id,
+  calendar_event_id,
   title,
   host_id AS created_by_user_id,
   COALESCE(planned_duration_seconds, duration) AS planned_duration_seconds,
@@ -42,6 +43,125 @@ const remainingSecondsSelect = `
     )
   END AS remaining_seconds
 `;
+
+const splitBookingTime = (bookingTime = '') =>
+  String(bookingTime || '')
+    .split(/\s+(?:-|—|–)\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+const parseClockToMinutes = (value) => {
+  const match = String(value || '')
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!match) return null;
+
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const period = match[3]?.toUpperCase();
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || minutes > 59) return null;
+
+  if (period === 'PM' && hours !== 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+  if (hours > 23) return null;
+
+  return hours * 60 + minutes;
+};
+
+const formatMinutesAsClock = (minutes) => {
+  const safeMinutes = ((minutes % 1440) + 1440) % 1440;
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}:00`;
+};
+
+const scheduledEventTimes = (event) => {
+  const [startText, endText] = splitBookingTime(event.booking_time);
+  const startMinutes = parseClockToMinutes(startText);
+  if (startMinutes === null || !event.event_date) return null;
+
+  const endMinutes = parseClockToMinutes(endText) ?? startMinutes + 60;
+  const durationMinutes = endMinutes > startMinutes
+    ? endMinutes - startMinutes
+    : endMinutes + 1440 - startMinutes;
+  const dateText = event.event_date;
+  const startAt = new Date(`${dateText}T${formatMinutesAsClock(startMinutes)}`);
+  const endAt = new Date(startAt.getTime() + durationMinutes * 60 * 1000);
+
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return null;
+
+  return {
+    startAt,
+    endAt,
+    durationSeconds: Math.max(durationMinutes * 60, 60),
+  };
+};
+
+const selectVisibleOnlineCalendarEventsSql = `
+  SELECT
+    c.event_id,
+    c.creator_id,
+    creator.name AS host_name,
+    c.name,
+    c.topic,
+    c.notes,
+    TO_CHAR(c.event_date, 'YYYY-MM-DD') AS event_date,
+    c.booking_time,
+    linked.session_id AS linked_session_id,
+    (
+      SELECT COUNT(DISTINCT invited.user_id)::INT
+      FROM EventParticipant invited
+      WHERE invited.event_id = c.event_id
+    )
+    + CASE
+        WHEN EXISTS (
+          SELECT 1
+          FROM EventParticipant creator_member
+          WHERE creator_member.event_id = c.event_id
+            AND creator_member.user_id = c.creator_id
+        ) THEN 0
+        ELSE 1
+      END AS member_count
+  FROM CalendarEvent c
+  INNER JOIN "User" creator ON creator.user_id = c.creator_id
+  LEFT JOIN StudySession linked ON linked.calendar_event_id = c.event_id
+  WHERE c.is_online = TRUE
+    AND NULLIF(TRIM(COALESCE(c.location, '')), '') IS NULL
+    AND (
+      c.creator_id = $1
+      OR EXISTS (
+        SELECT 1
+        FROM EventParticipant own_event
+        WHERE own_event.event_id = c.event_id
+          AND own_event.user_id = $1
+      )
+    )
+  ORDER BY c.event_date ASC, c.booking_time ASC, c.event_id ASC
+`;
+
+const mapUpcomingCalendarSession = (event) => {
+  const schedule = scheduledEventTimes(event);
+  if (!schedule || schedule.startAt <= new Date() || event.linked_session_id) return null;
+
+  return {
+    source: 'calendar',
+    id: `calendar-${event.event_id}`,
+    calendar_event_id: event.event_id,
+    title: event.name || 'Scheduled study session',
+    micro_goal: event.topic || event.notes || 'Scheduled online session',
+    host_name: event.host_name || 'Study host',
+    planned_duration_seconds: schedule.durationSeconds,
+    status: 'upcoming',
+    started_at: null,
+    ended_at: null,
+    scheduled_start_at: schedule.startAt.toISOString(),
+    scheduled_end_at: schedule.endAt.toISOString(),
+    elapsed_seconds: 0,
+    remaining_seconds: 0,
+    member_count: Number(event.member_count) || 0,
+    is_member: true,
+  };
+};
 
 const selectSessionOwnerForUpdate = async (client, sessionId) => {
   const SQLSTATEMENT = `
@@ -470,6 +590,7 @@ const sessionMemberSql = `
     ${memberStatusTimerSelect},
     ${memberTimerPausedSelect},
     LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')) AS status,
+    sm.mission,
     u.name,
     u.profile_pic AS avatar_url,
     LEAST(GREATEST(COALESCE(mgp.progress_percent, 0), 0), 100) AS progress_percent
@@ -797,6 +918,7 @@ const mapSessionMember = (member, goalsByUser, creditByUser) => ({
   is_timer_paused: member.is_timer_paused,
   current_status: prettyStatus(member.status),
   status_class: cssStatus(member.status),
+  session_mission: member.mission || '',
   progress_percent: member.progress_percent,
   focus_credit: creditByUser[member.user_id] || buildFocusCredit(),
   goals: goalsByUser[member.user_id] || [],
@@ -1298,7 +1420,9 @@ module.exports.selectSessionById = async function selectSessionById(sessionId) {
 module.exports.selectSessionsForUser = async function selectSessionsForUser(userId) {
   const SQLSTATEMENT = `
     SELECT
+      'session' AS source,
       ss.session_id AS id,
+      ss.calendar_event_id,
       ss.title,
       ss.micro_goal,
       ss.host_id AS created_by_user_id,
@@ -1351,6 +1475,23 @@ module.exports.selectSessionsForUser = async function selectSessionsForUser(user
         WHERE own_member.session_id = ss.session_id
           AND own_member.user_id = $1
       )
+      OR (
+        ss.calendar_event_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1
+          FROM CalendarEvent own_event
+          WHERE own_event.event_id = ss.calendar_event_id
+            AND (
+              own_event.creator_id = $1
+              OR EXISTS (
+                SELECT 1
+                FROM EventParticipant own_event_member
+                WHERE own_event_member.event_id = own_event.event_id
+                  AND own_event_member.user_id = $1
+              )
+            )
+        )
+      )
     GROUP BY ss.session_id, host.name
     ORDER BY
       CASE ss.status
@@ -1364,6 +1505,124 @@ module.exports.selectSessionsForUser = async function selectSessionsForUser(user
   `;
   const { rows } = await pool.query(SQLSTATEMENT, [userId]);
   return rows;
+};
+
+module.exports.syncScheduledOnlineSessionsForUser = async function syncScheduledOnlineSessionsForUser(
+  userId,
+) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(selectVisibleOnlineCalendarEventsSql, [userId]);
+    const now = new Date();
+
+    for (const event of rows) {
+      if (event.linked_session_id) continue;
+
+      const schedule = scheduledEventTimes(event);
+      if (!schedule || schedule.startAt > now) continue;
+
+      await client.query(
+        `
+          INSERT INTO StudySession (
+            host_id,
+            calendar_event_id,
+            title,
+            micro_goal,
+            duration,
+            planned_duration_seconds,
+            status,
+            started_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $5, 'active', $6)
+          ON CONFLICT (calendar_event_id) DO NOTHING
+        `,
+        [
+          event.creator_id,
+          event.event_id,
+          event.name || 'Scheduled study session',
+          event.topic || event.notes || 'Scheduled online session',
+          schedule.durationSeconds,
+          schedule.startAt,
+        ],
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports.selectUpcomingScheduledSessionsForUser = async function selectUpcomingScheduledSessionsForUser(
+  userId,
+) {
+  const { rows } = await pool.query(selectVisibleOnlineCalendarEventsSql, [userId]);
+  return rows.map(mapUpcomingCalendarSession).filter(Boolean);
+};
+
+module.exports.ensureSessionAccessForUser = async function ensureSessionAccessForUser(
+  sessionId,
+  userId,
+) {
+  return withTransaction(async (client) => {
+    const accessResult = await client.query(
+      `
+        SELECT
+          ss.session_id,
+          ss.status,
+          ss.host_id,
+          ss.calendar_event_id,
+          EXISTS (
+            SELECT 1
+            FROM SessionMember any_member
+            WHERE any_member.session_id = ss.session_id
+              AND any_member.user_id = $2
+          ) AS has_member_record,
+          EXISTS (
+            SELECT 1
+            FROM EventParticipant event_member
+            WHERE event_member.event_id = ss.calendar_event_id
+              AND event_member.user_id = $2
+          ) AS is_event_participant
+        FROM StudySession ss
+        WHERE ss.session_id = $1
+        FOR UPDATE
+      `,
+      [sessionId, userId],
+    );
+    const session = accessResult.rows[0];
+    if (!session) return null;
+
+    const isHost = Number(session.host_id) === Number(userId);
+    const isAllowed =
+      isHost ||
+      Boolean(session.has_member_record) ||
+      (session.calendar_event_id && Boolean(session.is_event_participant));
+    if (!isAllowed) return null;
+
+    if (session.status === 'active') {
+      await client.query(
+        `
+          INSERT INTO SessionMember (session_id, user_id, status, status_timer, progress, joined_at, left_at)
+          VALUES ($1, $2, 'focus', 0, 0, CURRENT_TIMESTAMP, NULL)
+          ON CONFLICT (session_id, user_id) DO UPDATE
+          SET left_at = NULL,
+              joined_at = CURRENT_TIMESTAMP
+        `,
+        [sessionId, userId],
+      );
+
+      const member = await selectActiveMemberForUpdate(client, sessionId, userId);
+      if (member) await resumeMemberTimer(client, member);
+    }
+
+    return session;
+  });
 };
 
 module.exports.ensureActiveSessionTimers = async function ensureActiveSessionTimers(sessionId) {
@@ -1679,6 +1938,114 @@ module.exports.ensureSessionMemberChat = async function ensureSessionMemberChat(
   });
 };
 
+module.exports.ensureSessionGroupChat = async function ensureSessionGroupChat(data) {
+  return withTransaction(async (client) => {
+    const sessionResult = await client.query(
+      `
+        SELECT session_id, title
+        FROM StudySession
+        WHERE session_id = $1
+      `,
+      [data.study_session_id],
+    );
+    const session = sessionResult.rows[0];
+    if (!session) return null;
+
+    const memberResult = await client.query(
+      `
+        SELECT DISTINCT participant.user_id
+        FROM (
+          SELECT ss.host_id AS user_id
+          FROM StudySession ss
+          WHERE ss.session_id = $1
+
+          UNION
+
+          SELECT ep.user_id
+          FROM StudySession ss
+          INNER JOIN EventParticipant ep
+            ON ep.event_id = ss.calendar_event_id
+          WHERE ss.session_id = $1
+
+          UNION
+
+          SELECT sm.user_id
+          FROM SessionMember sm
+          WHERE sm.session_id = $1
+        ) participant
+        WHERE participant.user_id IS NOT NULL
+        ORDER BY participant.user_id ASC
+      `,
+      [data.study_session_id],
+    );
+    const memberIds = memberResult.rows.map((member) => Number(member.user_id));
+    if (!memberIds.includes(Number(data.user_id))) return null;
+
+    const existingResult = await client.query(
+      `
+        SELECT conversation_id, name, type, created_at
+        FROM ChatConversation
+        WHERE study_session_id = $1
+        LIMIT 1
+      `,
+      [data.study_session_id],
+    );
+    const existingConversation = existingResult.rows[0];
+
+    if (existingConversation) {
+      for (const memberId of memberIds) {
+        await client.query(
+          `
+            INSERT INTO ConversationMember (conversation_id, user_id, role)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (conversation_id, user_id) DO NOTHING
+          `,
+          [
+            existingConversation.conversation_id,
+            memberId,
+            memberId === Number(data.user_id) ? 'admin' : 'member',
+          ],
+        );
+      }
+
+      return {
+        ...existingConversation,
+        member_ids: memberIds,
+      };
+    }
+
+    const conversationResult = await client.query(
+      `
+        INSERT INTO ChatConversation (name, type, study_session_id)
+        VALUES ($1, 'group', $2)
+        RETURNING conversation_id, name, type, created_at
+      `,
+      [session.title || 'Study session', data.study_session_id],
+    );
+    const conversation = conversationResult.rows[0];
+
+    for (const memberId of memberIds) {
+      await client.query(
+        `
+          INSERT INTO ConversationMember (conversation_id, user_id, role)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (conversation_id, user_id) DO NOTHING
+        `,
+        [
+          conversation.conversation_id,
+          memberId,
+          memberId === Number(data.user_id) ? 'admin' : 'member',
+        ],
+      );
+    }
+
+    return {
+      ...conversation,
+      member_ids: memberIds,
+    };
+  });
+};
+
 module.exports.selectQueuedMicroGoals = async function selectQueuedMicroGoals(
   sessionId,
   currentGoalId = null,
@@ -1974,6 +2341,24 @@ module.exports.updateMemberStatus = async function updateMemberStatus(data) {
   } finally {
     client.release();
   }
+};
+
+module.exports.updateMemberMission = async function updateMemberMission(data) {
+  const mission = String(data.mission || '').trim().slice(0, 180);
+  if (!mission) return null;
+
+  const { rows } = await pool.query(
+    `
+      UPDATE SessionMember
+      SET mission = $3
+      WHERE session_id = $1
+        AND user_id = $2
+      RETURNING member_id, session_id, user_id, mission
+    `,
+    [data.study_session_id, data.user_id, mission],
+  );
+
+  return rows[0] || null;
 };
 
 module.exports.exitSession = async function exitSession(sessionId) {

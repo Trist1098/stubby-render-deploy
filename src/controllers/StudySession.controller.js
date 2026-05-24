@@ -102,9 +102,14 @@ const getWhiteboardStrokes = (value) => {
 
 module.exports.getSession = async function getSession(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
+  const userId = getLoggedInUserId(res);
   if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
 
   try {
+    const access = await model.ensureSessionAccessForUser(sessionId, userId);
+    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+
     await model.expireSessionIfTimeElapsed(sessionId);
     await model.ensureActiveSessionTimers(sessionId);
     const session = await model.selectSessionById(sessionId);
@@ -130,6 +135,8 @@ module.exports.listSessions = async function listSessions(req, res, next) {
   if (!userId) return badReq(res, 'Valid user id is required');
 
   try {
+    await model.syncScheduledOnlineSessionsForUser(userId);
+
     const sessionsBeforeSync = await model.selectSessionsForUser(userId);
     const activeSessionIds = sessionsBeforeSync
       .filter((session) => session.status === 'active')
@@ -145,7 +152,23 @@ module.exports.listSessions = async function listSessions(req, res, next) {
         .map((session) => model.ensureActiveSessionTimers(session.id)),
     );
 
-    const sessions = await model.selectSessionsForUser(userId);
+    const sessions = [
+      ...(await model.selectSessionsForUser(userId)),
+      ...(await model.selectUpcomingScheduledSessionsForUser(userId)),
+    ].sort((left, right) => {
+      const statusOrder = { active: 0, upcoming: 1, expired: 2, completed: 3 };
+      const leftOrder = statusOrder[left.status] ?? 4;
+      const rightOrder = statusOrder[right.status] ?? 4;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+
+      const leftTime = new Date(
+        left.scheduled_start_at || left.started_at || left.captured_at || 0,
+      ).getTime();
+      const rightTime = new Date(
+        right.scheduled_start_at || right.started_at || right.captured_at || 0,
+      ).getTime();
+      return leftOrder === 1 ? leftTime - rightTime : rightTime - leftTime;
+    });
     return ok(res, sessions);
   } catch (error) {
     return next(error);
@@ -474,6 +497,29 @@ module.exports.openMemberChat = async function openMemberChat(req, res, next) {
   }
 };
 
+module.exports.openSessionGroupChat = async function openSessionGroupChat(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const userId = getLoggedInUserId(res);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
+
+  try {
+    const access = await model.ensureSessionAccessForUser(sessionId, userId);
+    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+
+    const chat = await model.ensureSessionGroupChat({
+      study_session_id: sessionId,
+      user_id: userId,
+    });
+
+    if (!chat) return notFound(res, 'Study session members not found');
+    return ok(res, chat);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports.updateMicroGoalProgress = async function updateMicroGoalProgress(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
   const microGoalId = parseId(req.params.microGoalId);
@@ -519,6 +565,32 @@ module.exports.updateMemberStatus = async function updateMemberStatus(req, res, 
     });
 
     if (!member) return notFound(res, 'Session member not found or status is invalid');
+    return ok(res, member);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.updateMemberMission = async function updateMemberMission(req, res, next) {
+  const sessionId = parseId(req.params.sessionId);
+  const userId = getLoggedInUserId(res);
+  const mission = getTrimmedString(req.body.mission).slice(0, 180);
+
+  if (!sessionId) return badReq(res, 'Valid session id is required');
+  if (!userId) return badReq(res, 'Valid user id is required');
+  if (!mission) return badReq(res, 'Mission is required');
+
+  try {
+    const access = await model.ensureSessionAccessForUser(sessionId, userId);
+    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+
+    const member = await model.updateMemberMission({
+      study_session_id: sessionId,
+      user_id: userId,
+      mission,
+    });
+
+    if (!member) return notFound(res, 'Session member not found');
     return ok(res, member);
   } catch (error) {
     return next(error);
