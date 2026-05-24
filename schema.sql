@@ -314,7 +314,55 @@ CREATE TABLE SessionReflection (
     UNIQUE(session_id, user_id)
 );
 
-<<<<<<< HEAD
+CREATE TABLE consultation_sessions (
+    id                   SERIAL PRIMARY KEY,
+    study_session_id     INT NOT NULL,
+    student_user_id      INT NOT NULL,
+    teacher_user_id      INT,
+    topic                VARCHAR(255),
+    question_text        TEXT,
+    student_attempt_text TEXT,
+    teacher_direction    VARCHAR(255),
+    status               VARCHAR(50) NOT NULL,
+    started_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at             TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (student_user_id)  REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_user_id)  REFERENCES "User"(user_id) ON DELETE SET NULL
+);
+
+CREATE TABLE consultation_notes (
+    id                      SERIAL PRIMARY KEY,
+    consultation_session_id INT NOT NULL,
+    user_id                 INT NOT NULL,
+    note_text               TEXT NOT NULL,
+    created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (consultation_session_id) REFERENCES consultation_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)                 REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE consultation_reflections (
+    id                      SERIAL PRIMARY KEY,
+    consultation_session_id INT NOT NULL,
+    submitted_by_user_id    INT NOT NULL,
+    student_understood      BOOLEAN,
+    summary_checklist_json  JSONB,
+    additional_notes        TEXT,
+    created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (consultation_session_id) REFERENCES consultation_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (submitted_by_user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE status_events (
+    id                           SERIAL PRIMARY KEY,
+    study_session_participant_id INT NOT NULL,
+    status                       VARCHAR(50) NOT NULL,
+    started_at                   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at                     TIMESTAMP,
+    FOREIGN KEY (study_session_participant_id) REFERENCES SessionMember(member_id) ON DELETE CASCADE
+);
+
 CREATE TABLE micro_goals (
     id                 SERIAL PRIMARY KEY,
     study_session_id   INT NOT NULL,
@@ -372,7 +420,6 @@ CREATE TABLE micro_goal_ai_checks (
     FOREIGN KEY (micro_goal_id)    REFERENCES micro_goals(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
 );
-=======
 CREATE TABLE StudySessionDiscussionPost (
     post_id     SERIAL PRIMARY KEY,
     session_id  INT NOT NULL,
@@ -389,7 +436,6 @@ CREATE TABLE StudySessionDiscussionPost (
 CREATE TRIGGER set_updated_at_study_session_discussion_post
   BEFORE UPDATE ON StudySessionDiscussionPost
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
->>>>>>> origin/feature/live-study-session2
 
 -- =============================================
 -- CHAT & MESSAGING
