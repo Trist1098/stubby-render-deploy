@@ -49,6 +49,7 @@ DROP TABLE IF EXISTS status_events CASCADE;
 DROP TABLE IF EXISTS consultation_reflections CASCADE;
 DROP TABLE IF EXISTS consultation_notes CASCADE;
 DROP TABLE IF EXISTS consultation_sessions CASCADE;
+DROP TABLE IF EXISTS StudySessionDiscussionPost CASCADE;
 DROP TABLE IF EXISTS SessionReflection CASCADE;
 DROP TABLE IF EXISTS SessionMember CASCADE;
 DROP TABLE IF EXISTS MatchRequest CASCADE;
@@ -286,6 +287,23 @@ CREATE TABLE SessionReflection (
     FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(session_id, user_id)
 );
+
+CREATE TABLE StudySessionDiscussionPost (
+    post_id     SERIAL PRIMARY KEY,
+    session_id  INT NOT NULL,
+    user_id     INT NOT NULL,
+    post_type   VARCHAR(30) DEFAULT 'question',
+    title       VARCHAR(140) NOT NULL,
+    content     TEXT NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TRIGGER set_updated_at_study_session_discussion_post
+  BEFORE UPDATE ON StudySessionDiscussionPost
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- =============================================
 -- CHAT & MESSAGING

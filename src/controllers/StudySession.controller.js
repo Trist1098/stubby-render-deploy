@@ -64,6 +64,13 @@ const getWorkCheckFile = async (file) => {
 const getStringList = (value) =>
   Array.isArray(value) ? value.map(getTrimmedString).filter(Boolean) : [];
 
+const allowedDiscussionTypes = new Set(['question', 'explanation', 'resource', 'note']);
+
+const getDiscussionType = (value) => {
+  const normalized = getTrimmedString(value).toLowerCase();
+  return allowedDiscussionTypes.has(normalized) ? normalized : 'question';
+};
+
 const clampUnit = (value) => {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return null;
@@ -98,6 +105,14 @@ const getWhiteboardStrokes = (value) => {
       };
     })
     .filter(Boolean);
+};
+
+const ensureSessionRequestAccess = async (sessionId, userId, res) => {
+  const access = await model.ensureSessionAccessForUser(sessionId, userId);
+  if (access) return true;
+
+  res.status(403).json({ error: 'You are not invited to this study session' });
+  return false;
 };
 
 module.exports.getSession = async function getSession(req, res, next) {
@@ -515,6 +530,53 @@ module.exports.openSessionGroupChat = async function openSessionGroupChat(req, r
 
     if (!chat) return notFound(res, 'Study session members not found');
     return ok(res, chat);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.listDiscussions = async function listDiscussions(req, res, next) {
+  const ids = getSessionUserIds(req, res);
+  if (!ids) return null;
+
+  try {
+    const hasAccess = await ensureSessionRequestAccess(ids.sessionId, ids.userId, res);
+    if (!hasAccess) return null;
+
+    const discussions = await model.selectDiscussionPosts({
+      study_session_id: ids.sessionId,
+      user_id: ids.userId,
+    });
+
+    return ok(res, discussions);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports.createDiscussionPost = async function createDiscussionPost(req, res, next) {
+  const ids = getSessionUserIds(req, res);
+  const title = getTrimmedString(req.body.title).slice(0, 140);
+  const content = getTrimmedString(req.body.content).slice(0, 1600);
+  const postType = getDiscussionType(req.body.post_type);
+
+  if (!ids) return null;
+  if (!title) return badReq(res, 'Discussion title is required');
+  if (!content) return badReq(res, 'Discussion content is required');
+
+  try {
+    const hasAccess = await ensureSessionRequestAccess(ids.sessionId, ids.userId, res);
+    if (!hasAccess) return null;
+
+    const post = await model.insertDiscussionPost({
+      study_session_id: ids.sessionId,
+      user_id: ids.userId,
+      post_type: postType,
+      title,
+      content,
+    });
+
+    return created(res, post);
   } catch (error) {
     return next(error);
   }

@@ -81,9 +81,8 @@ const scheduledEventTimes = (event) => {
   if (startMinutes === null || !event.event_date) return null;
 
   const endMinutes = parseClockToMinutes(endText) ?? startMinutes + 60;
-  const durationMinutes = endMinutes > startMinutes
-    ? endMinutes - startMinutes
-    : endMinutes + 1440 - startMinutes;
+  const durationMinutes =
+    endMinutes > startMinutes ? endMinutes - startMinutes : endMinutes + 1440 - startMinutes;
   const dateText = event.event_date;
   const startAt = new Date(`${dateText}T${formatMinutesAsClock(startMinutes)}`);
   const endAt = new Date(startAt.getTime() + durationMinutes * 60 * 1000);
@@ -844,9 +843,8 @@ const mapFocusStatusMember = (memberRows) => {
   const capturedAt = firstRow.captured_at || new Date();
   const events = sortFocusEvents(memberRows);
   const sessionStart = firstRow.started_at || null;
-  const memberStart = sessionStart
-    ? maxDate(sessionStart, firstRow.joined_at) || sessionStart
-    : capturedAt;
+  const firstEventStart = events[0]?.event_time || null;
+  const memberStart = sessionStart || firstEventStart || firstRow.joined_at || capturedAt;
   const isTimerPaused = focusMemberIsPaused(firstRow, events, sessionStart);
   const memberEnd =
     (isTimerPaused && latestFocusEventEnd(events)) ||
@@ -944,15 +942,15 @@ const mapAiCheck = (row) => ({
 const mapConsultationReflection = (row) =>
   row
     ? {
-      id: row.id,
-      consultation_session_id: row.consultation_session_id,
-      submitted_by_user_id: row.submitted_by_user_id,
-      submitted_by_name: row.submitted_by_name,
-      student_understood: row.student_understood,
-      summary_checklist: row.summary_checklist_json || [],
-      additional_notes: row.additional_notes,
-      created_at: row.created_at,
-    }
+        id: row.id,
+        consultation_session_id: row.consultation_session_id,
+        submitted_by_user_id: row.submitted_by_user_id,
+        submitted_by_name: row.submitted_by_name,
+        student_understood: row.student_understood,
+        summary_checklist: row.summary_checklist_json || [],
+        additional_notes: row.additional_notes,
+        created_at: row.created_at,
+      }
     : null;
 
 const mapConsultationSession = (row, reflection = null) => ({
@@ -1335,7 +1333,7 @@ const upsertConsultationNote = async (client, data) => {
 
   return existingResult.rows[0]
     ? client.query(
-      `
+        `
           UPDATE consultation_notes
           SET user_id = $2,
               note_text = $3,
@@ -1343,16 +1341,16 @@ const upsertConsultationNote = async (client, data) => {
           WHERE id = $1
           RETURNING user_id, note_text, updated_at
         `,
-      [existingResult.rows[0].id, data.user_id, payload],
-    )
+        [existingResult.rows[0].id, data.user_id, payload],
+      )
     : client.query(
-      `
+        `
           INSERT INTO consultation_notes (consultation_session_id, user_id, note_text)
           VALUES ($1, $2, $3)
           RETURNING user_id, note_text, updated_at
         `,
-      [data.consultation_session_id, data.user_id, payload],
-    );
+        [data.consultation_session_id, data.user_id, payload],
+      );
 };
 
 const updateConsultationDirection = async (client, data) => {
@@ -1507,24 +1505,23 @@ module.exports.selectSessionsForUser = async function selectSessionsForUser(user
   return rows;
 };
 
-module.exports.syncScheduledOnlineSessionsForUser = async function syncScheduledOnlineSessionsForUser(
-  userId,
-) {
-  const client = await pool.connect();
+module.exports.syncScheduledOnlineSessionsForUser =
+  async function syncScheduledOnlineSessionsForUser(userId) {
+    const client = await pool.connect();
 
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(selectVisibleOnlineCalendarEventsSql, [userId]);
-    const now = new Date();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(selectVisibleOnlineCalendarEventsSql, [userId]);
+      const now = new Date();
 
-    for (const event of rows) {
-      if (event.linked_session_id) continue;
+      for (const event of rows) {
+        if (event.linked_session_id) continue;
 
-      const schedule = scheduledEventTimes(event);
-      if (!schedule || schedule.startAt > now) continue;
+        const schedule = scheduledEventTimes(event);
+        if (!schedule || schedule.startAt > now) continue;
 
-      await client.query(
-        `
+        await client.query(
+          `
           INSERT INTO StudySession (
             host_id,
             calendar_event_id,
@@ -1538,32 +1535,31 @@ module.exports.syncScheduledOnlineSessionsForUser = async function syncScheduled
           VALUES ($1, $2, $3, $4, $5, $5, 'active', $6)
           ON CONFLICT (calendar_event_id) DO NOTHING
         `,
-        [
-          event.creator_id,
-          event.event_id,
-          event.name || 'Scheduled study session',
-          event.topic || event.notes || 'Scheduled online session',
-          schedule.durationSeconds,
-          schedule.startAt,
-        ],
-      );
+          [
+            event.creator_id,
+            event.event_id,
+            event.name || 'Scheduled study session',
+            event.topic || event.notes || 'Scheduled online session',
+            schedule.durationSeconds,
+            schedule.startAt,
+          ],
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
+  };
 
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-module.exports.selectUpcomingScheduledSessionsForUser = async function selectUpcomingScheduledSessionsForUser(
-  userId,
-) {
-  const { rows } = await pool.query(selectVisibleOnlineCalendarEventsSql, [userId]);
-  return rows.map(mapUpcomingCalendarSession).filter(Boolean);
-};
+module.exports.selectUpcomingScheduledSessionsForUser =
+  async function selectUpcomingScheduledSessionsForUser(userId) {
+    const { rows } = await pool.query(selectVisibleOnlineCalendarEventsSql, [userId]);
+    return rows.map(mapUpcomingCalendarSession).filter(Boolean);
+  };
 
 module.exports.ensureSessionAccessForUser = async function ensureSessionAccessForUser(
   sessionId,
@@ -1611,8 +1607,7 @@ module.exports.ensureSessionAccessForUser = async function ensureSessionAccessFo
           INSERT INTO SessionMember (session_id, user_id, status, status_timer, progress, joined_at, left_at)
           VALUES ($1, $2, 'focus', 0, 0, CURRENT_TIMESTAMP, NULL)
           ON CONFLICT (session_id, user_id) DO UPDATE
-          SET left_at = NULL,
-              joined_at = CURRENT_TIMESTAMP
+          SET left_at = NULL
         `,
         [sessionId, userId],
       );
@@ -1906,7 +1901,11 @@ module.exports.saveConsultationReview = async function saveConsultationReview(da
       data.study_session_id,
       data.consultation_session_id,
     );
-    const studentNotification = await insertStudentDirectionNotification(client, consultation, data);
+    const studentNotification = await insertStudentDirectionNotification(
+      client,
+      consultation,
+      data,
+    );
 
     await client.query('COMMIT');
     return { ...consultation, student_notification: studentNotification };
@@ -1916,6 +1915,59 @@ module.exports.saveConsultationReview = async function saveConsultationReview(da
   } finally {
     client.release();
   }
+};
+
+const mapDiscussionPost = (post) => ({
+  id: post.post_id,
+  session_id: post.session_id,
+  user_id: post.user_id,
+  author_name: post.author_name,
+  author_avatar_url: post.author_avatar_url,
+  post_type: post.post_type || 'question',
+  title: post.title,
+  content: post.content,
+  created_at: post.created_at,
+  updated_at: post.updated_at,
+});
+
+module.exports.selectDiscussionPosts = async function selectDiscussionPosts(data) {
+  const postResult = await pool.query(
+    `
+      SELECT
+        post.post_id,
+        post.session_id,
+        post.user_id,
+        author.name AS author_name,
+        author.profile_pic AS author_avatar_url,
+        post.post_type,
+        post.title,
+        post.content,
+        post.created_at,
+        post.updated_at
+      FROM StudySessionDiscussionPost post
+      INNER JOIN "User" author ON author.user_id = post.user_id
+      WHERE post.session_id = $1
+      ORDER BY post.created_at DESC
+    `,
+    [data.study_session_id],
+  );
+
+  return {
+    posts: postResult.rows.map(mapDiscussionPost),
+  };
+};
+
+module.exports.insertDiscussionPost = async function insertDiscussionPost(data) {
+  const { rows } = await pool.query(
+    `
+      INSERT INTO StudySessionDiscussionPost (session_id, user_id, post_type, title, content)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING post_id, session_id, user_id, post_type, title, content, created_at, updated_at
+    `,
+    [data.study_session_id, data.user_id, data.post_type || 'question', data.title, data.content],
+  );
+
+  return rows[0] || null;
 };
 
 module.exports.ensureSessionMemberChat = async function ensureSessionMemberChat(data) {
@@ -2344,7 +2396,9 @@ module.exports.updateMemberStatus = async function updateMemberStatus(data) {
 };
 
 module.exports.updateMemberMission = async function updateMemberMission(data) {
-  const mission = String(data.mission || '').trim().slice(0, 180);
+  const mission = String(data.mission || '')
+    .trim()
+    .slice(0, 180);
   if (!mission) return null;
 
   const { rows } = await pool.query(

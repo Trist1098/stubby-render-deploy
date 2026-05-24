@@ -122,36 +122,36 @@
             <span class="session-label">Micro-goal</span>
             <div class="micro-goal-heading-row">
               <h2 id="currentGoalTitle">Finish Tutorial Q1-Q3</h2>
-              <div class="micro-goal-actions">
-                <button
-                  id="discussionButton"
-                  class="queue-goal-btn discussion-goal-btn"
-                  type="button"
-                  aria-label="Open discussion"
-                >
-                  <i class="fas fa-comments" aria-hidden="true"></i>
-                </button>
-                <button
-                  id="viewQueueButton"
-                  class="queue-goal-btn"
-                  type="button"
-                  aria-label="View queued micro-goals"
-                >
-                  <i class="fas fa-list-ul"></i>
-                  <span id="queuedGoalCount">0</span>
-                </button>
-                <button
-                  id="showGoalFormButton"
-                  class="add-goal-btn"
-                  type="button"
-                  aria-label="Add micro-goal"
-                >
-                  <i class="fas fa-plus"></i>
-                </button>
-              </div>
             </div>
             <div id="nextQueuedGoal" class="queued-goal-preview d-none"></div>
             <p id="currentGoalDescription">Current task for this study session.</p>
+            <div class="micro-goal-actions">
+              <button
+                id="discussionButton"
+                class="queue-goal-btn discussion-goal-btn"
+                type="button"
+                aria-label="Open discussion"
+              >
+                <i class="fas fa-comments" aria-hidden="true"></i>
+              </button>
+              <button
+                id="viewQueueButton"
+                class="queue-goal-btn"
+                type="button"
+                aria-label="View queued micro-goals"
+              >
+                <i class="fas fa-list-ul"></i>
+                <span id="queuedGoalCount">0</span>
+              </button>
+              <button
+                id="showGoalFormButton"
+                class="add-goal-btn"
+                type="button"
+                aria-label="Add micro-goal"
+              >
+                <i class="fas fa-plus"></i>
+              </button>
+            </div>
 
             <form id="microGoalForm" class="micro-goal-form d-none">
               <label>
@@ -314,6 +314,74 @@
       </section>
     </div>
 
+    <aside
+      id="discussionPanel"
+      class="discussion-side-panel"
+      role="complementary"
+      aria-hidden="true"
+      aria-labelledby="discussionPanelTitle"
+    >
+      <section class="discussion-side-panel-inner">
+        <div class="session-modal-header">
+          <div>
+            <span class="discussion-kicker">Session Discussion</span>
+            <h2 id="discussionPanelTitle">Discussion Board</h2>
+          </div>
+          <button
+            id="closeDiscussionButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close discussion"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form id="discussionForm" class="discussion-form">
+          <div class="discussion-form-row">
+            <label>
+              <span>Type</span>
+              <select id="discussionTypeInput" name="post_type">
+                <option value="question">Question</option>
+                <option value="explanation">Explanation</option>
+                <option value="resource">Resource</option>
+                <option value="note">Note</option>
+              </select>
+            </label>
+            <label>
+              <span>Title</span>
+              <input
+                id="discussionTitleInput"
+                name="title"
+                type="text"
+                maxlength="140"
+                placeholder="What should the group know?"
+                required
+              />
+            </label>
+          </div>
+          <label>
+            <span>Post</span>
+            <textarea
+              id="discussionContentInput"
+              name="content"
+              rows="3"
+              maxlength="1600"
+              placeholder="Ask a question, share an explanation, or add a useful note"
+              required
+            ></textarea>
+          </label>
+          <button type="submit">
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            <span>Post</span>
+          </button>
+        </form>
+
+        <div id="discussionStatus" class="discussion-status"></div>
+        <div id="discussionList" class="discussion-list"></div>
+      </section>
+    </aside>
+
     <div
       id="exitModal"
       class="session-modal d-none"
@@ -367,9 +435,7 @@
 
         <div id="stayExitPanel" class="time-expiry-stay-panel d-none">
           <div class="session-modal-actions">
-            <button id="exitExtendedSessionButton" class="btn btn-light" type="button">
-              Exit
-            </button>
+            <button id="exitExtendedSessionButton" class="btn btn-light" type="button">Exit</button>
             <button id="stayExtendedSessionButton" class="btn btn-primary" type="button">
               Stay
             </button>
@@ -448,40 +514,8 @@
           <div id="consultationContext" class="consultation-context"></div>
 
           <section class="consultation-shared-workspace" aria-label="Shared consultation workspace">
-            <div class="workspace-tabs" role="tablist" aria-label="Consultation workspace tools">
-              <button
-                id="whiteboardTabButton"
-                class="workspace-tab active"
-                type="button"
-                role="tab"
-                aria-selected="true"
-                aria-controls="whiteboardPanel"
-                tabindex="0"
-                data-workspace-tab="whiteboard"
-              >
-                Whiteboard
-              </button>
-              <button
-                id="scratchpadTabButton"
-                class="workspace-tab"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                aria-controls="scratchpadPanel"
-                tabindex="-1"
-                data-workspace-tab="scratchpad"
-              >
-                Scratchpad
-              </button>
-            </div>
             <div class="workspace-panel-shell">
-              <section
-                id="whiteboardPanel"
-                class="workspace-panel"
-                role="tabpanel"
-                aria-labelledby="whiteboardTabButton"
-                data-workspace-panel="whiteboard"
-              >
+              <section id="whiteboardPanel" class="workspace-panel" aria-label="Shared whiteboard">
                 <div class="whiteboard-toolbar">
                   <button id="clearWhiteboardButton" class="workspace-tool-button" type="button">
                     <i class="fas fa-eraser"></i>
@@ -493,17 +527,10 @@
                   class="consultation-whiteboard"
                   role="img"
                   tabindex="0"
-                  aria-label="Shared whiteboard. Use the Scratchpad tab for keyboard text input."
+                  aria-label="Shared whiteboard. Use the scratchpad below for keyboard text input."
                 ></canvas>
               </section>
-              <section
-                id="scratchpadPanel"
-                class="workspace-panel d-none"
-                role="tabpanel"
-                aria-labelledby="scratchpadTabButton"
-                hidden
-                data-workspace-panel="scratchpad"
-              >
+              <section id="scratchpadPanel" class="workspace-panel" aria-label="Shared scratchpad">
                 <textarea
                   id="consultationScratchpad"
                   class="consultation-scratchpad"
@@ -686,6 +713,24 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
-    <script src="js/sessionPage/studySessionPage.js?v=status-mix-stale-pause-guard"></script>
+    <script src="js/sessionPage/studySessionState.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionDom.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionUi.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionTimerUtils.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionApi.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionDiscussion.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionGoalRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionEvidenceRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionFocusMixRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionStatusRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionMemberRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionTimerActions.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionLifecycleActions.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionEvidenceActions.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionGoalActions.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionStatusActions.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionConsultation.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionPage.js?v=study-session-modules"></script>
   </body>
 </html>
