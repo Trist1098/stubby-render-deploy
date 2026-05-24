@@ -55,9 +55,16 @@
                                 <a href="home.html" class="nav-link">Dashboard</a>
                             </li>
 
-                <li class="nav-item">
-                  <a href="matchmaking.html" class="nav-link">Matchmaking</a>
-                </li>
+                            <li class="nav-item dropdown">
+                              <a href="matchmaking.html" class="nav-link dropdown-toggle d-flex align-items-center gap-1" data-bs-toggle="dropdown">
+                                Matchmaking
+                                <i class="fas fa-chevron-down nav-dropdown-icon ms-1"></i>
+                              </a>
+                              <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
+                                <li><a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">Browse Matches</a></li>
+                                <li><a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">My Requests</a></li>
+                              </ul>
+                            </li>
 
                 <li class="nav-item">
                   <a href="sessions.html" class="nav-link">Sessions</a>
