@@ -157,7 +157,12 @@ module.exports.getMessagesByConversationId = async (conversationId, limit = 50, 
            )
          ) FILTER (WHERE mr.reaction_id IS NOT NULL),
          '[]'
-       ) AS reactions
+       ) AS reactions,
+       (
+         SELECT COUNT(*)::INT
+         FROM MessageRead rd
+         WHERE rd.message_id = cm.message_id
+       ) AS read_by_count
      FROM ChatMessage cm
      JOIN "User" u ON u.user_id = cm.sender_id
      LEFT JOIN ChatMessage pm ON pm.message_id = cm.parent_message_id
@@ -332,6 +337,197 @@ module.exports.uploadFile = async (conversationId, senderId, fileUrl, fileType, 
     [senderId]
   );
   return { ...message, sender_username: senderResult.rows[0]?.username || 'Unknown user' };
+};
+
+module.exports.searchMessages = async (conversationId, { q, dateFrom, dateTo, senderId, type }) => {
+  const conditions = ['cm.conversation_id = $1', 'cm.is_deleted = FALSE'];
+  const values = [conversationId];
+  let i = 2;
+
+  if (q) {
+    conditions.push(`cm.text ILIKE $${i++}`);
+    values.push(`%${q}%`);
+  }
+  if (dateFrom) {
+    conditions.push(`cm.created_at >= $${i++}::DATE`);
+    values.push(dateFrom);
+  }
+  if (dateTo) {
+    conditions.push(`cm.created_at < $${i++}::DATE + INTERVAL '1 day'`);
+    values.push(dateTo);
+  }
+  if (senderId) {
+    conditions.push(`cm.sender_id = $${i++}`);
+    values.push(Number(senderId));
+  }
+  if (type === 'text') {
+    conditions.push('cm.file_url IS NULL');
+  } else if (type === 'file') {
+    conditions.push(`cm.file_url IS NOT NULL AND COALESCE(cm.file_type, '') NOT LIKE 'audio/%'`);
+  } else if (type === 'voice') {
+    conditions.push(`cm.file_type LIKE 'audio/%'`);
+  }
+
+  const result = await pool.query(
+    `SELECT
+       cm.message_id,
+       cm.conversation_id,
+       cm.sender_id,
+       u.username AS sender_username,
+       cm.text,
+       cm.file_url,
+       cm.file_type,
+       cm.file_name,
+       cm.created_at
+     FROM ChatMessage cm
+     JOIN "User" u ON u.user_id = cm.sender_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY cm.created_at DESC
+     LIMIT 50`,
+    values
+  );
+
+  return result.rows;
+};
+
+module.exports.searchConversations = async (userId, q) => {
+  const result = await pool.query(
+    `SELECT
+       cc.conversation_id,
+       cc.name,
+       cc.type,
+       cc.created_at,
+       CASE WHEN cc.type = 'friend' THEN (
+         SELECT u2.username
+         FROM ConversationMember cm2
+         JOIN "User" u2 ON u2.user_id = cm2.user_id
+         WHERE cm2.conversation_id = cc.conversation_id AND cm2.user_id != $1
+         LIMIT 1
+       ) ELSE NULL END AS other_username
+     FROM ChatConversation cc
+     JOIN ConversationMember cm ON cm.conversation_id = cc.conversation_id
+     WHERE cm.user_id = $1
+       AND (
+         cc.name ILIKE $2
+         OR (cc.type = 'friend' AND EXISTS (
+           SELECT 1 FROM ConversationMember cm3
+           JOIN "User" u3 ON u3.user_id = cm3.user_id
+           WHERE cm3.conversation_id = cc.conversation_id
+             AND cm3.user_id != $1
+             AND u3.username ILIKE $2
+         ))
+       )
+     ORDER BY cc.created_at DESC`,
+    [userId, `%${q}%`]
+  );
+  return result.rows;
+};
+
+module.exports.getMentionSuggestions = async (conversationId, q) => {
+  const result = await pool.query(
+    `SELECT u.user_id, u.username
+     FROM ConversationMember cm
+     JOIN "User" u ON u.user_id = cm.user_id
+     WHERE cm.conversation_id = $1
+       AND u.username ILIKE $2
+     ORDER BY u.username
+     LIMIT 10`,
+    [conversationId, `%${q || ''}%`]
+  );
+  return result.rows;
+};
+
+module.exports.markConversationAsRead = async (conversationId, userId) => {
+  await pool.query(
+    `INSERT INTO MessageRead (message_id, user_id)
+     SELECT message_id, $2
+     FROM ChatMessage
+     WHERE conversation_id = $1 AND sender_id != $2 AND is_deleted = FALSE
+     ON CONFLICT DO NOTHING`,
+    [conversationId, userId]
+  );
+};
+
+module.exports.getMessageReadBy = async (messageId) => {
+  const result = await pool.query(
+    `SELECT u.user_id, u.username, mr.read_at
+     FROM MessageRead mr
+     JOIN "User" u ON u.user_id = mr.user_id
+     WHERE mr.message_id = $1
+     ORDER BY mr.read_at`,
+    [messageId]
+  );
+  return result.rows;
+};
+
+module.exports.getMemberRole = async (conversationId, userId) => {
+  const result = await pool.query(
+    `SELECT role FROM ConversationMember WHERE conversation_id = $1 AND user_id = $2`,
+    [conversationId, userId]
+  );
+  return result.rows[0]?.role || null;
+};
+
+module.exports.updateConversationName = async (conversationId, name) => {
+  const result = await pool.query(
+    `UPDATE ChatConversation SET name = $1 WHERE conversation_id = $2 RETURNING *`,
+    [name, conversationId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.addConversationMember = async (conversationId, userId) => {
+  await pool.query(
+    `INSERT INTO ConversationMember (conversation_id, user_id, role)
+     VALUES ($1, $2, 'member')
+     ON CONFLICT DO NOTHING`,
+    [conversationId, userId]
+  );
+};
+
+module.exports.removeConversationMember = async (conversationId, targetUserId) => {
+  const result = await pool.query(
+    `DELETE FROM ConversationMember
+     WHERE conversation_id = $1 AND user_id = $2
+     RETURNING user_id`,
+    [conversationId, targetUserId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.leaveConversation = async (conversationId, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deleted = await client.query(
+      `DELETE FROM ConversationMember WHERE conversation_id = $1 AND user_id = $2 RETURNING role`,
+      [conversationId, userId]
+    );
+    if (deleted.rows[0]?.role === 'admin') {
+      await client.query(
+        `UPDATE ConversationMember SET role = 'admin'
+         WHERE conversation_id = $1
+           AND user_id = (
+             SELECT user_id FROM ConversationMember
+             WHERE conversation_id = $1
+             ORDER BY joined_at
+             LIMIT 1
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM ConversationMember
+             WHERE conversation_id = $1 AND role = 'admin'
+           )`,
+        [conversationId]
+      );
+    }
+    await client.query('COMMIT');
+    return deleted.rows[0] || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 module.exports.setTypingStatus = async (userId, conversationId, isTyping) => {

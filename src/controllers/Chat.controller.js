@@ -20,6 +20,16 @@ const {
   replyToMessage: replyToMessageModel,
   setTypingStatus: setTypingStatusModel,
   getTypingUsers: getTypingUsersModel,
+  searchMessages: searchMessagesModel,
+  searchConversations: searchConversationsModel,
+  getMentionSuggestions: getMentionSuggestionsModel,
+  markConversationAsRead: markConversationAsReadModel,
+  getMessageReadBy: getMessageReadByModel,
+  getMemberRole: getMemberRoleModel,
+  updateConversationName: updateConversationNameModel,
+  addConversationMember: addConversationMemberModel,
+  removeConversationMember: removeConversationMemberModel,
+  leaveConversation: leaveConversationModel,
 } = require('../models/Chat.model');
 
 module.exports.verifyUploadTarget = async (req, res, next) => {
@@ -392,6 +402,144 @@ module.exports.setTypingStatus = async (req, res, next) => {
     if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
 
     await setTypingStatusModel(userId, conversationId, isTyping);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.searchMessages = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const { q, dateFrom, dateTo, senderId, type } = req.query;
+
+  if (!Number.isInteger(conversationId)) {
+    return res.status(400).json({ message: 'Invalid conversation id' });
+  }
+
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+
+    const results = await searchMessagesModel(conversationId, { q, dateFrom, dateTo, senderId, type });
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.searchConversations = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const q = String(req.query.q || '').trim();
+  try {
+    const results = await searchConversationsModel(userId, q);
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getMentionSuggestions = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const q = String(req.query.q || '').trim();
+  if (!Number.isInteger(conversationId)) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+    const users = await getMentionSuggestionsModel(conversationId, q);
+    res.json(users);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.markAsRead = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  if (!Number.isInteger(conversationId)) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+    await markConversationAsReadModel(conversationId, userId);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.getReadBy = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const messageId = Number(req.params.messageId);
+  if (!Number.isInteger(conversationId) || !Number.isInteger(messageId)) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+    const readers = await getMessageReadByModel(messageId);
+    res.json(readers);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.updateConversation = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+  if (!Number.isInteger(conversationId)) return res.status(400).json({ message: 'Invalid id' });
+  if (!name) return res.status(400).json({ message: 'name is required' });
+  try {
+    const role = await getMemberRoleModel(conversationId, userId);
+    if (role !== 'admin') return res.status(403).json({ message: 'Only admins can rename the group' });
+    const conv = await updateConversationNameModel(conversationId, name);
+    if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+    res.json(conv);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.addMember = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const targetUserId = Number(req.body.userId);
+  if (!Number.isInteger(conversationId) || !Number.isInteger(targetUserId)) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const role = await getMemberRoleModel(conversationId, userId);
+    if (role !== 'admin') return res.status(403).json({ message: 'Only admins can add members' });
+    await addConversationMemberModel(conversationId, targetUserId);
+    const conv = await getConversationById(conversationId);
+    res.status(201).json(conv);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.removeMember = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  const targetUserId = Number(req.params.userId);
+  if (!Number.isInteger(conversationId) || !Number.isInteger(targetUserId)) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const role = await getMemberRoleModel(conversationId, userId);
+    if (role !== 'admin' && userId !== targetUserId) return res.status(403).json({ message: 'Only admins can remove members' });
+    const removed = await removeConversationMemberModel(conversationId, targetUserId);
+    if (!removed) return res.status(404).json({ message: 'Member not found' });
+    res.json({ user_id: targetUserId });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.leaveConversation = async (req, res, next) => {
+  const userId = res.locals.userId;
+  const conversationId = Number(req.params.conversationId);
+  if (!Number.isInteger(conversationId)) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const isMember = await isConversationMember(conversationId, userId);
+    if (!isMember) return res.status(403).json({ message: 'You are not a member of this conversation' });
+    await leaveConversationModel(conversationId, userId);
     res.json({ success: true });
   } catch (error) {
     next(error);

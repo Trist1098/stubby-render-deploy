@@ -1,15 +1,30 @@
 import { chatState } from './chatState.js';
 import { escapeHtml, formatTime, getConversationName } from './chatUtils.js';
 
+let convSearchQuery = '';
+
+export function setConvSearch(q) {
+  convSearchQuery = q.toLowerCase().trim();
+}
+
 export function renderConversationList(onSelectConversation) {
   const list = document.getElementById('conversationList');
-  if (chatState.conversations.length === 0) {
-    list.innerHTML =
-      '<div class="text-center text-muted py-5 small">No conversations yet.<br>Click <strong>New Chat</strong> to start one.</div>';
+
+  let conversations = chatState.conversations;
+  if (convSearchQuery) {
+    conversations = conversations.filter((conv) =>
+      getConversationName(conv).toLowerCase().includes(convSearchQuery)
+    );
+  }
+
+  if (conversations.length === 0) {
+    list.innerHTML = convSearchQuery
+      ? '<div class="text-center text-muted py-5 small">No conversations match your search.</div>'
+      : '<div class="text-center text-muted py-5 small">No conversations yet.<br>Click <strong>New Chat</strong> to start one.</div>';
     return;
   }
 
-  list.innerHTML = chatState.conversations
+  list.innerHTML = conversations
     .map((conv) => {
       const displayName = getConversationName(conv);
       const isActive = conv.conversation_id === chatState.activeConversationId;

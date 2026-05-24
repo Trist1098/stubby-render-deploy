@@ -21,6 +21,22 @@ export function formatTime(dateStr) {
     : date.toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
+export function formatTimeOnly(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+export function formatDayLabel(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === now.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export function getCurrentUserId() {
   const user = auth.getUser();
   return user?.user_id || user?.id || Number(localStorage.getItem('user_id'));
