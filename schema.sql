@@ -287,6 +287,64 @@ CREATE TABLE SessionReflection (
     UNIQUE(session_id, user_id)
 );
 
+CREATE TABLE micro_goals (
+    id                 SERIAL PRIMARY KEY,
+    study_session_id   INT NOT NULL,
+    created_by_user_id INT NOT NULL,
+    title              VARCHAR(255) NOT NULL,
+    description        TEXT,
+    queue_position     INT NOT NULL,
+    status             VARCHAR(50) NOT NULL,
+    activated_at       TIMESTAMP,
+    completed_at       TIMESTAMP,
+    FOREIGN KEY (study_session_id)   REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE (study_session_id, queue_position)
+);
+
+CREATE TABLE micro_goal_progress (
+    id               SERIAL PRIMARY KEY,
+    micro_goal_id    INT NOT NULL,
+    user_id          INT NOT NULL,
+    progress_percent INT NOT NULL DEFAULT 0,
+    is_completed     BOOLEAN NOT NULL DEFAULT FALSE,
+    completed_at     TIMESTAMP,
+    updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (micro_goal_id) REFERENCES micro_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)       REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE (micro_goal_id, user_id)
+);
+
+CREATE TABLE micro_goal_workings (
+    id                     SERIAL PRIMARY KEY,
+    micro_goal_progress_id INT NOT NULL,
+    content_type           VARCHAR(50) NOT NULL,
+    text_content           TEXT,
+    image_url              VARCHAR(500),
+    created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (micro_goal_progress_id) REFERENCES micro_goal_progress(id) ON DELETE CASCADE
+);
+
+CREATE TABLE micro_goal_ai_checks (
+    id                SERIAL PRIMARY KEY,
+    study_session_id  INT NOT NULL,
+    micro_goal_id     INT NOT NULL,
+    user_id           INT NOT NULL,
+    equation_text     TEXT,
+    file_name         VARCHAR(255),
+    file_type         VARCHAR(50),
+    feedback_status   VARCHAR(50) NOT NULL,
+    summary           TEXT NOT NULL,
+    strengths         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    issues            JSONB NOT NULL DEFAULT '[]'::jsonb,
+    next_step         TEXT,
+    confidence        VARCHAR(20),
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (micro_goal_id)    REFERENCES micro_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
 -- =============================================
 -- CHAT & MESSAGING
 -- =============================================
@@ -465,4 +523,4 @@ CREATE TABLE FriendRequest (
     FOREIGN KEY (sender_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
     FOREIGN KEY (receiver_id)  REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(sender_id, receiver_id)
-)
+);
