@@ -62,8 +62,8 @@
         if (line1)  { line1.classList.add('done'); }
         if (circle2) { circle2.classList.add('active'); }
         if (label2)  { label2.classList.add('active'); }
-        if (obTitle) { obTitle.textContent = 'Module Selection'; }
-        if (obSub)   { obSub.textContent = 'Select all modules currently being studied.'; }
+        if (obTitle) { obTitle.textContent = 'Choose Your Modules'; }
+        if (obSub)   { obSub.textContent = 'Select the modules you are taking now so matches stay relevant.'; }
     };
 
     const goToStep1 = () => {
@@ -76,8 +76,8 @@
         if (line1)  { line1.classList.remove('done'); }
         if (circle2) { circle2.classList.remove('active'); }
         if (label2)  { label2.classList.remove('active'); }
-        if (obTitle) { obTitle.textContent = 'Academic Details'; }
-        if (obSub)   { obSub.textContent = 'Tell Stubby about the current academic situation.'; }
+        if (obTitle) { obTitle.textContent = 'Build Your Profile'; }
+        if (obSub)   { obSub.textContent = 'Add your academic details so Stubby can recommend better study partners.'; }
     };
 
     // ── Load academic data ────────────────────────────────────
