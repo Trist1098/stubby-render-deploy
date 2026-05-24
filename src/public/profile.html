@@ -95,6 +95,21 @@
           <!-- PROFILE CARD -->
           <div class="premium-card p-0 overflow-hidden">
             <div class="profile-banner">
+              <button
+                id="banner-upload-button"
+                class="banner-upload-button btn btn-white"
+                type="button"
+                aria-label="Upload profile banner"
+              >
+                <i class="fas fa-camera me-2"></i>
+                Edit banner
+              </button>
+              <input
+                id="banner-upload-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+              />
               <div class="profile-picture">
                 <button
                   id="profile-upload-button"
@@ -105,7 +120,12 @@
                   <i class="fas fa-plus"></i>
                 </button>
               </div>
-              <input id="profile-upload-input" type="file" accept="image/*" hidden />
+              <input
+                id="profile-upload-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+              />
             </div>
 
             <div class="profile-content">
@@ -608,6 +628,126 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="imageEditorModal"
+      tabindex="-1"
+      aria-labelledby="imageEditorModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content image-editor-modal">
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title fw-bold" id="imageEditorModalLabel">Edit profile picture</h5>
+              <p class="text-secondary small mb-0">
+                Position and tune your image before uploading it.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="image-editor-layout">
+              <div class="image-editor-preview-wrap">
+                <canvas
+                  id="image-editor-canvas"
+                  class="image-editor-preview"
+                  aria-label="Image preview"
+                ></canvas>
+              </div>
+              <div class="image-editor-controls">
+                <label class="form-label" for="image-editor-zoom">
+                  Zoom <span id="image-editor-zoom-value">100%</span>
+                </label>
+                <input
+                  class="form-range"
+                  id="image-editor-zoom"
+                  type="range"
+                  min="100"
+                  max="300"
+                  value="100"
+                />
+
+                <label class="form-label" for="image-editor-horizontal">
+                  Horizontal crop <span id="image-editor-horizontal-value">Center</span>
+                </label>
+                <input
+                  class="form-range"
+                  id="image-editor-horizontal"
+                  type="range"
+                  min="-100"
+                  max="100"
+                  value="0"
+                />
+
+                <label class="form-label" for="image-editor-vertical">
+                  Vertical crop <span id="image-editor-vertical-value">Center</span>
+                </label>
+                <input
+                  class="form-range"
+                  id="image-editor-vertical"
+                  type="range"
+                  min="-100"
+                  max="100"
+                  value="0"
+                />
+
+                <label class="form-label" for="image-editor-brightness">
+                  Brightness <span id="image-editor-brightness-value">100%</span>
+                </label>
+                <input
+                  class="form-range"
+                  id="image-editor-brightness"
+                  type="range"
+                  min="40"
+                  max="160"
+                  value="100"
+                />
+
+                <label class="form-label" for="image-editor-contrast">
+                  Contrast <span id="image-editor-contrast-value">100%</span>
+                </label>
+                <input
+                  class="form-range"
+                  id="image-editor-contrast"
+                  type="range"
+                  min="40"
+                  max="160"
+                  value="100"
+                />
+
+                <label class="form-label" for="image-editor-rotation">
+                  Rotation <span id="image-editor-rotation-value">0 deg</span>
+                </label>
+                <input
+                  class="form-range"
+                  id="image-editor-rotation"
+                  type="range"
+                  min="-180"
+                  max="180"
+                  value="0"
+                />
+
+                <button type="button" class="btn btn-white w-100 mt-2" id="image-editor-reset">
+                  Reset edits
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <span id="image-editor-feedback" class="text-secondary me-auto"></span>
+            <button type="button" class="btn btn-white" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="image-editor-save">Save image</button>
           </div>
         </div>
       </div>
