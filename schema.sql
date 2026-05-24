@@ -51,6 +51,7 @@ DROP TABLE IF EXISTS status_events CASCADE;
 DROP TABLE IF EXISTS consultation_reflections CASCADE;
 DROP TABLE IF EXISTS consultation_notes CASCADE;
 DROP TABLE IF EXISTS consultation_sessions CASCADE;
+DROP TABLE IF EXISTS StudySessionDiscussionPost CASCADE;
 DROP TABLE IF EXISTS SessionReflection CASCADE;
 DROP TABLE IF EXISTS SessionMember CASCADE;
 DROP TABLE IF EXISTS MatchRequest CASCADE;
@@ -268,6 +269,7 @@ CREATE TRIGGER set_updated_at_match_request
 CREATE TABLE StudySession (
     session_id     SERIAL PRIMARY KEY,
     host_id        INT NOT NULL,
+    calendar_event_id INT,
     title          VARCHAR(255),
     micro_goal     VARCHAR(255),
     duration       INT DEFAULT 0,
@@ -279,7 +281,8 @@ CREATE TABLE StudySession (
     ended_at       TIMESTAMP,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at   TIMESTAMP,
-    FOREIGN KEY (host_id) REFERENCES "User"(user_id) ON DELETE CASCADE
+    FOREIGN KEY (host_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(calendar_event_id)
 );
 
 CREATE TABLE SessionMember (
@@ -289,6 +292,7 @@ CREATE TABLE SessionMember (
     status       VARCHAR(20) DEFAULT 'focus',
     status_timer INT DEFAULT 0,
     progress     INT DEFAULT 0,
+    mission      TEXT,
     joined_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     left_at      TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
@@ -310,6 +314,7 @@ CREATE TABLE SessionReflection (
     UNIQUE(session_id, user_id)
 );
 
+<<<<<<< HEAD
 CREATE TABLE micro_goals (
     id                 SERIAL PRIMARY KEY,
     study_session_id   INT NOT NULL,
@@ -367,6 +372,24 @@ CREATE TABLE micro_goal_ai_checks (
     FOREIGN KEY (micro_goal_id)    REFERENCES micro_goals(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
 );
+=======
+CREATE TABLE StudySessionDiscussionPost (
+    post_id     SERIAL PRIMARY KEY,
+    session_id  INT NOT NULL,
+    user_id     INT NOT NULL,
+    post_type   VARCHAR(30) DEFAULT 'question',
+    title       VARCHAR(140) NOT NULL,
+    content     TEXT NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TRIGGER set_updated_at_study_session_discussion_post
+  BEFORE UPDATE ON StudySessionDiscussionPost
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+>>>>>>> origin/feature/live-study-session2
 
 -- =============================================
 -- CHAT & MESSAGING
@@ -375,7 +398,9 @@ CREATE TABLE ChatConversation (
     conversation_id SERIAL PRIMARY KEY,
     name            VARCHAR(255),
     type            VARCHAR(20) DEFAULT 'friend',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    study_session_id INT UNIQUE,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE SET NULL
 );
 
 CREATE TABLE ConversationMember (
@@ -490,6 +515,10 @@ CREATE TABLE CalendarEvent (
 CREATE TRIGGER set_updated_at_calendar_event
   BEFORE UPDATE ON CalendarEvent
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+ALTER TABLE StudySession
+  ADD CONSTRAINT fk_study_session_calendar_event
+  FOREIGN KEY (calendar_event_id) REFERENCES CalendarEvent(event_id) ON DELETE SET NULL;
 
 CREATE TABLE EventParticipant (
     id         SERIAL PRIMARY KEY,
