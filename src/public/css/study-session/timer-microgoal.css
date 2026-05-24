@@ -38,7 +38,7 @@
   color: #203047;
 }
 
-.mission-strip>div {
+.mission-strip > div {
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -88,6 +88,7 @@
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
+  margin-top: 12px;
 }
 
 .micro-goal-heading-row h2 {

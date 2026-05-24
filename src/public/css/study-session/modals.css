@@ -208,54 +208,22 @@
 .consultation-shared-workspace {
   display: grid;
   gap: 8px;
-  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
-}
-
-.workspace-tabs {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  gap: 4px;
-  border-radius: 12px;
-  padding: 4px;
-  background: #eef2f7;
-}
-
-.workspace-tab {
-  min-height: 34px;
-  border: 0;
-  border-radius: 9px;
-  padding: 0 14px;
-  background: transparent;
-  color: #64748b;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.workspace-tab.active {
-  background: #ffffff;
-  color: #203047;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .workspace-panel-shell {
+  display: grid;
+  gap: 12px;
   min-height: 0;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #ffffff;
 }
 
 .workspace-panel {
   position: relative;
-  height: 100%;
+  overflow: hidden;
   min-height: 0;
-}
-
-.workspace-panel.d-none {
-  display: none !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
 }
 
 .whiteboard-toolbar {
@@ -544,14 +512,5 @@
   .consultation-review-form,
   .consultation-checklist {
     grid-template-columns: 1fr;
-  }
-
-  .workspace-tabs {
-    width: 100%;
-  }
-
-  .workspace-tab {
-    flex: 1 1 0;
-    padding: 0 8px;
   }
 }
