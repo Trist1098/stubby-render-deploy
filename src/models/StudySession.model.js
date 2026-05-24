@@ -666,15 +666,7 @@ const memberCreditFocusSelect = `
 `;
 
 const memberCreditHelpSelect = `
-  (
-    COALESCE(help_status.help_status_count, 0)
-    + COALESCE(consultation_stats.consultation_count, 0)
-    + CASE
-        WHEN LOWER(REPLACE(COALESCE(sm.status, 'focus'), ' ', '_')) IN ('need_help', 'in_consultation')
-        THEN 1
-        ELSE 0
-      END
-  )::INT AS help_participation
+  COALESCE(consultation_stats.consultation_count, 0)::INT AS help_participation
 `;
 
 const memberCreditStatsJoins = `

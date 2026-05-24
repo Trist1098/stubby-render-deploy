@@ -211,6 +211,8 @@ async function updateCurrentProgress(progress) {
   }
 
   syncRenderedStatusTimers();
+  applyCurrentProgress(progress);
+  progressUpdateInFlight = true;
 
   try {
     const updatedProgress = await getJson(
@@ -226,8 +228,15 @@ async function updateCurrentProgress(progress) {
     applyCurrentProgress(asPercent(updatedProgress.progress_percent));
     clearMessage();
   } catch (error) {
-    renderStatusProgress();
+    await loadSession({
+      silent: true,
+      promptForMission: false,
+      refreshStatusMix: false,
+      force: true,
+    });
     showMessage(error.message, 'danger');
+  } finally {
+    progressUpdateInFlight = false;
   }
 }
 
@@ -261,14 +270,18 @@ async function submitCompletionEvidence(event) {
   }
 
   try {
+    progressUpdateInFlight = true;
     const formData = new FormData(form);
     formData.set('user_id', form.dataset.userId);
     await postForm(`${apiBase}/micro-goals/${form.dataset.goalId}/evidence`, formData);
     form.reset();
     showModal(page.completionModal, false);
-    await loadSession();
+    progressUpdateInFlight = false;
+    await loadSession({ force: true });
     showMessage('Micro-goal completed. Moving to the next queued micro-goal.', 'info');
   } catch (error) {
     showMessage(error.message, 'danger');
+  } finally {
+    progressUpdateInFlight = false;
   }
 }
