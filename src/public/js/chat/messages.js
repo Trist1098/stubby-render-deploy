@@ -13,11 +13,21 @@ import {
   unpinMessageRequest,
   sendTypingRequest,
   fetchTypingUsers,
+  searchMessagesRequest,
+  getMentionSuggestionsRequest,
+  markConversationAsRead,
+  updateConversationRequest,
+  addMemberRequest,
+  removeMemberRequest,
+  leaveConversationRequest,
+  fetchConversationDetails,
 } from './chatApi.js';
 import { chatState } from './chatState.js';
 import {
   escapeHtml,
   formatTime,
+  formatTimeOnly,
+  formatDayLabel,
   getActiveConversation,
   getConversationName,
   getCurrentUserId,
@@ -30,6 +40,10 @@ let voiceRecordingStart = null;
 let voiceTimerInterval = null;
 let voiceDiscarded = false;
 let replyingTo = null;
+let searchMode = false;
+let searchTimeout = null;
+let mentionQuery = null;
+let mentionTimeout = null;
 const reactionChoices = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F389}'];
 
 function cleanupVoiceState() {
@@ -64,6 +78,10 @@ export function renderEmptyChat() {
 export function renderChatPanel() {
   cleanupVoiceState();
   replyingTo = null;
+  searchMode = false;
+  clearTimeout(searchTimeout);
+  mentionQuery = null;
+  clearTimeout(mentionTimeout);
 
   const panel = document.getElementById('chatPanel');
   const conv = getActiveConversation();
@@ -86,6 +104,27 @@ export function renderChatPanel() {
           <option value="soft" ${chatState.activeWallpaper === 'soft' ? 'selected' : ''}>Soft</option>
           <option value="grid" ${chatState.activeWallpaper === 'grid' ? 'selected' : ''}>Grid</option>
         </select>
+        <button class="btn btn-outline-secondary btn-sm" id="searchBtn" type="button" title="Search messages">
+          <i class="fas fa-search"></i>
+        </button>
+        ${conv.type === 'group' ? `<button class="btn btn-outline-secondary btn-sm" id="groupSettingsBtn" type="button" title="Group settings"><i class="fas fa-cog"></i></button>` : ''}
+      </div>
+    </div>
+    <div class="search-bar border-bottom d-none" id="searchBar">
+      <div class="d-flex gap-2 p-2">
+        <input class="form-control form-control-sm" id="searchInput" type="text" placeholder="Search messages..." autocomplete="off">
+        <button class="btn btn-sm btn-outline-secondary" id="searchCloseBtn" type="button" title="Close search"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="d-flex gap-2 px-2 pb-2 flex-wrap align-items-center">
+        <select class="form-select form-select-sm search-filter-select" id="searchSender"><option value="">Any sender</option></select>
+        <select class="form-select form-select-sm search-filter-select" id="searchType">
+          <option value="">Any type</option>
+          <option value="text">Text</option>
+          <option value="file">Files</option>
+          <option value="voice">Voice</option>
+        </select>
+        <input type="date" class="form-control form-control-sm search-filter-date" id="searchDateFrom" title="From date">
+        <input type="date" class="form-control form-control-sm search-filter-date" id="searchDateTo" title="To date">
       </div>
     </div>
     ${renderPinnedBar()}
@@ -93,6 +132,7 @@ export function renderChatPanel() {
       ${renderMessages()}
     </div>
     <div class="message-composer border-top" id="messageComposerWrap">
+      <div class="mention-dropdown d-none" id="mentionDropdown"></div>
       <div class="reply-bar d-none" id="replyBar"></div>
       <form class="d-flex gap-2 p-3" id="messageForm">
         <label class="btn btn-outline-secondary flex-shrink-0" for="fileInput" title="Attach file">
@@ -119,6 +159,20 @@ export function renderChatPanel() {
   const messageInput = document.getElementById('messageInput');
   if (messageInput) {
     messageInput.addEventListener('input', handleTypingInput);
+  }
+
+  document.getElementById('searchBtn').addEventListener('click', openSearch);
+  document.getElementById('searchCloseBtn').addEventListener('click', closeSearch);
+  document.getElementById('searchInput').addEventListener('input', onSearchInput);
+  document.getElementById('searchSender').addEventListener('change', executeSearch);
+  document.getElementById('searchType').addEventListener('change', executeSearch);
+  document.getElementById('searchDateFrom').addEventListener('change', executeSearch);
+  document.getElementById('searchDateTo').addEventListener('change', executeSearch);
+
+  document.getElementById('groupSettingsBtn')?.addEventListener('click', openGroupSettings);
+
+  if (messageInput) {
+    messageInput.addEventListener('input', handleMentionInput);
   }
 
   const pinnedBar = document.getElementById('pinnedBar');
@@ -168,6 +222,7 @@ function renderMessages() {
   }
 
   const currentUserId = getCurrentUserId();
+  let lastDayLabel = null;
   return chatState.activeMessages
     .map((message) => {
       const isSent = Number(message.sender_id) === Number(currentUserId);
@@ -178,6 +233,12 @@ function renderMessages() {
       const editedLabel = message.edited_at && !message.is_deleted
         ? `<span class="msg-edited" title="Edited ${formatTime(message.edited_at)}">(edited)</span>`
         : '';
+
+      const dayLabel = formatDayLabel(message.created_at);
+      const daySeparator = dayLabel !== lastDayLabel
+        ? `<div class="day-separator"><span class="day-separator-label">${escapeHtml(dayLabel)}</span></div>`
+        : '';
+      lastDayLabel = dayLabel;
 
       const isPinned = chatState.pinnedMessages.some((p) => p.message_id === message.message_id);
 
@@ -205,13 +266,16 @@ function renderMessages() {
       const reactionWrap = !message.is_deleted
         ? `<div class="msg-reaction-wrap"><button class="msg-action-btn reaction-toggle-btn" data-message-id="${message.message_id}" title="React"><i class="far fa-smile"></i></button></div>`
         : '';
+      const ticks = isSent && !message.is_deleted ? renderTicks(message) : '';
 
       return `
+      ${daySeparator}
       <div class="message-row ${isSent ? 'sent' : 'received'} ${animationClass}" data-message-id="${message.message_id}">
         ${isSent ? reactionWrap : ''}
         <div class="message-bubble">
           <div class="message-meta d-flex align-items-center gap-2 mb-1">
-            <span class="flex-grow-1">${escapeHtml(message.sender_username)} | ${formatTime(message.created_at)}</span>
+            <span class="flex-grow-1">${escapeHtml(message.sender_username)} | ${formatTimeOnly(message.created_at)}</span>
+            ${ticks}
             ${moreBtn}
           </div>
           ${dropdown}
@@ -270,7 +334,7 @@ function renderMessageContent(message) {
     </a>
     ${fileDetails}`;
   }
-  return `<div>${escapeHtml(message.text || '')}</div>`;
+  return `<div>${highlightMentions(escapeHtml(message.text || ''))}</div>`;
 }
 
 function renderVoiceMessage(message) {
@@ -592,11 +656,12 @@ export async function loadMessages(conversationId) {
   chatState.activeMessages = Array.isArray(data) ? data : [];
   chatState.pinnedMessages = Array.isArray(pinned) ? pinned : [];
   renderChatPanel();
+  markConversationAsRead(conversationId).catch(() => {});
   startMessageRefresh();
 }
 
 async function refreshMessages() {
-  if (!chatState.activeConversationId || chatState.messageRefreshInFlight) return;
+  if (!chatState.activeConversationId || chatState.messageRefreshInFlight || searchMode) return;
   chatState.messageRefreshInFlight = true;
   const conversationId = chatState.activeConversationId;
 
@@ -822,6 +887,273 @@ function handleTypingInput() {
     chatState.isTyping = false;
     sendTypingRequest(chatState.activeConversationId, false).catch(() => {});
   }, 2000);
+}
+
+function openSearch() {
+  searchMode = true;
+  const bar = document.getElementById('searchBar');
+  if (!bar) return;
+  bar.classList.remove('d-none');
+
+  const senderSelect = document.getElementById('searchSender');
+  const seen = new Set();
+  chatState.activeMessages.forEach((m) => {
+    if (!seen.has(m.sender_id)) {
+      seen.add(m.sender_id);
+      const opt = document.createElement('option');
+      opt.value = m.sender_id;
+      opt.textContent = m.sender_username;
+      senderSelect.appendChild(opt);
+    }
+  });
+
+  document.getElementById('searchInput').focus();
+}
+
+function closeSearch() {
+  searchMode = false;
+  clearTimeout(searchTimeout);
+  const bar = document.getElementById('searchBar');
+  if (bar) bar.classList.add('d-none');
+  renderMessageList(false);
+}
+
+function onSearchInput() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(executeSearch, 400);
+}
+
+async function executeSearch() {
+  if (!searchMode || !chatState.activeConversationId) return;
+
+  const q = document.getElementById('searchInput')?.value.trim();
+  const senderId = document.getElementById('searchSender')?.value;
+  const type = document.getElementById('searchType')?.value;
+  const dateFrom = document.getElementById('searchDateFrom')?.value;
+  const dateTo = document.getElementById('searchDateTo')?.value;
+
+  if (!q && !senderId && !type && !dateFrom && !dateTo) {
+    renderMessageList(false);
+    return;
+  }
+
+  const params = {};
+  if (q) params.q = q;
+  if (senderId) params.senderId = senderId;
+  if (type) params.type = type;
+  if (dateFrom) params.dateFrom = dateFrom;
+  if (dateTo) params.dateTo = dateTo;
+
+  const results = await searchMessagesRequest(chatState.activeConversationId, params);
+  if (!searchMode) return;
+  if (!Array.isArray(results)) return;
+  renderSearchResults(results, q);
+}
+
+function highlightText(text, query) {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(escaped, 'gi'), (match) => `<mark class="search-highlight">${match}</mark>`);
+}
+
+function renderSearchResults(results, query) {
+  const list = document.getElementById('messagesList');
+  if (!list) return;
+
+  if (!results.length) {
+    list.innerHTML = '<div class="text-center text-muted small py-5">No messages found.</div>';
+    return;
+  }
+
+  list.innerHTML = `
+    <div class="search-results-header px-3 py-2 text-muted small border-bottom">${results.length} result${results.length !== 1 ? 's' : ''}</div>
+    ${results.map((msg) => {
+      const content = msg.text
+        ? highlightText(escapeHtml(msg.text), query)
+        : `<span class="text-muted fst-italic">${escapeHtml(msg.file_name || 'File')}</span>`;
+      return `
+        <div class="search-result p-3 border-bottom" data-message-id="${msg.message_id}">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="fw-semibold small">${escapeHtml(msg.sender_username)}</span>
+            <span class="text-muted small">${formatTime(msg.created_at)}</span>
+          </div>
+          <div class="small">${content}</div>
+        </div>`;
+    }).join('')}`;
+
+  list.querySelectorAll('.search-result').forEach((el) => {
+    el.addEventListener('click', () => jumpToMessage(Number(el.dataset.messageId)));
+  });
+}
+
+function jumpToMessage(messageId) {
+  closeSearch();
+  const row = document.querySelector(`#messagesList .message-row[data-message-id="${messageId}"]`);
+  if (row) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('message-highlight');
+    setTimeout(() => row.classList.remove('message-highlight'), 2000);
+  }
+}
+
+function renderTicks(message) {
+  const isRead = (message.read_by_count || 0) > 0;
+  return `<div class="msg-ticks ${isRead ? 'read' : ''}" title="${isRead ? 'Read' : 'Sent'}">
+    <i class="fas fa-check"></i>${isRead ? '<i class="fas fa-check"></i>' : ''}
+  </div>`;
+}
+
+function highlightMentions(escapedText) {
+  return escapedText.replace(/@(\w+)/g, '<span class="mention-highlight">@$1</span>');
+}
+
+function handleMentionInput() {
+  const input = document.getElementById('messageInput');
+  if (!input) return;
+  const val = input.value;
+  const cursor = input.selectionStart;
+  const before = val.slice(0, cursor);
+  const match = before.match(/@(\w*)$/);
+  if (!match) {
+    closeMentionDropdown();
+    return;
+  }
+  mentionQuery = match[1];
+  clearTimeout(mentionTimeout);
+  mentionTimeout = setTimeout(() => fetchMentionSuggestions(mentionQuery), 200);
+}
+
+async function fetchMentionSuggestions(q) {
+  if (!chatState.activeConversationId) return;
+  const users = await getMentionSuggestionsRequest(chatState.activeConversationId, q);
+  if (!Array.isArray(users) || mentionQuery === null) return;
+  renderMentionDropdown(users);
+}
+
+function renderMentionDropdown(users) {
+  const dropdown = document.getElementById('mentionDropdown');
+  if (!dropdown) return;
+  if (users.length === 0) {
+    closeMentionDropdown();
+    return;
+  }
+  dropdown.innerHTML = users.map((u) =>
+    `<button class="mention-option" data-username="${escapeHtml(u.username)}" type="button">${escapeHtml(u.username)}</button>`
+  ).join('');
+  dropdown.classList.remove('d-none');
+  dropdown.querySelectorAll('.mention-option').forEach((btn) => {
+    btn.addEventListener('click', () => selectMention(btn.dataset.username));
+  });
+}
+
+function selectMention(username) {
+  const input = document.getElementById('messageInput');
+  if (!input) return;
+  const cursor = input.selectionStart;
+  const before = input.value.slice(0, cursor);
+  const replaced = before.replace(/@(\w*)$/, `@${username} `);
+  input.value = replaced + input.value.slice(cursor);
+  const newCursor = replaced.length;
+  input.setSelectionRange(newCursor, newCursor);
+  input.focus();
+  closeMentionDropdown();
+}
+
+function closeMentionDropdown() {
+  mentionQuery = null;
+  const dropdown = document.getElementById('mentionDropdown');
+  if (dropdown) dropdown.classList.add('d-none');
+}
+
+async function openGroupSettings() {
+  const conv = getActiveConversation();
+  if (!conv || conv.type !== 'group') return;
+  const currentUserId = getCurrentUserId();
+  const details = await fetchConversationDetails(conv.conversation_id);
+  if (!details || !details.members) return;
+
+  const currentMember = details.members.find((m) => Number(m.user_id) === Number(currentUserId));
+  const isAdmin = currentMember?.role === 'admin';
+
+  const panel = document.getElementById('chatPanel');
+  const existing = document.getElementById('groupSettingsPanel');
+  if (existing) { existing.remove(); return; }
+
+  const el = document.createElement('div');
+  el.id = 'groupSettingsPanel';
+  el.className = 'group-settings-panel border-start';
+  el.innerHTML = `
+    <div class="group-settings-header d-flex align-items-center justify-content-between p-3 border-bottom">
+      <span class="fw-bold">Group Settings</span>
+      <button class="btn-close" id="groupSettingsClose" type="button"></button>
+    </div>
+    <div class="p-3">
+      <div class="mb-3">
+        <label class="form-label fw-semibold small">Group Name</label>
+        <div class="d-flex gap-2">
+          <input class="form-control form-control-sm" id="groupNameInput" value="${escapeHtml(conv.name || '')}" ${isAdmin ? '' : 'disabled'}>
+          ${isAdmin ? '<button class="btn btn-sm btn-primary" id="groupRenameBtn" type="button">Save</button>' : ''}
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="fw-semibold small mb-2">Members (${details.members.length})</div>
+        <div class="group-members-list">
+          ${details.members.map((m) => `
+            <div class="group-member-row d-flex align-items-center gap-2 py-1" data-user-id="${m.user_id}">
+              <i class="fas fa-user-circle text-muted"></i>
+              <span class="flex-grow-1 small">${escapeHtml(m.username)}</span>
+              <span class="badge ${m.role === 'admin' ? 'bg-primary' : 'bg-secondary'} small">${m.role}</span>
+              ${isAdmin && Number(m.user_id) !== Number(currentUserId)
+                ? `<button class="btn btn-sm btn-outline-danger py-0 px-1 group-remove-btn" data-user-id="${m.user_id}" type="button"><i class="fas fa-times"></i></button>`
+                : ''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <button class="btn btn-outline-danger btn-sm w-100" id="leaveConvBtn" type="button">
+        <i class="fas fa-sign-out-alt me-1"></i>Leave conversation
+      </button>
+    </div>`;
+
+  panel.appendChild(el);
+
+  el.querySelector('#groupSettingsClose').addEventListener('click', () => el.remove());
+  el.querySelector('#groupRenameBtn')?.addEventListener('click', () => renameGroup(conv.conversation_id));
+  el.querySelector('#leaveConvBtn').addEventListener('click', () => leaveGroup(conv.conversation_id));
+  el.querySelectorAll('.group-remove-btn').forEach((btn) => {
+    btn.addEventListener('click', () => removeGroupMember(conv.conversation_id, Number(btn.dataset.userId)));
+  });
+}
+
+async function renameGroup(conversationId) {
+  const name = document.getElementById('groupNameInput')?.value.trim();
+  if (!name) return;
+  const result = await updateConversationRequest(conversationId, name);
+  if (!result || !result.conversation_id) { alert(result?.message || 'Failed to rename.'); return; }
+  const conv = getActiveConversation();
+  if (conv) conv.name = name;
+  renderChatPanel();
+  scrollMessagesToBottom('auto');
+}
+
+async function removeGroupMember(conversationId, userId) {
+  if (!confirm('Remove this member?')) return;
+  const result = await removeMemberRequest(conversationId, userId);
+  if (!result || !result.user_id) { alert(result?.message || 'Failed to remove member.'); return; }
+  openGroupSettings();
+}
+
+async function leaveGroup(conversationId) {
+  if (!confirm('Leave this conversation?')) return;
+  const result = await leaveConversationRequest(conversationId);
+  if (!result || !result.success) { alert(result?.message || 'Failed to leave.'); return; }
+  chatState.conversations = chatState.conversations.filter((c) => c.conversation_id !== conversationId);
+  chatState.activeConversationId = null;
+  chatState.activeMessages = [];
+  chatState.pinnedMessages = [];
+  if (chatState.messageRefreshTimer) { clearInterval(chatState.messageRefreshTimer); chatState.messageRefreshTimer = null; }
+  const { renderConversationList } = await import('./conversations.js');
+  renderConversationList(loadMessages);
+  renderEmptyChat();
 }
 
 function renderTypingIndicator() {

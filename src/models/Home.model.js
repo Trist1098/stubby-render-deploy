@@ -54,13 +54,35 @@ const calendarEvents = [
 const allowedPriorities = ['low', 'medium', 'high'];
 const allowedColors = ['primary', 'success', 'warning', 'danger', 'info', 'secondary'];
 
+const activityLog = [];
+const reminders = [];
+
 const cloneEvent = (event) => ({ ...event });
+
+const cloneReminder = (reminder) => ({ ...reminder });
+
+const recordActivity = (action, event) => {
+  const entry = {
+    id: activityLog.length + 1,
+    type: action,
+    message: `${action.charAt(0).toUpperCase() + action.slice(1)} event: ${event.title}`,
+    details: event.description || '',
+    eventId: event.id,
+    createdAt: new Date().toISOString(),
+  };
+  activityLog.unshift(entry);
+  if (activityLog.length > 50) {
+    activityLog.pop();
+  }
+  return entry;
+};
 
 module.exports.getCalendarEvents = async function getCalendarEvents(userId) {
   const SQLSTATEMENT = `
     SELECT c.event_id, c.creator_id, c.module_id, c.name, c.topic, c.location,
            TO_CHAR(c.event_date, 'YYYY-MM-DD') AS date,
-           c.booking_time, c.type, c.status, c.notes,
+           c.booking_time, c.type, c.status, c.priority, c.color, c.goal_completed,
+           c.remind_at, c.notes,
            COALESCE(json_agg(json_build_object('user_id', ep.user_id, 'status', ep.status, 'joined_at', ep.joined_at)) FILTER (WHERE ep.user_id IS NOT NULL), '[]') as participants
     FROM CalendarEvent c
     LEFT JOIN EventParticipant ep ON c.event_id = ep.event_id
@@ -74,9 +96,79 @@ module.exports.getCalendarEvents = async function getCalendarEvents(userId) {
   return rows;
 };
 
-const getCalendarEventById = (id) => {
-  const event = calendarEvents.find((item) => item.id === id);
-  return Promise.resolve(event ? cloneEvent(event) : null);
+const parseReminderOffset = (offset, event) => {
+  if (!offset || !event?.date || !event?.start) return null;
+  const mapping = {
+    '10m': 10,
+    '30m': 30,
+    '1h': 60,
+    '1d': 1440,
+  };
+  const minutes = mapping[offset];
+  if (!minutes) return null;
+  const eventDateTime = new Date(`${event.date}T${event.start}:00`);
+  eventDateTime.setMinutes(eventDateTime.getMinutes() - minutes);
+  return eventDateTime.toISOString();
+};
+
+const getActivity = (userId, limit = 20) => Promise.resolve(
+  activityLog.slice(0, limit).map((item) => ({ ...item }))
+);
+
+const getReminders = async (userId, limit = 20) => {
+  const SQLSTATEMENT = `
+    SELECT event_id, name, remind_at
+    FROM CalendarEvent
+    WHERE remind_at IS NOT NULL
+    ORDER BY remind_at ASC
+    LIMIT $1
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [limit]);
+  return rows.map((event) => ({
+    id: `event-${event.event_id}`,
+    type: 'event',
+    eventId: event.event_id,
+    eventTitle: event.name,
+    message: `Reminder for ${event.name}`,
+    remindAt: event.remind_at,
+    createdAt: event.remind_at,
+  }));
+};
+
+const createReminder = async (payload) => {
+  if (!payload.eventId || !payload.remindAt) {
+    throw new Error('eventId and remindAt are required');
+  }
+  const eventId = Number(payload.eventId);
+  const { rows } = await pool.query(
+    `UPDATE CalendarEvent
+     SET remind_at = $1
+     WHERE event_id = $2
+     RETURNING event_id, name, remind_at`,
+    [payload.remindAt, eventId]
+  );
+  const event = rows[0];
+  if (!event) throw new Error('Event not found');
+  return {
+    id: `event-${event.event_id}`,
+    eventId: event.event_id,
+    eventTitle: event.name,
+    message: payload.message || `Reminder for ${event.name}`,
+    remindAt: event.remind_at,
+    createdAt: new Date().toISOString(),
+  };
+};
+
+const getCalendarEventById = async (id) => {
+  const SQLSTATEMENT = `
+    SELECT event_id, creator_id, request_id, module_id, name, topic, location,
+           is_online, meeting_url, TO_CHAR(event_date, 'YYYY-MM-DD') AS date,
+           booking_time, type, status, priority, color, goal_completed, remind_at, notes
+    FROM CalendarEvent
+    WHERE event_id = $1
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [id]);
+  return rows[0] || null;
 };
 
 const getNextId = () => Math.max(0, ...calendarEvents.map((item) => item.id)) + 1;
@@ -106,10 +198,14 @@ const validateEventPayload = (payload) => {
 
 module.exports.createCalendarEvent = async function createCalendarEvent(data) {
   const SQLSTATEMENT = `
-    INSERT INTO CalendarEvent (creator_id, request_id, module_id, name, topic, location, is_online, meeting_url, event_date, booking_time, type, status, notes)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-    RETURNING event_id, creator_id, request_id, module_id, name, topic, location, is_online, meeting_url, TO_CHAR(event_date, 'YYYY-MM-DD') AS date, booking_time, type, status, notes
+    INSERT INTO CalendarEvent (creator_id, request_id, module_id, name, topic, location, is_online, meeting_url, event_date, booking_time, type, status, priority, color, goal_completed, remind_at, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    RETURNING event_id, creator_id, request_id, module_id, name, topic, location, is_online, meeting_url, TO_CHAR(event_date, 'YYYY-MM-DD') AS date, booking_time, type, status, priority, color, goal_completed, remind_at, notes
   `;
+  const remindAt = data.remind_at || parseReminderOffset(data.reminder_offset, {
+    date: data.event_date,
+    start: (data.booking_time || '').split(' - ')[0],
+  });
   const VALUES = [
     data.creator_id,
     data.request_id || null,
@@ -123,6 +219,10 @@ module.exports.createCalendarEvent = async function createCalendarEvent(data) {
     data.booking_time || '',
     data.type || 'Study Session',
     data.status || 'Confirmed',
+    data.priority || 'medium',
+    data.color || 'primary',
+    data.goal_completed || false,
+    remindAt,
     data.notes || ''
   ];
   const { rows } = await pool.query(SQLSTATEMENT, VALUES);
@@ -147,83 +247,131 @@ module.exports.createCalendarEvent = async function createCalendarEvent(data) {
   return newEvent;
 };
 
-const updateCalendarEvent = (id, payload) => {
-  const event = calendarEvents.find((item) => item.id === id);
-  if (!event) {
-    return Promise.resolve(null);
-  }
+const updateCalendarEvent = async (id, payload) => {
+  const current = await getCalendarEventById(id);
+  if (!current) return null;
 
-  const mergedPayload = {
-    title: payload.title !== undefined ? payload.title : event.title,
-    date: payload.date !== undefined ? payload.date : event.date,
-    start: payload.start !== undefined ? payload.start : event.start,
-    end: payload.end !== undefined ? payload.end : event.end,
-    priority: payload.priority !== undefined ? payload.priority : event.priority,
-    color: payload.color !== undefined ? payload.color : event.color,
+  const data = {
+    name: payload.name !== undefined ? payload.name : current.name,
+    topic: payload.topic !== undefined ? payload.topic : current.topic,
+    location: payload.location !== undefined ? payload.location : current.location,
+    event_date: payload.event_date !== undefined ? payload.event_date : current.date,
+    booking_time: payload.booking_time !== undefined ? payload.booking_time : current.booking_time,
+    type: payload.type !== undefined ? payload.type : current.type,
+    status: payload.status !== undefined ? payload.status : current.status,
+    priority: payload.priority !== undefined ? payload.priority : current.priority,
+    color: payload.color !== undefined ? payload.color : current.color,
+    goal_completed: payload.goal_completed !== undefined ? Boolean(payload.goal_completed) : Boolean(current.goal_completed),
+    remind_at: payload.remind_at !== undefined
+      ? payload.remind_at
+      : (payload.reminder_offset ? parseReminderOffset(payload.reminder_offset, {
+        date: payload.event_date || current.date,
+        start: (payload.booking_time || current.booking_time || '').split(' - ')[0],
+      }) : current.remind_at),
+    notes: payload.notes !== undefined ? payload.notes : current.notes,
   };
 
-  const errors = validateEventPayload(mergedPayload);
-  if (errors.length) {
-    return Promise.reject(new Error(errors.join('; ')));
-  }
-
-  event.title = mergedPayload.title;
-  event.date = mergedPayload.date;
-  event.start = mergedPayload.start;
-  event.end = mergedPayload.end;
-  event.priority = mergedPayload.priority;
-  event.color = mergedPayload.color;
-  event.description = payload.description !== undefined ? payload.description : event.description;
-  event.goal = payload.goal !== undefined ? payload.goal : event.goal;
-  event.goalCompleted = payload.goalCompleted !== undefined ? Boolean(payload.goalCompleted) : event.goalCompleted;
-
-  return Promise.resolve(cloneEvent(event));
+  const SQLSTATEMENT = `
+    UPDATE CalendarEvent
+    SET name = $1,
+        topic = $2,
+        location = $3,
+        event_date = $4,
+        booking_time = $5,
+        type = $6,
+        status = $7,
+        priority = $8,
+        color = $9,
+        goal_completed = $10,
+        remind_at = $11,
+        notes = $12
+    WHERE event_id = $13
+    RETURNING event_id, creator_id, request_id, module_id, name, topic, location,
+              is_online, meeting_url, TO_CHAR(event_date, 'YYYY-MM-DD') AS date,
+              booking_time, type, status, priority, color, goal_completed, remind_at, notes
+  `;
+  const values = [
+    data.name,
+    data.topic,
+    data.location,
+    data.event_date,
+    data.booking_time,
+    data.type,
+    data.status,
+    data.priority,
+    data.color,
+    data.goal_completed,
+    data.remind_at,
+    data.notes,
+    id,
+  ];
+  const { rows } = await pool.query(SQLSTATEMENT, values);
+  return rows[0] || null;
 };
 
-const deleteCalendarEvent = (id) => {
-  const index = calendarEvents.findIndex((item) => item.id === id);
-  if (index === -1) {
-    return Promise.resolve(null);
-  }
-  const [deleted] = calendarEvents.splice(index, 1);
-  return Promise.resolve(cloneEvent(deleted));
+const deleteCalendarEvent = async (id) => {
+  const SQLSTATEMENT = `
+    DELETE FROM CalendarEvent
+    WHERE event_id = $1
+    RETURNING event_id, creator_id, request_id, module_id, name, topic, location,
+              is_online, meeting_url, TO_CHAR(event_date, 'YYYY-MM-DD') AS date,
+              booking_time, type, status, priority, color, goal_completed, remind_at, notes
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [id]);
+  return rows[0] || null;
 };
 
-const getProgressSummary = () => {
-  const total = calendarEvents.length;
-  const completed = calendarEvents.filter((event) => event.goalCompleted).length;
+const getProgressSummary = async () => {
+  const { rows } = await pool.query(`
+    SELECT COUNT(*)::INT AS total,
+           COUNT(*) FILTER (WHERE goal_completed = TRUE)::INT AS completed
+    FROM CalendarEvent
+  `);
+  const total = rows[0]?.total || 0;
+  const completed = rows[0]?.completed || 0;
   const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
-  return Promise.resolve({
+  return {
     total,
     completed,
     percentage,
     remaining: total - completed,
-  });
+  };
 };
 
-const getTodayProgress = () => {
-  const today = new Date().toISOString().split('T')[0];
-  const todayEvents = calendarEvents.filter((event) => event.date === today);
-  const completedToday = todayEvents.filter((event) => event.goalCompleted).length;
-  const percentageToday = todayEvents.length === 0 ? 0 : Math.round((completedToday / todayEvents.length) * 100);
-  return Promise.resolve({
-    total: todayEvents.length,
+const getTodayProgress = async () => {
+  const { rows } = await pool.query(`
+    SELECT COUNT(*)::INT AS total,
+           COUNT(*) FILTER (WHERE goal_completed = TRUE)::INT AS completed
+    FROM CalendarEvent
+    WHERE event_date = CURRENT_DATE
+  `);
+  const total = rows[0]?.total || 0;
+  const completedToday = rows[0]?.completed || 0;
+  const percentageToday = total === 0 ? 0 : Math.round((completedToday / total) * 100);
+  return {
+    total,
     completed: completedToday,
     percentage: percentageToday,
-    remaining: todayEvents.length - completedToday,
-  });
+    remaining: total - completedToday,
+  };
 };
 
-const getGoalProgress = () => {
-  const goalEvents = calendarEvents.filter((event) => event.goal && event.goal.trim() !== '');
-  const completedGoals = goalEvents.filter((event) => event.goalCompleted).length;
-  const percentageGoals = goalEvents.length === 0 ? 0 : Math.round((completedGoals / goalEvents.length) * 100);
-  return Promise.resolve({
-    total: goalEvents.length,
+const getGoalProgress = async () => {
+  const { rows } = await pool.query(`
+    SELECT COUNT(*)::INT AS total,
+           COUNT(*) FILTER (WHERE goal_completed = TRUE)::INT AS completed
+    FROM CalendarEvent
+    WHERE COALESCE(NULLIF(TRIM(topic), ''), NULL) IS NOT NULL
+  `);
+  const total = rows[0]?.total || 0;
+  const completedGoals = rows[0]?.completed || 0;
+  const percentageGoals = total === 0 ? 0 : Math.round((completedGoals / total) * 100);
+  return {
+    total,
     completed: completedGoals,
     percentage: percentageGoals,
-    remaining: goalEvents.length - completedGoals,
-  });
+    remaining: total - completedGoals,
+  };
 };
 
 module.exports = {
@@ -235,4 +383,7 @@ module.exports = {
   getProgressSummary,
   getTodayProgress,
   getGoalProgress,
+  getActivity,
+  getReminders,
+  createReminder,
 };

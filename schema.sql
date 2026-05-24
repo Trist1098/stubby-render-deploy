@@ -37,6 +37,8 @@ DROP TABLE IF EXISTS EventComment CASCADE;
 DROP TABLE IF EXISTS EventParticipant CASCADE;
 DROP TABLE IF EXISTS CalendarEvent CASCADE;
 DROP TABLE IF EXISTS Notification CASCADE;
+DROP TABLE IF EXISTS MessageMention CASCADE;
+DROP TABLE IF EXISTS MessageRead CASCADE;
 DROP TABLE IF EXISTS MessagePin CASCADE;
 DROP TABLE IF EXISTS MessageReaction CASCADE;
 DROP TABLE IF EXISTS ChatMessage CASCADE;
@@ -288,6 +290,64 @@ CREATE TABLE SessionReflection (
     UNIQUE(session_id, user_id)
 );
 
+CREATE TABLE micro_goals (
+    id                 SERIAL PRIMARY KEY,
+    study_session_id   INT NOT NULL,
+    created_by_user_id INT NOT NULL,
+    title              VARCHAR(255) NOT NULL,
+    description        TEXT,
+    queue_position     INT NOT NULL,
+    status             VARCHAR(50) NOT NULL,
+    activated_at       TIMESTAMP,
+    completed_at       TIMESTAMP,
+    FOREIGN KEY (study_session_id)   REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE (study_session_id, queue_position)
+);
+
+CREATE TABLE micro_goal_progress (
+    id               SERIAL PRIMARY KEY,
+    micro_goal_id    INT NOT NULL,
+    user_id          INT NOT NULL,
+    progress_percent INT NOT NULL DEFAULT 0,
+    is_completed     BOOLEAN NOT NULL DEFAULT FALSE,
+    completed_at     TIMESTAMP,
+    updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (micro_goal_id) REFERENCES micro_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)       REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE (micro_goal_id, user_id)
+);
+
+CREATE TABLE micro_goal_workings (
+    id                     SERIAL PRIMARY KEY,
+    micro_goal_progress_id INT NOT NULL,
+    content_type           VARCHAR(50) NOT NULL,
+    text_content           TEXT,
+    image_url              VARCHAR(500),
+    created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (micro_goal_progress_id) REFERENCES micro_goal_progress(id) ON DELETE CASCADE
+);
+
+CREATE TABLE micro_goal_ai_checks (
+    id                SERIAL PRIMARY KEY,
+    study_session_id  INT NOT NULL,
+    micro_goal_id     INT NOT NULL,
+    user_id           INT NOT NULL,
+    equation_text     TEXT,
+    file_name         VARCHAR(255),
+    file_type         VARCHAR(50),
+    feedback_status   VARCHAR(50) NOT NULL,
+    summary           TEXT NOT NULL,
+    strengths         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    issues            JSONB NOT NULL DEFAULT '[]'::jsonb,
+    next_step         TEXT,
+    confidence        VARCHAR(20),
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (study_session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (micro_goal_id)    REFERENCES micro_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
 -- =============================================
 -- CHAT & MESSAGING
 -- =============================================
@@ -321,6 +381,7 @@ CREATE TABLE ChatMessage (
     duration        INT,
     is_announcement BOOLEAN DEFAULT FALSE,
     is_deleted      BOOLEAN DEFAULT FALSE,
+    delivery_status VARCHAR(20) DEFAULT 'sent',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     edited_at       TIMESTAMP,
     parent_message_id INT,
@@ -349,6 +410,25 @@ CREATE TABLE MessageReaction (
     UNIQUE(message_id, user_id, emoji)
 );
 
+CREATE TABLE MessageRead (
+    message_id  INT NOT NULL,
+    user_id     INT NOT NULL,
+    read_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id, user_id),
+    FOREIGN KEY (message_id) REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE MessageMention (
+    mention_id        SERIAL PRIMARY KEY,
+    message_id        INT NOT NULL,
+    mentioned_user_id INT NOT NULL,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (message_id)        REFERENCES ChatMessage(message_id) ON DELETE CASCADE,
+    FOREIGN KEY (mentioned_user_id) REFERENCES "User"(user_id)         ON DELETE CASCADE,
+    UNIQUE(message_id, mentioned_user_id)
+);
+
 CREATE TABLE UserPresence (
     user_id         INT PRIMARY KEY,
     typing_status   BOOLEAN DEFAULT FALSE,
@@ -375,6 +455,10 @@ CREATE TABLE CalendarEvent (
     booking_time VARCHAR(100),
     type         VARCHAR(100) DEFAULT 'Study Session',
     status       VARCHAR(20) DEFAULT 'Confirmed',
+    priority     VARCHAR(20) DEFAULT 'medium',
+    color        VARCHAR(20) DEFAULT 'primary',
+    goal_completed BOOLEAN DEFAULT FALSE,
+    remind_at    TIMESTAMP,
     notes        TEXT,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -466,4 +550,4 @@ CREATE TABLE FriendRequest (
     FOREIGN KEY (sender_id)    REFERENCES "User"(user_id) ON DELETE CASCADE,
     FOREIGN KEY (receiver_id)  REFERENCES "User"(user_id) ON DELETE CASCADE,
     UNIQUE(sender_id, receiver_id)
-)
+);

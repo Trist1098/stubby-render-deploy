@@ -14,6 +14,7 @@
 .chat-panel {
   background: #f8f9fa;
   min-width: 0;
+  position: relative;
 }
 
 /* Sidebar header*/
@@ -587,4 +588,150 @@
 @keyframes typingFadeOut {
   from { opacity: 1; transform: translateY(0) scale(1); }
   to   { opacity: 0; transform: translateY(4px) scale(0.97); }
+}
+
+/* Conversation search */
+#convSearchInput {
+  border-radius: 20px;
+  font-size: 0.8rem;
+}
+
+/* @mention dropdown */
+.mention-dropdown {
+  position: relative;
+  border-top: 1px solid #e9ecef;
+  background: #fff;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.mention-option {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.mention-option:hover {
+  background: #f0f4ff;
+}
+
+.mention-highlight {
+  color: #0d6efd;
+  font-weight: 500;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* Delivery tick marks */
+.msg-ticks {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: #adb5bd;
+  font-size: 0.65rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.msg-ticks.read {
+  color: #0d6efd;
+}
+
+/* Day separator */
+.day-separator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px;
+}
+
+.day-separator::before,
+.day-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #dee2e6;
+}
+
+.day-separator-label {
+  background: #e2e8f0;
+  color: #6c757d;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+/* Group settings panel */
+.group-settings-panel {
+  width: 260px;
+  flex-shrink: 0;
+  background: #fff;
+  overflow-y: auto;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  border-left: 1px solid #dee2e6;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+}
+
+.group-settings-header {
+  background: #f8f9fa;
+}
+
+.group-members-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.group-member-row {
+  border-bottom: 1px solid #f1f3f5;
+}
+
+/* Message search */
+.search-bar {
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.search-filter-select,
+.search-filter-date {
+  max-width: 140px;
+}
+
+.search-results-header {
+  background: #f8f9fa;
+}
+
+.search-result {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.search-result:hover {
+  background: #f0f4ff;
+}
+
+.search-highlight {
+  background: rgba(255, 213, 0, 0.5);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.message-row.message-highlight .message-bubble {
+  animation: messageFlash 0.6s ease 2;
+}
+
+@keyframes messageFlash {
+  0%, 100% { box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08); }
+  50%       { box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.35); }
 }

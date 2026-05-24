@@ -24,6 +24,11 @@
             border-radius: 0.75rem;
             padding: 0.85rem;
             background: #fff;
+            transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+        }
+        .calendar-cell:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 24px rgba(15, 23, 42, 0.08);
         }
         .calendar-cell--header {
             background: #f8fafc;
@@ -45,6 +50,81 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+            animation: pillEntrance .35s ease forwards;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+        .event-pill:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+            cursor: pointer;
+        }
+        .list-group-item {
+            transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+            opacity: 0;
+            transform: translateX(-8px);
+            animation: itemFadeIn .32s ease forwards;
+        }
+        .list-group-item:hover {
+            transform: translateX(3px);
+            background: #f8f9fa;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+        }
+        .btn {
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        .progress .progress-bar {
+            transition: width .45s ease;
+        }
+        .modal.fade .modal-dialog {
+            transform: scale(0.96) translateY(-10px);
+            transition: transform .25s ease;
+        }
+        .modal.show .modal-dialog {
+            transform: scale(1) translateY(0);
+        }
+        .page-fade-in {
+            animation: pageFadeIn .45s ease both;
+        }
+        .month-title-pop {
+            animation: monthPop .3s ease both;
+        }
+        @keyframes pillEntrance {
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        @keyframes itemFadeIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        @keyframes pageFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes monthPop {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.04);
+            }
+            100% {
+                transform: scale(1);
+            }
         }
     </style>
 </head>
@@ -97,7 +177,7 @@
         </div>
     </header>
 
-    <main class="container py-5">
+    <main class="container py-5 page-fade-in">
         <div class="row mb-5">
             <div class="col-12">
                 <h1 class="fw-bold">Hello, <span id="userName" class="text-primary">Student</span>! 👋</h1>
@@ -189,6 +269,40 @@
             </div>
         </div>
 
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="card shadow-sm p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Recent activity</h5>
+                            <p class="text-muted small mb-0">Track recent event changes in one place.</p>
+                        </div>
+                        <button id="refreshActivity" type="button" class="btn btn-sm btn-outline-primary">Refresh</button>
+                    </div>
+                    <div id="activityList" class="list-group">
+                        <div class="list-group-item text-muted">Loading recent activity...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="card shadow-sm p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Reminders</h5>
+                            <p class="text-muted small mb-0">Upcoming reminders for your events.</p>
+                        </div>
+                        <button id="refreshReminders" type="button" class="btn btn-sm btn-outline-primary">Refresh</button>
+                    </div>
+                    <div id="reminderList" class="list-group">
+                        <div class="list-group-item text-muted">Loading reminders...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <section class="mb-5">
             <div class="row g-4">
                 <div class="col-lg-8">
@@ -273,6 +387,22 @@
                                             <input id="eventGoalCompleted" class="form-check-input" type="checkbox" />
                                             <label class="form-check-label" for="eventGoalCompleted">Goal completed</label>
                                         </div>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-6">
+                                                <label class="form-label">Reminder time</label>
+                                                <input id="eventRemindAt" type="datetime-local" class="form-control" />
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label">Reminder offset</label>
+                                                <select id="eventReminderOffset" class="form-select">
+                                                    <option value="">None</option>
+                                                    <option value="10m">10 minutes before</option>
+                                                    <option value="30m">30 minutes before</option>
+                                                    <option value="1h">1 hour before</option>
+                                                    <option value="1d">1 day before</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                         <div class="mb-3">
                                             <label class="form-label">Description</label>
                                             <textarea id="eventDescription" rows="3" class="form-control"></textarea>
@@ -319,6 +449,7 @@
                     <p id="modalDescription" class="mb-2"></p>
                     <p><strong>Priority:</strong> <span id="modalPriority"></span></p>
                     <p><strong>Goal:</strong> <span id="modalGoal"></span></p>
+                    <p><strong>Reminder:</strong> <span id="modalReminder"></span></p>
                 </div>
                 <div class="modal-footer">
                     <button id="modalEditButton" type="button" class="btn btn-sm btn-primary">Edit</button>
@@ -362,9 +493,15 @@
             const eventColorInput = document.getElementById('eventColor');
             const eventGoalInput = document.getElementById('eventGoal');
             const eventGoalCompletedInput = document.getElementById('eventGoalCompleted');
+            const eventRemindAtInput = document.getElementById('eventRemindAt');
+            const eventReminderOffsetInput = document.getElementById('eventReminderOffset');
             const eventDescriptionInput = document.getElementById('eventDescription');
             const prevMonth = document.getElementById('prevMonth');
             const nextMonth = document.getElementById('nextMonth');
+            const refreshActivityButton = document.getElementById('refreshActivity');
+            const activityList = document.getElementById('activityList');
+            const refreshRemindersButton = document.getElementById('refreshReminders');
+            const reminderList = document.getElementById('reminderList');
 
             let currentMonth = new Date();
             let events = [];
@@ -388,6 +525,8 @@
                 const firstDayIndex = new Date(year, month, 1).getDay();
                 const totalDays = new Date(year, month + 1, 0).getDate();
                 monthTitle.textContent = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+                monthTitle.classList.add('month-title-pop');
+                setTimeout(() => monthTitle.classList.remove('month-title-pop'), 300);
                 calendarGrid.innerHTML = '';
 
                 for (let i = 0; i < firstDayIndex; i++) {
@@ -434,9 +573,10 @@
                 }
 
                 eventList.innerHTML = '';
-                events.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)).forEach((event) => {
+                events.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)).forEach((event, index) => {
                     const item = document.createElement('div');
                     item.className = 'list-group-item list-group-item-action mb-2 rounded-3';
+                    item.style.animationDelay = `${Math.min(index, 6) * 0.04}s`;
                     item.innerHTML = `
                         <div class="d-flex justify-content-between gap-3">
                             <div>
@@ -482,6 +622,8 @@
                 eventColorInput.value = 'primary';
                 eventGoalInput.value = '';
                 eventGoalCompletedInput.checked = false;
+                eventRemindAtInput.value = '';
+                eventReminderOffsetInput.value = '';
                 eventDescriptionInput.value = '';
             };
 
@@ -501,6 +643,8 @@
                     eventColorInput.value = event.color;
                     eventGoalInput.value = event.goal;
                     eventGoalCompletedInput.checked = Boolean(event.goalCompleted);
+                    eventRemindAtInput.value = event.remindAt ? event.remindAt.slice(0, 16) : '';
+                    eventReminderOffsetInput.value = '';
                     eventDescriptionInput.value = event.description;
                 } else {
                     editingEventId = null;
@@ -523,6 +667,8 @@
                 color: eventColorInput.value,
                 goal: eventGoalInput.value.trim(),
                 goalCompleted: eventGoalCompletedInput.checked,
+                remindAt: eventRemindAtInput.value || null,
+                reminderOffset: eventReminderOffsetInput.value || null,
                 description: eventDescriptionInput.value.trim(),
             });
 
@@ -567,6 +713,7 @@
                 modalEl.querySelector('#modalDescription').textContent = event.description || 'No description';
                 modalEl.querySelector('#modalPriority').textContent = event.priority;
                 modalEl.querySelector('#modalGoal').textContent = event.goal || 'No goal';
+                modalEl.querySelector('#modalReminder').textContent = event.remindAt ? new Date(event.remindAt).toLocaleString() : 'No reminder set';
                 const colorBadge = modalEl.querySelector('#modalColorBadge');
                 colorBadge.className = `badge bg-${event.color} text-white`;
 
@@ -624,6 +771,83 @@
                 }
             };
 
+            const renderActivity = (items) => {
+                if (!activityList) return;
+                if (!items || items.length === 0) {
+                    activityList.innerHTML = '<div class="list-group-item text-muted">No recent activity.</div>';
+                    return;
+                }
+
+                activityList.innerHTML = '';
+                items.forEach((item) => {
+                    const entry = document.createElement('div');
+                    entry.className = 'list-group-item';
+                    entry.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <div class="fw-semibold">${item.message}</div>
+                                <div class="small text-secondary">${item.details || ''}</div>
+                            </div>
+                            <div class="text-end text-muted small">${new Date(item.createdAt).toLocaleString()}</div>
+                        </div>
+                    `;
+                    activityList.appendChild(entry);
+                });
+            };
+
+            const fetchActivity = async () => {
+                if (!activityList) return;
+                activityList.innerHTML = '<div class="list-group-item text-muted">Loading recent activity...</div>';
+                try {
+                    const response = await apiRequest('/api/activity?limit=10');
+                    if (response && response.activity) {
+                        renderActivity(response.activity);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error loading activity:', error);
+                }
+                activityList.innerHTML = '<div class="list-group-item text-muted">Unable to load recent activity.</div>';
+            };
+
+            const renderReminders = (items) => {
+                if (!reminderList) return;
+                if (!items || items.length === 0) {
+                    reminderList.innerHTML = '<div class="list-group-item text-muted">No reminders yet.</div>';
+                    return;
+                }
+                reminderList.innerHTML = '';
+                items.forEach((item) => {
+                    const entry = document.createElement('div');
+                    entry.className = 'list-group-item';
+                    entry.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <div class="fw-semibold">${item.message}</div>
+                                <div class="small text-secondary">${item.eventTitle ? item.eventTitle : ''}</div>
+                            </div>
+                            <div class="text-end text-muted small">${new Date(item.remindAt).toLocaleString()}</div>
+                        </div>
+                    `;
+                    reminderList.appendChild(entry);
+                });
+            };
+
+            const fetchReminders = async () => {
+                if (!reminderList) return;
+                reminderList.innerHTML = '<div class="list-group-item text-muted">Loading reminders...</div>';
+                try {
+                    const response = await apiRequest('/api/reminders?limit=5');
+                    if (response && response.reminders) {
+                        renderReminders(response.reminders);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error loading reminders:', error);
+                }
+                reminderList.innerHTML = '<div class="list-group-item text-muted">Unable to load reminders.</div>';
+            };
+
             const loadProgress = async () => {
                 try {
                     const overallResponse = await apiRequest('/api/progress/summary');
@@ -644,9 +868,14 @@
                 }
             };
 
+            refreshActivityButton?.addEventListener('click', fetchActivity);
+            refreshRemindersButton?.addEventListener('click', fetchReminders);
+
             resetForm();
             await loadEvents();
             await loadProgress();
+            await fetchActivity();
+            await fetchReminders();
         });
     </script>
 </body>

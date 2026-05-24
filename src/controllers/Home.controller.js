@@ -49,10 +49,11 @@ const rowToEvent = (row) => {
     start,
     end,
     description: row.notes || [row.topic, row.location].filter(Boolean).join(' · ') || row.description || '',
-    color: COLOR_FROM_TYPE[row.type] || row.color || 'primary',
+    color: row.color || COLOR_FROM_TYPE[row.type] || 'primary',
     priority: row.priority || 'medium',
     goal: row.topic || row.goal || '',
-    goalCompleted: Boolean(row.goalCompleted),
+    goalCompleted: Boolean(row.goal_completed ?? row.goalCompleted),
+    remindAt: row.remind_at || row.remindAt || null,
     partner_id: row.partner_id || null,
     module_id: row.module_id || null,
     status: row.status || 'Confirmed',
@@ -80,12 +81,17 @@ module.exports.createCalendarEvent = async (req, res, next) => {
       co_participants: req.body.co_participants || [],
       module_id: req.body.module_id || null,
       name: req.body.title,
-      topic: req.body.topic || req.body.description || '',
+      topic: req.body.goal || req.body.topic || '',
       location: req.body.location || req.body.description || '',
       event_date: req.body.date,
       booking_time: `${req.body.start} - ${req.body.end}`,
       type: req.body.color === 'success' ? 'Match Session' : 'Study Session',
       status: 'Confirmed',
+      priority: req.body.priority || 'medium',
+      color: req.body.color || 'primary',
+      goal_completed: Boolean(req.body.goalCompleted),
+      remind_at: req.body.remindAt || null,
+      reminder_offset: req.body.reminderOffset || null,
       notes: req.body.notes || req.body.description || ''
     };
     const row = await model.createCalendarEvent(data);
@@ -98,12 +104,25 @@ module.exports.createCalendarEvent = async (req, res, next) => {
 
 const updateCalendarEvent = (req, res, next) => {
   const id = Number(req.params.id);
-  model.updateCalendarEvent(id, req.body)
+  const payload = {
+    ...req.body,
+    name: req.body.title,
+    topic: req.body.goal,
+    event_date: req.body.date,
+    booking_time: req.body.start && req.body.end ? `${req.body.start} - ${req.body.end}` : undefined,
+    priority: req.body.priority,
+    color: req.body.color,
+    goal_completed: req.body.goalCompleted,
+    remind_at: req.body.remindAt,
+    reminder_offset: req.body.reminderOffset,
+    notes: req.body.description,
+  };
+  model.updateCalendarEvent(id, payload)
     .then((event) => {
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      res.status(200).json({ event });
+      res.status(200).json({ event: rowToEvent(event) });
     })
     .catch((error) => res.status(400).json({ error: error.message }));
 };
@@ -115,7 +134,7 @@ const deleteCalendarEvent = (req, res, next) => {
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      res.status(200).json({ event });
+      res.status(200).json({ event: rowToEvent(event) });
     })
     .catch(next);
 };
@@ -127,7 +146,7 @@ const getCalendarEventById = (req, res, next) => {
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      res.status(200).json({ event });
+      res.status(200).json({ event: rowToEvent(event) });
     })
     .catch(next);
 };
@@ -142,6 +161,26 @@ const getTodayProgress = (req, res, next) => {
   model.getTodayProgress()
     .then((progress) => res.status(200).json({ progress }))
     .catch(next);
+};
+
+const getActivity = (req, res, next) => {
+  const limit = Number(req.query.limit) || 20;
+  model.getActivity(req.user?.id, limit)
+    .then((activity) => res.status(200).json({ activity }))
+    .catch(next);
+};
+
+const getReminders = (req, res, next) => {
+  const limit = Number(req.query.limit) || 20;
+  model.getReminders(req.user?.id, limit)
+    .then((reminders) => res.status(200).json({ reminders }))
+    .catch(next);
+};
+
+const createReminder = (req, res, next) => {
+  model.createReminder(req.body)
+    .then((reminder) => res.status(201).json({ reminder }))
+    .catch((error) => res.status(400).json({ error: error.message }));
 };
 
 const getGoalProgress = (req, res, next) => {
@@ -159,4 +198,7 @@ module.exports = {
   getProgressSummary,
   getTodayProgress,
   getGoalProgress,
+  getActivity,
+  getReminders,
+  createReminder,
 };
