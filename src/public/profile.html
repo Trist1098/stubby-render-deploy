@@ -30,13 +30,12 @@
   <body>
     <!-- HEADER -->
     <header>
-        <div class="container">
-            <nav id="navbar" class="navbar navbar-expand-lg py-3">
-                <div class="container-fluid p-0">
-
-                    <a href="home.html" class="d-flex align-items-center gap-2 text-decoration-none">
-                        <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
-                    </a>
+      <div class="container">
+        <nav id="navbar" class="navbar navbar-expand-lg py-3">
+          <div class="container-fluid p-0">
+            <a href="home.html" class="d-flex align-items-center gap-2 text-decoration-none">
+              <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
+            </a>
 
             <button
               class="navbar-toggler border-0"
@@ -47,13 +46,11 @@
               <i class="fas fa-bars"></i>
             </button>
 
-                    <div class="collapse navbar-collapse" id="navContent">
-
-                        <ul class="navbar-nav mx-auto gap-2" id="nav-links">
-
-                            <li class="nav-item">
-                                <a href="home.html" class="nav-link">Dashboard</a>
-                            </li>
+            <div class="collapse navbar-collapse" id="navContent">
+              <ul class="navbar-nav mx-auto gap-2" id="nav-links">
+                <li class="nav-item">
+                  <a href="home.html" class="nav-link">Dashboard</a>
+                </li>
 
                 <li class="nav-item">
                   <a href="matchmaking.html" class="nav-link">Matchmaking</a>
@@ -93,7 +90,7 @@
         <!-- LEFT -->
         <div class="col-lg-8">
           <!-- PROFILE CARD -->
-          <div class="premium-card p-0 overflow-hidden">
+          <div class="premium-card profile-hover-card profile-hero-card p-0 overflow-hidden">
             <div class="profile-banner">
               <button
                 id="banner-upload-button"
@@ -155,7 +152,7 @@
           </div>
 
           <!-- ABOUT -->
-          <div class="premium-card mt-4">
+          <div class="premium-card profile-hover-card mt-4">
             <h4 class="fw-bold mb-3">About</h4>
 
             <p id="profile-about-text" class="text-secondary mb-3">
@@ -180,7 +177,7 @@
           </div>
 
           <!-- BADGES -->
-          <div class="premium-card mt-4">
+          <div class="premium-card profile-hover-card mt-4">
             <h4 class="fw-bold mb-4">Badges</h4>
 
             <div class="badge-section-row">
@@ -196,18 +193,11 @@
           </div>
 
           <!-- ACTIVITY -->
-          <div class="premium-card mt-4">
-            <h4 class="fw-bold mb-3">Recent Matches</h4>
+          <div class="premium-card profile-hover-card mt-4">
+            <h4 class="fw-bold mb-3">Activity Summary</h4>
 
-            <div class="profile-empty-state">
-              <i class="fas fa-user-group"></i>
-              <div>
-                <h6 class="fw-bold mb-1">No recent matches yet</h6>
-                <p class="text-secondary mb-0">
-                  New study matches will appear here once matchmaking starts finding suitable
-                  students.
-                </p>
-              </div>
+            <div id="profile-activity-summary">
+              <div class="profile-loading-state">Loading recent activity...</div>
             </div>
           </div>
         </div>
@@ -215,7 +205,7 @@
         <!-- RIGHT -->
         <div class="col-lg-4">
           <!-- DISCOVER STUDENTS -->
-          <div class="sidebar-card">
+          <div class="sidebar-card profile-hover-card">
             <h5 class="fw-bold mb-2">Discover Students</h5>
 
             <p class="text-secondary small mb-3">
@@ -241,7 +231,7 @@
           </div>
 
           <!-- FRIEND REQUESTS -->
-          <div class="sidebar-card">
+          <div class="sidebar-card profile-hover-card">
             <h5 class="fw-bold mb-3">Friend Requests</h5>
 
             <div class="d-flex gap-2 mb-3">
@@ -259,7 +249,7 @@
           </div>
 
           <!-- FRIENDS -->
-          <div class="sidebar-card">
+          <div class="sidebar-card profile-hover-card">
             <h5 class="fw-bold mb-4">Friends</h5>
 
             <input
@@ -505,6 +495,38 @@
             <button id="confirm-remove-friend-btn" type="button" class="btn btn-danger">
               Remove Friend
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="activityMatchModal"
+      tabindex="-1"
+      aria-labelledby="activityMatchModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content activity-match-modal">
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title" id="activityMatchModalLabel">Study Match Details</h5>
+              <p class="mb-0 small opacity-75">Your confirmed study connection</p>
+            </div>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div id="activity-match-content" class="modal-body">
+            <div class="profile-loading-state">Loading match details...</div>
+          </div>
+          <div class="modal-footer">
+            <a href="matchmaking.html?tab=requests" class="btn btn-white">All Match Requests</a>
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>

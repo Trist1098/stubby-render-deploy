@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileTitleEl = document.getElementById('profile-title');
   const profileFriendsList = document.getElementById('profile-friends-list');
   const profileBadgesList = document.getElementById('profile-badges-list');
+  const profileActivitySummary = document.getElementById('profile-activity-summary');
   const profileActions = document.querySelector('.profile-action-buttons');
   const connectButton = document.getElementById('profile-connect-button');
   const messageButton = document.getElementById('profile-message-button');
@@ -31,6 +32,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allBadgesStatusFilter = document.getElementById('all-badges-status-filter');
   const allBadgesResetBtn = document.getElementById('all-badges-reset-btn');
   const allBadgesList = document.getElementById('all-badges-list');
+  const activityMatchModalEl = document.getElementById('activityMatchModal');
+  const activityMatchContent = document.getElementById('activity-match-content');
   const badgeDetailsModalEl = document.getElementById('badgeDetailsModal');
   const allBadgesModalEl = document.getElementById('allBadgesModal');
   const badgeDetailName = document.getElementById('badge-detail-name');
@@ -77,6 +80,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     : null;
   const passwordSettingsModal = passwordSettingsModalEl
     ? bootstrap.Modal.getOrCreateInstance(passwordSettingsModalEl)
+    : null;
+  const activityMatchModal = activityMatchModalEl
+    ? bootstrap.Modal.getOrCreateInstance(activityMatchModalEl)
     : null;
   const badgeDetailsModal = badgeDetailsModalEl
     ? bootstrap.Modal.getOrCreateInstance(badgeDetailsModalEl)
@@ -691,6 +697,290 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  const formatActivityDate = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  };
+
+  const wasAddedWithinLastSevenDays = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return date >= sevenDaysAgo && date <= new Date();
+  };
+
+  const renderActivityItem = (icon, title, detail, matchId = '') => {
+    const tag = matchId ? 'button' : 'div';
+    const linkAttributes = matchId
+      ? ` type="button" data-match-id="${matchId}" class="activity-item activity-item-link"`
+      : ' class="activity-item"';
+
+    return `
+        <${tag}${linkAttributes}>
+          <div class="activity-item-icon"><i class="fas ${icon}"></i></div>
+          <div>
+            <div class="activity-item-title">${escapeHtml(title)}</div>
+            <div class="activity-item-detail">${escapeHtml(detail)}</div>
+          </div>
+        </${tag}>
+      `;
+  };
+
+  const renderExpandableActivityList = (items, listName) => {
+    const visibleItems = items.slice(0, 3).join('');
+    const additionalItems = items.slice(3).join('');
+
+    return `
+      <div class="activity-list">${visibleItems}</div>
+      ${
+        additionalItems
+          ? `
+            <div class="activity-list activity-extra-list d-none" data-activity-extra="${listName}">
+              ${additionalItems}
+            </div>
+            <button
+              type="button"
+              class="activity-more-button"
+              data-activity-toggle="${listName}"
+              aria-expanded="false"
+            >
+              More <i class="fas fa-chevron-down"></i>
+            </button>
+          `
+          : ''
+      }
+    `;
+  };
+
+  const openMatchDetails = async (matchId) => {
+    if (!activityMatchModal || !activityMatchContent) return;
+
+    activityMatchContent.innerHTML =
+      '<div class="profile-loading-state">Loading match details...</div>';
+    activityMatchModal.show();
+
+    const match = await fetchJson(`/api/matches/request/${matchId}`);
+    if (!match) {
+      activityMatchContent.innerHTML =
+        '<div class="profile-empty-state compact"><i class="fas fa-circle-exclamation"></i><span>Unable to load match details.</span></div>';
+      return;
+    }
+
+    const isReceived = Number(match.receiver_id) === Number(userId);
+    const partnerName = isReceived ? match.sender_name : match.receiver_name;
+    const partnerInitial = (partnerName || 'S').charAt(0).toUpperCase();
+    const [studyDate, studyTime] = (match.time_slot || '').split(' ');
+
+    activityMatchContent.innerHTML = `
+      <div class="match-detail-hero">
+        <div class="match-detail-avatar">${escapeHtml(partnerInitial)}</div>
+        <div class="match-detail-hero-copy">
+          <h4 class="fw-bold mb-1">${escapeHtml(partnerName || 'Study partner')}</h4>
+          <p class="match-detail-topic">${escapeHtml(match.topic || 'Study Match')}</p>
+        </div>
+        <span class="match-detail-status">${escapeHtml(match.status || 'Accepted')}</span>
+      </div>
+      <div class="match-detail-grid">
+        <div class="match-detail-field">
+          <div class="match-detail-label">Module</div>
+          <div class="match-detail-value">${escapeHtml(match.module_code || 'General')}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Session Type</div>
+          <div class="match-detail-value">${match.type === 'group' ? 'Group Study' : 'One-on-One'}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Mode</div>
+          <div class="match-detail-value">${match.is_online ? 'Online' : 'In Person'}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Date</div>
+          <div class="match-detail-value">${escapeHtml(studyDate || 'Not scheduled')}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Time</div>
+          <div class="match-detail-value">${escapeHtml(studyTime || 'Not scheduled')}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Location</div>
+          <div class="match-detail-value">${escapeHtml(match.location || 'Not specified')}</div>
+        </div>
+        <div class="match-detail-note">
+          <div class="match-detail-label">Study Note</div>
+          <div class="match-detail-value">${escapeHtml(match.message || 'No note attached.')}</div>
+        </div>
+      </div>
+    `;
+  };
+
+  const renderActivityUnavailable = () => {
+    profileActivitySummary.innerHTML = `
+      <div class="profile-empty-state">
+        <i class="fas fa-circle-exclamation"></i>
+        <div>
+          <h6 class="fw-bold mb-1">Activity unavailable</h6>
+          <p class="text-secondary mb-0">Recent profile activity could not be loaded right now.</p>
+        </div>
+      </div>
+    `;
+  };
+
+  const loadProfileActivity = async () => {
+    if (!profileActivitySummary || !pageUserId) return;
+
+    if (!isOwnProfile) {
+      const friends = await fetchJson(`/api/friends/${pageUserId}`);
+      if (!Array.isArray(friends)) {
+        renderActivityUnavailable();
+        return;
+      }
+
+      if (friends.length === 0) {
+        profileActivitySummary.innerHTML = `
+          <div class="profile-empty-state">
+            <i class="fas fa-user-group"></i>
+            <div>
+              <h6 class="fw-bold mb-1">No visible connections yet</h6>
+              <p class="text-secondary mb-0">This profile has no friends to display right now.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const recentFriends = friends
+        .slice(0, 3)
+        .map((friend) => {
+          const addedOn = formatActivityDate(friend.created_at);
+          const detail = addedOn ? `Connected ${addedOn}` : 'Study connection';
+          return renderActivityItem(
+            'fa-user-group',
+            friend.name || friend.username || 'Study friend',
+            detail,
+          );
+        })
+        .join('');
+
+      profileActivitySummary.innerHTML = `
+        <div class="activity-stats">
+          <div class="activity-stat">
+            <div class="activity-stat-number">${friends.length}</div>
+            <div class="activity-stat-label">Visible friends</div>
+          </div>
+        </div>
+        <h6 class="fw-bold mb-2">Recent Connections</h6>
+        <div class="activity-list">${recentFriends}</div>
+      `;
+      return;
+    }
+
+    const [matches, incomingMatches, outgoingMatches, friends] = await Promise.all([
+      fetchJson('/api/matches/active'),
+      fetchJson('/api/matches/requests/received'),
+      fetchJson('/api/matches/requests/sent'),
+      fetchJson('/api/friends'),
+    ]);
+    if (
+      !Array.isArray(matches) ||
+      !Array.isArray(incomingMatches) ||
+      !Array.isArray(outgoingMatches) ||
+      !Array.isArray(friends)
+    ) {
+      renderActivityUnavailable();
+      return;
+    }
+    const activeMatches = matches;
+    const recentConnections = friends.filter((friend) =>
+      wasAddedWithinLastSevenDays(friend.created_at),
+    );
+    const getPendingCount = (requests) =>
+      Number(
+        requests[0]?.pending_count || requests.filter((match) => match.status === 'Pending').length,
+      );
+    const pendingIncoming = getPendingCount(incomingMatches);
+    const pendingOutgoing = getPendingCount(outgoingMatches);
+
+    let recentMatchesItems = [];
+    if (activeMatches.length > 0) {
+      recentMatchesItems = activeMatches.map((match) => {
+        const matchedOn = formatActivityDate(match.updated_at || match.created_at);
+        const detail = matchedOn ? `Match accepted - ${matchedOn}` : 'Accepted study match';
+        const requestId = Number(match.request_id);
+        return renderActivityItem(
+          'fa-handshake',
+          match.name || match.username || 'Study partner',
+          detail,
+          Number.isInteger(requestId) ? requestId : '',
+        );
+      });
+    }
+
+    const recentConnectionItems = recentConnections.map((friend) => {
+      const addedOn = formatActivityDate(friend.created_at);
+      const detail = addedOn ? `Connected ${addedOn}` : 'New study connection';
+      return renderActivityItem(
+        'fa-user-group',
+        friend.name || friend.username || 'Study friend',
+        detail,
+      );
+    });
+
+    profileActivitySummary.innerHTML = `
+      <div class="activity-stats">
+        <div class="activity-stat">
+          <div class="activity-stat-number">${activeMatches.length}</div>
+          <div class="activity-stat-label">Accepted matches</div>
+        </div>
+        <div class="activity-stat">
+          <div class="activity-stat-number">${pendingIncoming}</div>
+          <div class="activity-stat-label">Pending incoming</div>
+        </div>
+        <div class="activity-stat">
+          <div class="activity-stat-number">${pendingOutgoing}</div>
+          <div class="activity-stat-label">Pending outgoing</div>
+        </div>
+      </div>
+      ${
+        recentMatchesItems.length > 0
+          ? `<div class="activity-section"><h6 class="fw-bold mb-2">Recent Study Matches</h6>${renderExpandableActivityList(recentMatchesItems, 'matches')}</div>`
+          : ''
+      }
+      <div class="activity-section">
+        <h6 class="fw-bold mb-2">Recent Connections <span class="activity-range">Last 7 days</span></h6>
+        ${
+          recentConnectionItems.length > 0
+            ? renderExpandableActivityList(recentConnectionItems, 'connections')
+            : '<div class="activity-section-empty">No new connections in the last 7 days.</div>'
+        }
+      </div>
+    `;
+  };
+
+  profileActivitySummary?.addEventListener('click', (event) => {
+    const toggleButton = event.target.closest('[data-activity-toggle]');
+    if (toggleButton) {
+      const extraItems = profileActivitySummary.querySelector(
+        `[data-activity-extra="${toggleButton.dataset.activityToggle}"]`,
+      );
+      if (!extraItems) return;
+
+      const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+      extraItems.classList.toggle('d-none', isExpanded);
+      toggleButton.setAttribute('aria-expanded', String(!isExpanded));
+      toggleButton.innerHTML = !isExpanded
+        ? 'Less <i class="fas fa-chevron-up"></i>'
+        : 'More <i class="fas fa-chevron-down"></i>';
+      return;
+    }
+
+    const matchItem = event.target.closest('[data-match-id]');
+    if (!matchItem) return;
+    openMatchDetails(matchItem.dataset.matchId);
+  });
+
   const profilePicUrl = pageUserData?.profile_pic;
   setProfilePicture(profilePicUrl);
   setProfileBanner(pageUserData?.profile_banner);
@@ -758,6 +1048,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       profileInstitutionEl.textContent = 'No institution selected';
     }
   }
+
+  await loadProfileActivity();
 
   const friendRequestModalElement = document.getElementById('friendRequestModal');
   const friendRequestModalTitle = document.getElementById('friendRequestModalLabel');
@@ -898,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const updateConnectButtonState = async () => {
     if (!connectButton || isOwnProfile || !pageUserId || !userId) return;
 
-    const ownFriends = (await fetchJson('/api/friend')) || [];
+    const ownFriends = (await fetchJson('/api/friends')) || [];
     const isAlreadyFriend = ownFriends.some(
       (friend) => friend.friend_id?.toString() === pageUserId.toString(),
     );
@@ -993,6 +1285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? 'incoming'
         : 'outgoing';
       await loadFriendRequests(currentType);
+      await loadProfileActivity();
       showFeedback('Friend request updated.');
     } else {
       console.error('Failed to update friend request', response.data);
@@ -1031,7 +1324,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let discoveryIncoming = [];
 
     const loadDiscoveryStatus = async () => {
-      discoveryFriends = (await fetchJson('/api/friend')) || [];
+      discoveryFriends = (await fetchJson('/api/friends')) || [];
       discoveryOutgoing = (await fetchJson(`/api/friendrequest/outgoing/${userId}`)) || [];
       discoveryIncoming = (await fetchJson(`/api/friendrequest/incoming/${userId}`)) || [];
     };
@@ -1148,9 +1441,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (profileFriendsList) {
     const friendsEndpoint =
-      isViewProfilePage && friendId ? `/api/friend/${friendId}` : '/api/friend';
+      isViewProfilePage && friendId ? `/api/friends/${friendId}` : '/api/friends';
 
     let friends = (await fetchJson(friendsEndpoint)) || [];
+    let friendsExpanded = false;
 
     const renderFriends = () => {
       const searchTerm = friendSearchInput?.value?.trim().toLowerCase() || '';
@@ -1170,7 +1464,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      profileFriendsList.innerHTML = shownFriends
+      const visibleFriends = friendsExpanded ? shownFriends : shownFriends.slice(0, 3);
+      const hasMoreFriends = shownFriends.length > 3;
+
+      const friendItems = visibleFriends
         .map((friend) => {
           const initials = friend.name ? friend.name.charAt(0).toUpperCase() : 'U';
           const removeButton = isOwnProfile
@@ -1198,12 +1495,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
         })
         .join('');
+
+      profileFriendsList.innerHTML = `
+        ${friendItems}
+        ${
+          hasMoreFriends
+            ? `
+              <button type="button" class="activity-more-button friend-more-button" data-action="toggle-friends" aria-expanded="${friendsExpanded}">
+                ${friendsExpanded ? 'Less <i class="fas fa-chevron-up"></i>' : 'More <i class="fas fa-chevron-down"></i>'}
+              </button>
+            `
+            : ''
+        }
+      `;
     };
 
     renderFriends();
 
     if (friendSearchInput) {
-      friendSearchInput.addEventListener('input', renderFriends);
+      friendSearchInput.addEventListener('input', () => {
+        friendsExpanded = false;
+        renderFriends();
+      });
     }
 
     const removeSelectedFriend = async () => {
@@ -1217,7 +1530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmRemoveFriendBtn.textContent = 'Removing...';
       }
 
-      const response = await requestWithBody(`/api/friend/${selectedFriendId}`, 'DELETE');
+      const response = await requestWithBody(`/api/friends/${selectedFriendId}`, 'DELETE');
 
       if (confirmRemoveFriendBtn) {
         confirmRemoveFriendBtn.disabled = false;
@@ -1229,6 +1542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           (friend) => friend.friend_id?.toString() !== selectedFriendId.toString(),
         );
         renderFriends();
+        await loadProfileActivity();
         removeFriendModal?.hide();
         if (removeFriendSuccessMessage) {
           removeFriendSuccessMessage.textContent = `${selectedFriendToRemove.name} has been removed from your friend list.`;
@@ -1249,6 +1563,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     profileFriendsList.addEventListener('click', (event) => {
+      const toggleFriendsButton = event.target.closest('button[data-action="toggle-friends"]');
+      if (toggleFriendsButton) {
+        friendsExpanded = !friendsExpanded;
+        renderFriends();
+        return;
+      }
+
       const messageFriendButton = event.target.closest('button[data-action="message-friend"]');
       if (messageFriendButton) {
         openDirectChat(messageFriendButton.dataset.friendId, messageFriendButton);

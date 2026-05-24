@@ -30,13 +30,12 @@
   <body>
     <!-- HEADER -->
     <header>
-        <div class="container">
-            <nav id="navbar" class="navbar navbar-expand-lg py-3">
-                <div class="container-fluid p-0">
-
-                    <a href="home.html" class="d-flex align-items-center gap-2 text-decoration-none">
-                        <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
-                    </a>
+      <div class="container">
+        <nav id="navbar" class="navbar navbar-expand-lg py-3">
+          <div class="container-fluid p-0">
+            <a href="home.html" class="d-flex align-items-center gap-2 text-decoration-none">
+              <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
+            </a>
 
             <button
               class="navbar-toggler border-0"
@@ -47,13 +46,11 @@
               <i class="fas fa-bars"></i>
             </button>
 
-                    <div class="collapse navbar-collapse" id="navContent">
-
-                        <ul class="navbar-nav mx-auto gap-2" id="nav-links">
-
-                            <li class="nav-item">
-                                <a href="home.html" class="nav-link">Dashboard</a>
-                            </li>
+            <div class="collapse navbar-collapse" id="navContent">
+              <ul class="navbar-nav mx-auto gap-2" id="nav-links">
+                <li class="nav-item">
+                  <a href="home.html" class="nav-link">Dashboard</a>
+                </li>
 
                 <li class="nav-item">
                   <a href="matchmaking.html" class="nav-link">Matchmaking</a>
@@ -159,16 +156,10 @@
 
           <!-- ACTIVITY -->
           <div class="premium-card mt-4">
-            <h4 class="fw-bold mb-3">Recent Matches</h4>
+            <h4 class="fw-bold mb-3">Activity Summary</h4>
 
-            <div class="profile-empty-state">
-              <i class="fas fa-user-group"></i>
-              <div>
-                <h6 class="fw-bold mb-1">No recent matches shown</h6>
-                <p class="text-secondary mb-0">
-                  Match activity will appear here when this profile has visible study matches.
-                </p>
-              </div>
+            <div id="profile-activity-summary">
+              <div class="profile-loading-state">Loading recent activity...</div>
             </div>
           </div>
         </div>

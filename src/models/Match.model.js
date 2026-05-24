@@ -1,7 +1,7 @@
 const pool = require('./db');
 
 module.exports.selectAllByUser = async function selectAllByUser(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         SELECT mr.*, u1.name as sender_name, u2.name as receiver_name 
         FROM MatchRequest mr
         JOIN "User" u1 ON mr.sender_id = u1.user_id
@@ -9,13 +9,13 @@ module.exports.selectAllByUser = async function selectAllByUser(data) {
         WHERE mr.sender_id = $1 OR mr.receiver_id = $2
         ORDER BY mr.created_at DESC
     `;
-    const VALUES = [data.user_id, data.user_id];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows;
+  const VALUES = [data.user_id, data.user_id];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows;
 };
 
 module.exports.selectBySender = async function selectBySender(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         SELECT mr.*, u.name as receiver_name, u.username as receiver_username, u.profile_pic as receiver_pic,
             m.code as module_code, m.name as module_name,
             count(*) OVER() AS total_count,
@@ -33,13 +33,13 @@ module.exports.selectBySender = async function selectBySender(data) {
             mr.request_id DESC
         LIMIT $2 OFFSET $3
     `;
-    const VALUES = [data.sender_id, data.limit || 6, data.offset || 0];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows;
+  const VALUES = [data.sender_id, data.limit || 6, data.offset || 0];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows;
 };
 
 module.exports.selectByReceiver = async function selectByReceiver(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         SELECT mr.*, u.name as sender_name, u.username as sender_username, u.profile_pic as sender_pic,
             m.code as module_code, m.name as module_name,
             count(*) OVER() AS total_count,
@@ -57,45 +57,57 @@ module.exports.selectByReceiver = async function selectByReceiver(data) {
             mr.request_id DESC
         LIMIT $2 OFFSET $3
     `;
-    const VALUES = [data.receiver_id, data.limit || 6, data.offset || 0];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows;
+  const VALUES = [data.receiver_id, data.limit || 6, data.offset || 0];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows;
 };
 
 module.exports.selectActiveMatches = async function selectActiveMatches(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         SELECT mr.*, u.name, u.username, u.profile_pic, u.is_online 
         FROM MatchRequest mr
         JOIN "User" u ON (mr.sender_id = u.user_id OR mr.receiver_id = u.user_id)
         WHERE (mr.sender_id = $1 OR mr.receiver_id = $2) 
         AND mr.status = 'Accepted' 
         AND u.user_id != $3
+        ORDER BY mr.updated_at DESC, mr.request_id DESC
     `;
-    const VALUES = [data.user_id, data.user_id, data.user_id];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows;
+  const VALUES = [data.user_id, data.user_id, data.user_id];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows;
 };
 
 module.exports.insertRequest = async function insertRequest(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         INSERT INTO MatchRequest (sender_id, receiver_id, module_id, topic, time_slot, location, is_online, type, co_participants, message) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING request_id
     `;
-    const VALUES = [data.sender_id, data.receiver_id, data.module_id, data.topic, data.time_slot, data.location, data.is_online || false, data.type, data.co_participants || [], data.message];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows[0];
+  const VALUES = [
+    data.sender_id,
+    data.receiver_id,
+    data.module_id,
+    data.topic,
+    data.time_slot,
+    data.location,
+    data.is_online || false,
+    data.type,
+    data.co_participants || [],
+    data.message,
+  ];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows[0];
 };
 
 module.exports.updateStatus = async function updateStatus(data) {
-    const SQLSTATEMENT = 'UPDATE MatchRequest SET status = $1 WHERE request_id = $2';
-    const VALUES = [data.status, data.id];
-    const result = await pool.query(SQLSTATEMENT, VALUES);
-    return result;
+  const SQLSTATEMENT = 'UPDATE MatchRequest SET status = $1 WHERE request_id = $2';
+  const VALUES = [data.status, data.id];
+  const result = await pool.query(SQLSTATEMENT, VALUES);
+  return result;
 };
 
 module.exports.autoMatch = async function autoMatch(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         SELECT u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online, u.profile_text, u.institution_id, u.diploma_id,
         d.name as diploma_name, d.code as diploma_code,
         (
@@ -124,26 +136,26 @@ module.exports.autoMatch = async function autoMatch(data) {
         ORDER BY shared_modules_count DESC
         LIMIT 30
     `;
-    const VALUES = [data.user_id, data.user_id];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows;
+  const VALUES = [data.user_id, data.user_id];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows;
 };
 
 module.exports.selectSharedModules = async function selectSharedModules(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         SELECT m.module_id, m.code, m.name
         FROM UserModule um1
         JOIN UserModule um2 ON um1.module_id = um2.module_id
         JOIN Module m ON um1.module_id = m.module_id
         WHERE um1.user_id = $1 AND um2.user_id = $2
     `;
-    const VALUES = [data.user1_id, data.user2_id];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows;
+  const VALUES = [data.user1_id, data.user2_id];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows;
 };
 
 module.exports.selectById = async function selectById(data) {
-    const SQLSTATEMENT = `
+  const SQLSTATEMENT = `
         SELECT mr.*, 
             u1.name as sender_name, u1.username as sender_username, u1.profile_pic as sender_pic,
             u2.name as receiver_name, u2.username as receiver_username, u2.profile_pic as receiver_pic,
@@ -161,7 +173,7 @@ module.exports.selectById = async function selectById(data) {
         LEFT JOIN Module m ON mr.module_id = m.module_id
         WHERE mr.request_id = $1
     `;
-    const VALUES = [data.id];
-    const { rows } = await pool.query(SQLSTATEMENT, VALUES);
-    return rows[0];
+  const VALUES = [data.id];
+  const { rows } = await pool.query(SQLSTATEMENT, VALUES);
+  return rows[0];
 };

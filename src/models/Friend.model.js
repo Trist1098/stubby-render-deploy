@@ -1,9 +1,9 @@
 const pool = require('./db');
 
 module.exports.getFriendsForUser = async function getFriendsForUser(userId) {
-
   const SQLSTATEMENT = `
         SELECT f.friendship_id,
+               f.created_at,
                u.user_id AS friend_id,
                u.username,
                u.name,
@@ -11,6 +11,7 @@ module.exports.getFriendsForUser = async function getFriendsForUser(userId) {
         FROM Friendship f
         JOIN "User" u ON u.user_id = f.friend_id
         WHERE f.user_id = $1
+        ORDER BY f.created_at DESC, f.friendship_id DESC
     `;
   const VALUES = [userId];
   const { rows } = await pool.query(SQLSTATEMENT, VALUES);
