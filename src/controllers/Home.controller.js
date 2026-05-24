@@ -75,32 +75,27 @@ module.exports.getCalendarEvents = async (req, res, next) => {
 
 module.exports.createCalendarEvent = async (req, res, next) => {
   try {
-    const data = {
-      creator_id: res.locals.userId || 1,
-      partner_id: req.body.partner_id || null,
-      co_participants: req.body.co_participants || [],
-      module_id: req.body.module_id || null,
-      name: req.body.title,
-<<<<<<< HEAD
-      topic: req.body.goal || req.body.topic || '',
-      location: req.body.location || req.body.description || '',
-=======
-      topic: req.body.topic || req.body.description || '',
-      location: req.body.location || '',
-      is_online: req.body.is_online === true || req.body.is_online === 'true',
-      meeting_url: req.body.meeting_url || null,
->>>>>>> origin/feature/live-study-session2
-      event_date: req.body.date,
-      booking_time: `${req.body.start} - ${req.body.end}`,
-      type: req.body.color === 'success' ? 'Match Session' : 'Study Session',
-      status: 'Confirmed',
-      priority: req.body.priority || 'medium',
-      color: req.body.color || 'primary',
-      goal_completed: Boolean(req.body.goalCompleted),
-      remind_at: req.body.remindAt || null,
-      reminder_offset: req.body.reminderOffset || null,
-      notes: req.body.notes || req.body.description || ''
-    };
+      const data = {
+  creator_id: res.locals.userId || 1,
+  partner_id: req.body.partner_id || null,
+  co_participants: req.body.co_participants || [],
+  module_id: req.body.module_id || null,
+  name: req.body.title,
+  topic: req.body.goal || req.body.topic || req.body.description || '',
+  location: req.body.location || '',
+  is_online: req.body.is_online === true || req.body.is_online === 'true',
+  meeting_url: req.body.meeting_url || null,
+  event_date: req.body.date,
+  booking_time: `${req.body.start} - ${req.body.end}`,
+  type: req.body.color === 'success' ? 'Match Session' : 'Study Session',
+  status: 'Confirmed',
+  priority: req.body.priority || 'medium',
+  color: req.body.color || 'primary',
+  goal_completed: Boolean(req.body.goalCompleted),
+  remind_at: req.body.remindAt || null,
+  reminder_offset: req.body.reminderOffset || null,
+  notes: req.body.notes || req.body.description || '',
+};
     const row = await model.createCalendarEvent(data);
     const event = rowToEvent(row);
     res.status(201).json({ event });
