@@ -315,8 +315,8 @@ const sessions = [
 
 const sessMembers = [
   { sid: 2, u: 2, st: 'focus', timer: 0, prog: 60 },
-  { sid: 2, u: 12, st: 'need_help', timer: 0, prog: 75 },
-  { sid: 2, u: 22, st: 'break', timer: 0, prog: 45 }
+  { sid: 2, u: 3, st: 'need_help', timer: 0, prog: 75 },
+  { sid: 2, u: 4, st: 'break', timer: 0, prog: 45 }
 ];
 
 const microGoals = [
