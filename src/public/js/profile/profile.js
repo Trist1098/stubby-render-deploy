@@ -174,11 +174,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const applyTheme = (theme) => {
-    if (theme === 'Dark') {
-      document.body.classList.add('theme-dark');
-    } else {
-      document.body.classList.remove('theme-dark');
+    const isDark = theme === 'Dark';
+    if (typeof window.applyThemeMode === 'function') {
+      window.applyThemeMode(isDark);
+      return;
     }
+
+    document.documentElement.classList.toggle('theme-dark', isDark);
+    document.body.classList.toggle('theme-dark', isDark);
   };
 
   const loadProfileSettings = () => {

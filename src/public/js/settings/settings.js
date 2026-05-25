@@ -58,6 +58,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const applyTheme = () => {
+    if (typeof window.applyThemeMode === 'function') {
+      window.applyThemeMode(themeToggle.checked);
+      return;
+    }
+
+    document.documentElement.classList.toggle('theme-dark', themeToggle.checked);
     document.body.classList.toggle('theme-dark', themeToggle.checked);
   };
 
