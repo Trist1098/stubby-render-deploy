@@ -1,4 +1,5 @@
 // Timer, status, and session-state calculation helpers.
+// Convert all UI status labels into the backend's status keys.
 function normalizeStatusForApi(status) {
   const normalized = String(status || 'focus')
     .toLowerCase()
@@ -8,11 +9,13 @@ function normalizeStatusForApi(status) {
   return normalized;
 }
 
+// Convert API status keys into CSS class names used by the member cards.
 function statusClassForApiStatus(status) {
   const normalizedStatus = normalizeStatusForApi(status);
   return normalizedStatus === 'break' ? 'on-break' : normalizedStatus.replace(/_/g, '-');
 }
 
+// Format the main countdown timer as mm:ss.
 function timerText(seconds) {
 
   const safeSeconds = Math.max(0, Math.floor(seconds));
@@ -25,6 +28,7 @@ function timerText(seconds) {
 
 }
 
+// Format member status timers without forcing a leading zero on minutes.
 function statusTime(seconds) {
 
   const safeSeconds = Math.max(0, Number(seconds) || 0);
@@ -37,22 +41,27 @@ function statusTime(seconds) {
 
 }
 
+// Check the session's global expired state.
 function isSessionExpired() {
   return sessionData.status === 'expired';
 }
 
+// Check whether this viewer personally paused after an extension.
 function isCurrentMemberTimerPaused() {
   return Boolean(getCurrentMember()?.is_timer_paused);
 }
 
+// Treat completed, expired, and personally paused sessions as timer-paused for this viewer.
 function timersPausedForViewer() {
   return isSessionExpired() || isCurrentMemberTimerPaused() || sessionData.status === 'completed';
 }
 
+// Find the logged-in member record inside a session payload.
 function sessionMemberForViewer(data = sessionData) {
   return (data.members || []).find((memberData) => Number(memberData.user_id) === CURRENT_USER_ID);
 }
 
+// Use a supplied payload to decide whether timers should keep ticking for the viewer.
 function sessionTimersPausedForViewer(data = sessionData) {
   const currentMember = sessionMemberForViewer(data);
   return (
@@ -62,6 +71,7 @@ function sessionTimersPausedForViewer(data = sessionData) {
   );
 }
 
+// Calculate countdown remaining from the last server value plus local elapsed time.
 function remainingSecondsForSession(data = sessionData, anchorStartedAt = timerStartedAt) {
   const elapsedSeconds = sessionTimersPausedForViewer(data)
     ? 0
@@ -69,6 +79,7 @@ function remainingSecondsForSession(data = sessionData, anchorStartedAt = timerS
   return Math.max(0, Number(data.remaining_seconds || 0) - elapsedSeconds);
 }
 
+// During silent polls, preserve a smooth countdown when the session identity has not changed.
 function shouldPreserveCountdown(previousData, nextData, options = {}) {
   if (!options.silent) return false;
   if (!previousData?.id || previousData.id !== nextData?.id) return false;
@@ -83,10 +94,12 @@ function shouldPreserveCountdown(previousData, nextData, options = {}) {
   );
 }
 
+// Normalize whichever status field the member payload currently has.
 function memberStatusKey(memberData) {
   return normalizeStatusForApi(memberData?.status_class || memberData?.current_status);
 }
 
+// Keep member status timers from jumping backward during background refreshes.
 function preserveMemberStatusTimers(previousData, nextData, options = {}) {
   if (!options.silent || !previousData?.id || previousData.id !== nextData?.id) return;
 
@@ -110,6 +123,7 @@ function preserveMemberStatusTimers(previousData, nextData, options = {}) {
   });
 }
 
+// Remember the frozen countdown value while this viewer is paused.
 function updatePausedRemainingSeconds() {
   if (timersPausedForViewer()) {
     if (pausedRemainingSeconds === null) {

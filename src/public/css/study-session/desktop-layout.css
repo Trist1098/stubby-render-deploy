@@ -6,33 +6,6 @@
     linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
 }
 
-.study-nav-links {
-  align-items: center;
-}
-
-.study-nav-links .study-nav-link {
-  display: flex;
-  min-width: 82px;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  border-radius: 14px;
-  color: #748094 !important;
-  font-size: 0.82rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.study-nav-links .study-nav-link i {
-  font-size: 1.18rem;
-}
-
-.study-nav-links .study-nav-link:hover,
-.study-nav-links .study-nav-link.active {
-  background: #eef4ff;
-  color: #203047 !important;
-}
-
 .session-web-shell {
   width: min(100%, 1180px);
   margin: 32px auto 64px;

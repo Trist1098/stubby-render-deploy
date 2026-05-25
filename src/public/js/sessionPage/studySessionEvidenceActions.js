@@ -1,9 +1,11 @@
 // Evidence upload and AI work-check actions.
+// Keep the allowed MIME types beside the extension check so uploads stay predictable.
 const SUPPORTED_EVIDENCE_TYPES = [
   'text/plain',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 
+// Accept no file, a plain text file, or a Word document; reject everything else early.
 function isSupportedEvidenceFile(file) {
   if (!file) return true;
   return (
@@ -11,6 +13,7 @@ function isSupportedEvidenceFile(file) {
   );
 }
 
+// Lock the AI-review controls while the backend is checking the uploaded work.
 function setWorkCheckLoading(form, isLoading) {
   const button = form.querySelector('.ai-review-button');
   const label = button?.querySelector('span');
@@ -22,6 +25,7 @@ function setWorkCheckLoading(form, isLoading) {
   label.textContent = isLoading ? 'Reviewing...' : 'AI Review';
 }
 
+// Lock the submit controls while final evidence is being uploaded.
 function setEvidenceSubmitLoading(form, isLoading) {
   const button = form.querySelector('.submit-evidence-button');
   const label = button?.querySelector('span');
@@ -33,10 +37,12 @@ function setEvidenceSubmitLoading(form, isLoading) {
   label.textContent = isLoading ? 'Submitting...' : 'Submit';
 }
 
+// Turn feedback bullet arrays into escaped list items.
 function feedbackList(items) {
   return (items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
 }
 
+// Convert AI status keys into copy that makes sense to students.
 function feedbackStatusLabel(status) {
   const labels = {
     looks_good: 'Looks good',
@@ -46,16 +52,19 @@ function feedbackStatusLabel(status) {
   return labels[status] || 'AI feedback';
 }
 
+// Build a practical checklist from issues plus the recommended next step.
 function workCheckChecklistItems(feedback) {
   const items = [...(feedback.issues || [])];
   if (feedback.next_step) items.push(feedback.next_step);
   return [...new Set(items.map((item) => String(item).trim()).filter(Boolean))];
 }
 
+// Scope checklist progress to one AI-check card in local storage.
 function checklistStorageKey(checkId) {
   return `${CHECKLIST_STORAGE_PREFIX}${checkId}`;
 }
 
+// Read any checklist ticks the student has already saved in this browser.
 function readChecklistState(checkId) {
   try {
     return new Set(JSON.parse(localStorage.getItem(checklistStorageKey(checkId))) || []);
@@ -64,10 +73,12 @@ function readChecklistState(checkId) {
   }
 }
 
+// Save checklist ticks locally so the improvement list survives a modal close.
 function writeChecklistState(checkId, checkedItems) {
   localStorage.setItem(checklistStorageKey(checkId), JSON.stringify(checkedItems));
 }
 
+// Format when an AI check happened without showing a long raw timestamp.
 function formatCheckTime(value) {
   if (!value) return 'Just now';
   return new Date(value).toLocaleString([], {
@@ -78,6 +89,7 @@ function formatCheckTime(value) {
   });
 }
 
+// Render the improvement checklist under an AI feedback card.
 function renderWorkCheckChecklist(feedback) {
   const items = workCheckChecklistItems(feedback);
   if (!feedback.id || !items.length) return '';
@@ -104,6 +116,7 @@ function renderWorkCheckChecklist(feedback) {
   `;
 }
 
+// Render the common body used by current feedback and history cards.
 function renderFeedbackBody(feedback, { includeFile = false } = {}) {
   const fileLabel =
     includeFile && feedback.file_name
@@ -120,6 +133,7 @@ function renderFeedbackBody(feedback, { includeFile = false } = {}) {
   `;
 }
 
+// Render one collapsible AI check from the history list.
 function renderWorkCheckCard(feedback, index = 0) {
   const status = feedback.status || 'cannot_verify';
 
@@ -139,6 +153,7 @@ function renderWorkCheckCard(feedback, index = 0) {
   `;
 }
 
+// Replace a form's history area with the newest feedback cards.
 function renderWorkCheckHistory(form, feedbackListData) {
   const list = form.querySelector('.work-check-history-list');
   if (!list) return;
@@ -148,6 +163,7 @@ function renderWorkCheckHistory(form, feedbackListData) {
     : emptyText('No AI checks yet.', 'work-check-empty');
 }
 
+// Load previous AI checks for the member and micro-goal shown in this form.
 async function loadWorkCheckHistory(form) {
   const list = form.querySelector('.work-check-history-list');
   if (!list) return;
@@ -162,6 +178,7 @@ async function loadWorkCheckHistory(form) {
   }
 }
 
+// Persist checklist ticks and update the ready styling immediately.
 function handleWorkCheckChecklistChange(event) {
   const checkbox = event.target.closest('.work-check-checklist input[type="checkbox"]');
   if (!checkbox) return;
@@ -181,6 +198,7 @@ function handleWorkCheckChecklistChange(event) {
     : 'Tick items as you improve your work.';
 }
 
+// Place fresh AI feedback into the active form.
 function setWorkCheckFeedback(form, feedback) {
   const panel = form.querySelector('.work-check-feedback');
   if (!panel) return;
@@ -192,6 +210,7 @@ function setWorkCheckFeedback(form, feedback) {
   `;
 }
 
+// Show a work-check validation or request error in the same feedback area.
 function setWorkCheckError(form, message) {
   setWorkCheckFeedback(form, {
     type: 'danger',
@@ -200,6 +219,7 @@ function setWorkCheckError(form, message) {
   });
 }
 
+// Route the form submit to either final evidence submission or AI review.
 async function handleEvidenceFormSubmit(event) {
   const form = event.target;
   if (!form.classList.contains('work-check-form')) return;
@@ -213,6 +233,7 @@ async function handleEvidenceFormSubmit(event) {
   await checkWork(form);
 }
 
+// Send draft work to the AI reviewer without completing the micro-goal.
 async function checkWork(form) {
   const equationText = form.elements.equation_text.value.trim();
   const file = form.elements.evidence_file.files[0];
@@ -244,6 +265,7 @@ async function checkWork(form) {
   }
 }
 
+// Submit evidence as the final proof for a member's micro-goal.
 async function submitMemberGoalEvidence(form) {
   const equationText = form.elements.equation_text.value.trim();
   const file = form.elements.evidence_file.files[0];

@@ -1,4 +1,5 @@
 // Rendering for the focus/status mix analytics.
+// Resolve a status into its chart label and color, with a neutral fallback.
 function focusStatusMeta(status) {
   return (
     STATUS_BREAKDOWN_META[normalizeStatusForApi(status)] || {
@@ -8,6 +9,7 @@ function focusStatusMeta(status) {
   );
 }
 
+// Format percentages compactly, keeping one decimal only for small non-round values.
 function formatStatusPercentage(value) {
   const safeValue = asPercent(value);
   if (!safeValue) return '0%';
@@ -16,6 +18,43 @@ function formatStatusPercentage(value) {
     : `${Math.round(safeValue)}%`;
 }
 
+// Translate a Focus Credit score into a visual tone class.
+function focusCreditTone(score) {
+  if (score >= 85) return 'excellent';
+  if (score >= 70) return 'reliable';
+  if (score >= 55) return 'building';
+  return 'starter';
+}
+
+// Render the Focus Credit strip that appears in member cards and analytics rows.
+function renderFocusCredit(memberData) {
+  const credit = memberData.focus_credit || {};
+  const score = asPercent(credit.score ?? 45);
+  const label = credit.label || 'Getting started';
+  const stats = [
+    `${Number(credit.focus_minutes) || 0}m focus`,
+    `${Number(credit.completed_micro_goals) || 0} goals`,
+    `${Number(credit.evidence_uploads) || 0} evidence`,
+  ].join(' | ');
+
+  return `
+    <div class="focus-credit-strip focus-credit-${focusCreditTone(score)}" aria-label="Focus Credit Score ${score}, ${escapeHtml(label)}">
+      <div class="focus-credit-score">
+        <span>Focus Credit</span>
+        <strong>${score}</strong>
+      </div>
+      <div class="focus-credit-detail">
+        <b>${escapeHtml(label)}</b>
+        <span>${escapeHtml(stats)}</span>
+      </div>
+      <div class="focus-credit-meter" aria-hidden="true">
+        <span style="width: ${score}%"></span>
+      </div>
+    </div>
+  `;
+}
+
+// Update cached analytics immediately after the current member changes status.
 function updateStatusMixMemberStatus(userId, status) {
   const member = focusStatusMixData?.members?.find(
     (item) => Number(item.user_id) === Number(userId),
@@ -27,6 +66,7 @@ function updateStatusMixMemberStatus(userId, status) {
   member.current_status = focusStatusMeta(normalizedStatus).label;
 }
 
+// Sum a member's tracked seconds into the statuses we display.
 function statusSecondsByType(member) {
   const secondsByStatus = Object.fromEntries(STATUS_BREAKDOWN_ORDER.map((status) => [status, 0]));
 
@@ -40,6 +80,7 @@ function statusSecondsByType(member) {
   return secondsByStatus;
 }
 
+// Convert raw seconds into percentage segments for one member's stacked bar.
 function statusSegments(member) {
   const secondsByStatus = statusSecondsByType(member);
   const totalSeconds = Math.max(
@@ -58,6 +99,7 @@ function statusSegments(member) {
   }));
 }
 
+// When analytics has not caught up yet, build a believable current-status-only row.
 function fallbackStatusMixMember(member, analyticsMember = {}) {
   const status = normalizeStatusForApi(
     analyticsMember.current_status_key ||
@@ -75,6 +117,7 @@ function fallbackStatusMixMember(member, analyticsMember = {}) {
     ...analyticsMember,
     user_id: member.user_id,
     name: member.name,
+    focus_credit: analyticsMember.focus_credit || member.focus_credit,
     current_status_key: status,
     current_status: focusStatusMeta(status).label,
     display_total_seconds: seconds,
@@ -86,6 +129,7 @@ function fallbackStatusMixMember(member, analyticsMember = {}) {
   };
 }
 
+// Merge live session members with analytics members so nobody disappears from the chart.
 function focusStatusMembers(data) {
   const analyticsByUser = Object.fromEntries(
     (data?.members || []).map((member) => [Number(member.user_id), member]),
@@ -94,11 +138,16 @@ function focusStatusMembers(data) {
   return (sessionData.members || []).map((member) => {
     const analyticsMember = analyticsByUser[Number(member.user_id)] || {};
     return Number(analyticsMember.total_seconds) > 0
-      ? { ...analyticsMember, name: analyticsMember.name || member.name }
+      ? {
+          ...analyticsMember,
+          name: analyticsMember.name || member.name,
+          focus_credit: analyticsMember.focus_credit || member.focus_credit,
+        }
       : fallbackStatusMixMember(member, analyticsMember);
   });
 }
 
+// Render one colored segment of a member's status bar.
 function renderStatusSegment(segment) {
   const percentageText = formatStatusPercentage(segment.percentage);
   const label = segment.percentage >= 12 ? `${escapeHtml(segment.label)} ${percentageText}` : '';
@@ -114,6 +163,7 @@ function renderStatusSegment(segment) {
   `;
 }
 
+// Render the chips under the stacked bar so small segments are still readable.
 function renderStatusBreakdownChips(segments) {
   return segments
     .map(
@@ -129,10 +179,12 @@ function renderStatusBreakdownChips(segments) {
     .join('');
 }
 
+// Redraw analytics from cached data after optimistic status changes.
 function refreshFocusStatusMixDom(data = focusStatusMixData) {
   if (data) renderFocusStatusMixChart(data);
 }
 
+// Render the full focus/status analytics panel.
 function renderFocusStatusMixChart(data) {
   const members = focusStatusMembers(data);
   const renderedAt = Date.now();
@@ -145,6 +197,7 @@ function renderFocusStatusMixChart(data) {
 
   page.statusMixSummary.textContent = `${members.length} ${members.length === 1 ? 'Member' : 'Members'}`;
 
+  // Each row carries its render timestamp so the tracked timer can keep ticking locally.
   page.statusMixChart.innerHTML = members
     .map((member) => {
       const segments = statusSegments(member);
@@ -163,6 +216,7 @@ function renderFocusStatusMixChart(data) {
               tracked
             </span>
           </div>
+          ${renderFocusCredit(member)}
           <div
             class="status-mix-stacked-bar"
             aria-label="${escapeHtml(member.name || 'Member')} focus status percentages"
@@ -180,6 +234,7 @@ function renderFocusStatusMixChart(data) {
   page.statusMixLegend.innerHTML = '';
 }
 
+// Keep tracked-time labels moving between analytics API polls.
 function renderFocusStatusTrackedTimers() {
   page.statusMixChart?.querySelectorAll('.status-mix-tracked-time').forEach((item) => {
     const baseSeconds = Number(item.dataset.trackedSeconds) || 0;
@@ -188,6 +243,7 @@ function renderFocusStatusTrackedTimers() {
   });
 }
 
+// Fetch the analytics snapshot, ignoring older responses that arrive late.
 async function loadFocusStatusMix(options = {}) {
   if (options.showLoading !== false) page.statusMixSummary.textContent = 'Loading';
   const requestVersion = ++focusStatusMixRequestVersion;

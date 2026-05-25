@@ -191,11 +191,16 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px 10px;
   align-items: center;
+  width: 100%;
   margin-top: 9px;
   border: 1px solid #dbe4f0;
   border-radius: 12px;
   padding: 9px 10px;
   background: #ffffff;
+}
+
+.status-mix-member-row .focus-credit-strip {
+  margin-top: 0;
 }
 
 .focus-credit-score {

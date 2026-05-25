@@ -6,6 +6,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow-y: auto;
   background: rgba(15, 23, 42, 0.42);
 }
 
@@ -148,6 +149,8 @@
   width: min(86vw, calc(100vw - 48px));
   height: min(82vh, calc(100vh - 48px));
   max-height: calc(100vh - 48px);
+  height: min(82dvh, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
   border-radius: 24px;
   overflow: hidden;
 }
@@ -157,8 +160,10 @@
   gap: 14px;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-height: 0;
-  overflow: hidden;
-  padding-right: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
 }
 
 .consultation-header-actions {
@@ -214,6 +219,7 @@
 .workspace-panel-shell {
   display: grid;
   gap: 12px;
+  grid-template-rows: minmax(240px, 1fr) minmax(180px, 0.72fr);
   min-height: 0;
 }
 
@@ -260,9 +266,16 @@
 }
 
 .consultation-whiteboard {
+  position: relative;
+  overflow: hidden;
   background: #ffffff;
   cursor: crosshair;
   touch-action: none;
+}
+
+.consultation-whiteboard .konvajs-content,
+.consultation-whiteboard canvas {
+  display: block;
 }
 
 .consultation-scratchpad {
@@ -354,6 +367,11 @@
 }
 
 .consultation-session-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #f8fafc;
+  box-shadow: 0 -14px 30px rgba(248, 250, 252, 0.94);
   justify-items: end;
 }
 
@@ -506,11 +524,21 @@
     width: min(100%, calc(100vw - 24px));
     height: min(86vh, calc(100vh - 24px));
     max-height: calc(100vh - 24px);
+    height: min(86dvh, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
   }
 
   .consultation-context,
   .consultation-review-form,
   .consultation-checklist {
     grid-template-columns: 1fr;
+  }
+
+  .consultation-whiteboard {
+    min-height: 220px;
+  }
+
+  .consultation-scratchpad {
+    min-height: 160px;
   }
 }

@@ -1,7 +1,9 @@
 // DOM references for the study-session page.
 const page = {};
 
+// Cache every study-session element once so the feature modules can share a single page object.
 function bindPage() {
+  // Mission, timing, and completion controls live at the top of the page experience.
   page.editMissionButton = byId('editMissionButton');
   page.endExpiredSessionButton = byId('endExpiredSessionButton');
   page.exitExtendedSessionButton = byId('exitExtendedSessionButton');
@@ -17,6 +19,7 @@ function bindPage() {
 
   page.completionModal = byId('completionModal');
 
+  // Consultation modals need separate references because they can be opened from member cards or toasts.
   page.consultationContext = byId('consultationContext');
 
   page.consultationDirectionModal = byId('consultationDirectionModal');
@@ -42,6 +45,8 @@ function bindPage() {
   page.consultationWhiteboard = byId('consultationWhiteboard');
   page.consultationScratchpad = byId('consultationScratchpad');
   page.clearWhiteboardButton = byId('clearWhiteboardButton');
+
+  // Discussion panel fields are grouped here because that panel is rendered outside the main shell.
   page.closeDiscussionButton = byId('closeDiscussionButton');
   page.discussionButton = byId('discussionButton');
   page.discussionContentInput = byId('discussionContentInput');
@@ -60,6 +65,7 @@ function bindPage() {
 
   page.goalTitle = byId('currentGoalTitle');
 
+  // Member and goal modal references power both the preview list and the detailed upload view.
   page.memberGoalsModal = byId('memberGoalsModal');
 
   page.memberGoalsModalContent = byId('memberGoalsModalContent');
@@ -92,6 +98,7 @@ function bindPage() {
 
   page.toastContainer = byId('sessionToastContainer');
 
+  // Status controls and analytics widgets update every second, so the render code uses cached nodes.
   page.statusControls = Array.from(document.querySelectorAll('.status-control'));
 
   page.statusProgressBar = byId('statusProgressBar');
@@ -112,6 +119,7 @@ function bindPage() {
   page.statusMixSummary = byId('statusMixSummary');
 }
 
+// Tiny helper to keep all ID lookups consistent and easy to scan.
 function byId(id) {
 
   return document.getElementById(id);

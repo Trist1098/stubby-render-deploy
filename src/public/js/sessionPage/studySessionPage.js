@@ -1,49 +1,61 @@
 // Study-session entrypoint and event binding.
+// Attach a click listener by id for simple buttons that do not need custom setup.
 function bindClick(id, handler) {
   byId(id).addEventListener('click', handler);
 }
 
+// Register a mixed list of event bindings in one readable pass.
 function bindEvents(bindings) {
   bindings.forEach(([target, type, handler]) => target.addEventListener(type, handler));
 }
 
+// Register simple button click handlers without repeating DOM lookups everywhere.
 function bindClicks(bindings) {
   bindings.forEach(([id, handler]) => bindClick(id, handler));
 }
 
+// Let users dismiss modal overlays by clicking the backdrop itself.
 function bindBackdropClose(modal, handler) {
   modal.addEventListener('click', (event) => {
     if (event.target === modal) handler();
   });
 }
 
+// Register every backdrop close rule together so modal behavior is easy to audit.
 function bindBackdropClosers(bindings) {
   bindings.forEach(([modal, handler]) => bindBackdropClose(modal, handler));
 }
 
+// Show or hide the micro-goal form and focus the first input when it opens.
 function toggleGoalForm() {
   page.goalForm.classList.toggle('d-none');
   if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
 }
 
+// Expand or collapse the member list preview.
 function toggleMembersExpanded() {
   membersExpanded = !membersExpanded;
   renderMembers();
 }
 
+// Mark the shared scratchpad dirty so the debounced workspace save can pick it up.
 function markScratchpadChanged() {
   markWorkspaceDirty();
   scheduleConsultationWorkspaceSave();
 }
 
+// Resize the whiteboard only when its modal is visible, avoiding work while hidden.
 function resizeWorkspaceIfOpen() {
   if (!page.consultationWorkspaceModal.classList.contains('d-none')) {
-    resizeWhiteboardCanvas();
+    resizeWhiteboardStage();
   }
 }
 
+// Wire together the page-level events after all DOM references have been cached.
 function bindStudySessionEvents() {
   bindDiscussionEvents();
+
+  // Form submissions, delegated clicks, status controls, drag gestures, and keyboard modal behavior.
   bindEvents([
     [page.goalForm, 'submit', addMicroGoal],
     [page.intentionForm, 'submit', saveSessionIntention],
@@ -64,10 +76,6 @@ function bindStudySessionEvents() {
     [page.endExpiredSessionButton, 'click', exitSession],
     [page.stayExtendedSessionButton, 'click', stayInExtendedSession],
     [page.exitExtendedSessionButton, 'click', leaveExtendedSession],
-    [page.consultationWhiteboard, 'pointerdown', startWhiteboardStroke],
-    [page.consultationWhiteboard, 'pointermove', moveWhiteboardStroke],
-    [page.consultationWhiteboard, 'pointerup', finishWhiteboardStroke],
-    [page.consultationWhiteboard, 'pointercancel', finishWhiteboardStroke],
     [page.consultationScratchpad, 'input', markScratchpadChanged],
     [page.clearWhiteboardButton, 'click', clearWhiteboard],
     [window, 'resize', resizeWorkspaceIfOpen],
@@ -77,6 +85,7 @@ function bindStudySessionEvents() {
     [document, 'keydown', keepFocusInsideVisibleModal],
   ]);
 
+  // Buttons that only need a direct click action are easier to scan in this smaller list.
   bindClicks([
     ['showGoalFormButton', toggleGoalForm],
     ['exitSessionButton', () => showModal(page.exitModal, true)],
@@ -96,6 +105,8 @@ function bindStudySessionEvents() {
     ['closeQueueButton', () => showModal(page.queueModal, false)],
     ['closeMemberGoalsButton', () => showModal(page.memberGoalsModal, false)],
   ]);
+
+  // Each modal decides what should happen when its backdrop is clicked.
   bindBackdropClosers([
     [page.exitModal, () => showModal(page.exitModal, false)],
     [page.timeExpiryModal, renderTimeExpiryModal],
@@ -117,6 +128,7 @@ function bindStudySessionEvents() {
   startDiscussionPolling();
 }
 
+// Start the page after login, DOM lookup, event binding, and the first session load.
 document.addEventListener('DOMContentLoaded', () => {
   if (!requireStudySessionLogin()) return;
 

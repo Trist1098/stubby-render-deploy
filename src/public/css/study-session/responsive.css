@@ -1,16 +1,4 @@
 @media (max-width: 991px) {
-  .study-nav-links {
-    align-items: stretch;
-    padding: 14px 0;
-  }
-
-  .study-nav-links .study-nav-link {
-    min-width: 0;
-    flex-direction: row;
-    justify-content: flex-start;
-    padding: 12px 14px !important;
-  }
-
   .session-screen {
     grid-template-columns: 1fr;
   }

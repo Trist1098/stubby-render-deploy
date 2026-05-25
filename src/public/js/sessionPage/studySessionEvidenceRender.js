@@ -1,10 +1,12 @@
 // Rendering for evidence lists and upload forms.
+// Render the existing evidence for a goal, or a short empty state if nothing has been uploaded.
 function renderEvidenceList(evidenceList) {
   return evidenceList.length
     ? evidenceList.map(renderEvidenceItem).join('')
     : emptyText('No evidence uploaded yet.');
 }
 
+// Render one evidence item as either inline equation text or a linked file chip.
 function renderEvidenceItem(item) {
   const type = item.content_type || 'equation';
   const url = item.url || item.image_url;
@@ -33,6 +35,7 @@ function renderEvidenceItem(item) {
   `;
 }
 
+// Render the upload and AI-review form for a member's active micro-goal.
 function renderEvidenceForm(memberData, goalData) {
   return `
     <form class="evidence-upload-form work-check-form" data-user-id="${memberData.user_id}" data-goal-id="${goalData.id}">

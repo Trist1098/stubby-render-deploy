@@ -1,4 +1,5 @@
 // Session loading, lifecycle, expiry, and mission actions.
+// Ask the backend for the latest state after the local timer reaches zero.
 async function refreshExpiredSessionState() {
   if (expiryRefreshInFlight) return;
 
@@ -10,6 +11,7 @@ async function refreshExpiredSessionState() {
   }
 }
 
+// Load the session payload and redraw the page, preserving smooth timers during silent polls.
 async function loadSession(options = {}) {
   if (!options.force && (activeProgressDrag || progressUpdateInFlight)) return;
   if (sessionLoadInFlight) return;
@@ -46,6 +48,7 @@ async function loadSession(options = {}) {
   sessionLoadInFlight = false;
 }
 
+// Show the right time-expiry choice: extend globally, or stay after someone else extended.
 function renderTimeExpiryModal() {
   if (!page.timeExpiryModal) return;
 
@@ -73,10 +76,12 @@ function renderTimeExpiryModal() {
   showModal(page.timeExpiryModal, true);
 }
 
+// Scope the mission/intention draft to this session and this user.
 function sessionIntentionKey() {
   return INTENTION_STORAGE_PREFIX + sessionId + ':' + CURRENT_USER_ID;
 }
 
+// Prefer the local mission, then hydrate it from the current member payload if available.
 function readSessionIntention() {
   const localIntention = localStorage.getItem(sessionIntentionKey()) || '';
   if (localIntention) return localIntention;
@@ -86,23 +91,27 @@ function readSessionIntention() {
   return memberMission;
 }
 
+// Update the mission strip shown at the top of the focus card.
 function renderSessionIntention() {
   const intention = readSessionIntention();
   page.missionStrip.classList.toggle('d-none', !intention);
   page.missionText.textContent = intention;
 }
 
+// Open the mission editor with the latest known intention filled in.
 function openIntentionModal() {
   page.intentionInput.value = readSessionIntention();
   showModal(page.intentionModal, true);
   window.setTimeout(() => page.intentionInput.focus(), 0);
 }
 
+// Ask for a mission once so the session starts with a clear target.
 function promptForSessionIntention() {
   renderSessionIntention();
   if (!readSessionIntention()) openIntentionModal();
 }
 
+// Try to sync the mission to the backend, but keep the local copy if sync fails.
 async function saveMissionToServer(mission) {
   try {
     const member = await getJson(apiBase + '/members/mission', {
@@ -121,6 +130,7 @@ async function saveMissionToServer(mission) {
   }
 }
 
+// Save the session mission from the modal.
 async function saveSessionIntention(event) {
   event.preventDefault();
 
@@ -138,6 +148,7 @@ async function saveSessionIntention(event) {
   await saveMissionToServer(intention);
 }
 
+// Check whether the current viewer is already marked as in consultation.
 function isCurrentUserInConsultation() {
   const currentMember = getCurrentMember();
   return (
@@ -146,6 +157,7 @@ function isCurrentUserInConsultation() {
   );
 }
 
+// Show the rejoin button only when there is an active consultation to return to.
 function updateRejoinButton() {
   if (!page.rejoinConsultationButton) return;
 
@@ -158,6 +170,7 @@ function updateRejoinButton() {
   page.rejoinConsultationButton.classList.toggle('d-none', !shouldShow);
 }
 
+// Tell the backend the member exited, then leave the session page.
 async function exitSession() {
   try {
     await getJson(`${apiBase}/exit`, { method: 'PATCH' });
@@ -168,6 +181,7 @@ async function exitSession() {
   window.location.href = 'index.html';
 }
 
+// Extend an expired session and restart the local timers.
 async function extendExpiredSession(event) {
   event.preventDefault();
 
@@ -195,6 +209,7 @@ async function extendExpiredSession(event) {
   }
 }
 
+// Let this viewer continue after another member has extended the session.
 async function stayInExtendedSession() {
   setButtonsDisabled([page.stayExtendedSessionButton, page.exitExtendedSessionButton], true);
 
@@ -214,6 +229,7 @@ async function stayInExtendedSession() {
   }
 }
 
+// Leave after an extension while the rest of the session can keep going.
 async function leaveExtendedSession() {
   setButtonsDisabled([page.exitExtendedSessionButton, page.stayExtendedSessionButton], true);
 

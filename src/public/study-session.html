@@ -9,9 +9,9 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="css/study-session.css?v=session-ui-polish" />
+    <link rel="stylesheet" href="css/study-session.css?v=navbar-shared-2" />
     <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link
@@ -19,7 +19,8 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
   </head>
-  <body class="study-session-body">
+  <body class="d-flex flex-column min-vh-100 study-session-body">
+    <!-- Shared top navigation for moving between dashboard, sessions, matching, and chat. -->
     <header>
       <div class="container">
         <nav id="navbar" class="navbar navbar-expand-lg py-3">
@@ -27,7 +28,6 @@
             <a href="home.html" class="d-flex align-items-center gap-2 text-decoration-none">
               <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
             </a>
-
             <button
               class="navbar-toggler border-0"
               type="button"
@@ -36,42 +36,29 @@
             >
               <i class="fas fa-bars"></i>
             </button>
-
             <div class="collapse navbar-collapse" id="navContent">
               <ul class="navbar-nav mx-auto gap-2" id="nav-links">
-                <li class="nav-item">
-                  <a href="home.html" class="nav-link study-nav-link">
-                    <i class="fas fa-home"></i>
-                    <span>Home</span>
-                  </a>
-                </li>
+                <li class="nav-item"><a href="home.html" class="nav-link">Dashboard</a></li>
                 <li class="nav-item dropdown">
                   <a
                     href="matchmaking.html"
-                    class="nav-link dropdown-toggle"
+                    class="nav-link dropdown-toggle d-flex align-items-center gap-1"
                     data-bs-toggle="dropdown"
                   >
                     Matchmaking
+                    <i class="fas fa-chevron-down nav-dropdown-icon ms-1"></i>
                   </a>
                   <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
                     <li>
-                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">
-                        Browse Matches
-                      </a>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">Browse Matches</a>
                     </li>
                     <li>
-                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">
-                        My Requests
-                      </a>
+                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">My Requests</a>
                     </li>
                   </ul>
                 </li>
-                <li class="nav-item">
-                  <a href="sessions.html" class="nav-link active">Sessions</a>
-                </li>
-                <li class="nav-item">
-                  <a href="chat.html" class="nav-link">Chat</a>
-                </li>
+                <li class="nav-item"><a href="sessions.html" class="nav-link active">Sessions</a></li>
+                <li class="nav-item"><a href="chat.html" class="nav-link">Chat</a></li>
               </ul>
               <ul class="navbar-nav">
                 <li class="nav-item" id="auth-link"></li>
@@ -82,8 +69,10 @@
       </div>
     </header>
 
+    <!-- Main live study-session workspace. -->
     <main class="session-web-shell">
       <section class="session-screen" aria-labelledby="sessionTitle">
+        <!-- Session title, current context, and the exit action sit at the top of the workspace. -->
         <div class="session-topbar">
           <div>
             <span class="session-kicker">Study Session</span>
@@ -101,6 +90,7 @@
 
         <div id="sessionMessage" class="session-alert d-none"></div>
 
+        <!-- The focus card holds the mission, timer, active micro-goal, queue, and add-goal form. -->
         <section class="session-focus-card">
           <div id="sessionMissionStrip" class="mission-strip d-none">
             <div>
@@ -183,6 +173,7 @@
           </div>
         </section>
 
+        <!-- Personal status controls let each member broadcast focus, break, or help states. -->
         <section class="status-controls-box" aria-labelledby="statusControlsTitle">
           <h2 id="statusControlsTitle">Your Status</h2>
           <div class="status-controls" role="group" aria-label="Set your current status">
@@ -224,6 +215,7 @@
           </div>
         </section>
 
+        <!-- Member cards show the group at a glance and open each person's goals and uploads. -->
         <section class="members-box" aria-labelledby="membersTitle">
           <div class="members-header">
             <h2 id="membersTitle">Members</h2>
@@ -244,6 +236,7 @@
           <div id="membersList" class="members-list"></div>
         </section>
 
+        <!-- The focus mix dashboard summarizes how session time is being spent. -->
         <section class="status-mix-dashboard" aria-labelledby="statusMixTitle">
           <div class="status-mix-heading">
             <div>
@@ -265,6 +258,7 @@
       </section>
     </main>
 
+    <!-- First-run mission modal keeps every student clear on what they want done. -->
     <div
       id="intentionModal"
       class="session-modal d-none"
@@ -293,6 +287,7 @@
       </section>
     </div>
 
+    <!-- Queue modal lists upcoming micro-goals without crowding the main timer card. -->
     <div
       id="queueModal"
       class="session-modal d-none"
@@ -317,6 +312,7 @@
       </section>
     </div>
 
+    <!-- Discussion side panel gives the group a session-specific mini board. -->
     <aside
       id="discussionPanel"
       class="discussion-side-panel"
@@ -385,6 +381,7 @@
       </section>
     </aside>
 
+    <!-- Exit confirmation prevents accidental navigation away from the live session. -->
     <div
       id="exitModal"
       class="session-modal d-none"
@@ -403,6 +400,7 @@
       </section>
     </div>
 
+    <!-- Time-expiry modal handles either ending, extending, or rejoining after an extension. -->
     <div
       id="timeExpiryModal"
       class="session-modal d-none"
@@ -447,6 +445,7 @@
       </section>
     </div>
 
+    <!-- Consultation start modal appears when another member needs help. -->
     <div
       id="consultationModal"
       class="session-modal d-none"
@@ -478,6 +477,7 @@
       </section>
     </div>
 
+    <!-- Shared consultation workspace with chat access, whiteboard, scratchpad, and end action. -->
     <div
       id="consultationWorkspaceModal"
       class="session-modal d-none"
@@ -525,13 +525,13 @@
                     <span>Clear</span>
                   </button>
                 </div>
-                <canvas
+                <div
                   id="consultationWhiteboard"
                   class="consultation-whiteboard"
-                  role="img"
+                  role="application"
                   tabindex="0"
                   aria-label="Shared whiteboard. Use the scratchpad below for keyboard text input."
-                ></canvas>
+                ></div>
               </section>
               <section id="scratchpadPanel" class="workspace-panel" aria-label="Shared scratchpad">
                 <textarea
@@ -553,6 +553,7 @@
       </section>
     </div>
 
+    <!-- Teacher review modal captures the next step after a consultation ends. -->
     <div
       id="consultationReviewModal"
       class="session-modal d-none"
@@ -618,6 +619,7 @@
       </section>
     </div>
 
+    <!-- Direction modal lets a student read the teacher's next step later. -->
     <div
       id="consultationDirectionModal"
       class="session-modal d-none"
@@ -645,6 +647,7 @@
       </section>
     </div>
 
+    <!-- Member-goals modal shows active/completed goals and evidence uploads for one member. -->
     <div
       id="memberGoalsModal"
       class="session-modal d-none"
@@ -669,6 +672,7 @@
       </section>
     </div>
 
+    <!-- Completion modal collects proof before a micro-goal can be locked at 100 percent. -->
     <div
       id="completionModal"
       class="session-modal d-none"
@@ -713,10 +717,11 @@
 
     <div id="sessionToastContainer" class="session-toast-container" aria-live="polite"></div>
 
+    <!-- Vendor scripts and study-session modules are loaded in dependency order. -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
-    <script src="js/sessionPage/studySessionState.js?v=progress-fix"></script>
+    <script src="js/sessionPage/studySessionState.js?v=consultation-konva"></script>
     <script src="js/sessionPage/studySessionDom.js?v=study-session-modules"></script>
     <script src="js/sessionPage/studySessionUi.js?v=study-session-modules"></script>
     <script src="js/sessionPage/studySessionTimerUtils.js?v=study-session-modules"></script>
@@ -724,16 +729,17 @@
     <script src="js/sessionPage/studySessionDiscussion.js?v=study-session-modules"></script>
     <script src="js/sessionPage/studySessionGoalRender.js?v=study-session-modules"></script>
     <script src="js/sessionPage/studySessionEvidenceRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionFocusMixRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionFocusMixRender.js?v=focus-credit-analytics"></script>
     <script src="js/sessionPage/studySessionStatusRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionMemberRender.js?v=study-session-modules"></script>
+    <script src="js/sessionPage/studySessionMemberRender.js?v=focus-credit-analytics"></script>
     <script src="js/sessionPage/studySessionRender.js?v=study-session-modules"></script>
     <script src="js/sessionPage/studySessionTimerActions.js?v=study-session-modules"></script>
     <script src="js/sessionPage/studySessionLifecycleActions.js?v=progress-fix"></script>
     <script src="js/sessionPage/studySessionEvidenceActions.js?v=study-session-modules"></script>
     <script src="js/sessionPage/studySessionGoalActions.js?v=progress-fix"></script>
     <script src="js/sessionPage/studySessionStatusActions.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionConsultation.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionPage.js?v=study-session-modules"></script>
+    <script src="https://cdn.jsdelivr.net/npm/konva@10/konva.min.js"></script>
+    <script src="js/sessionPage/studySessionConsultation.js?v=consultation-konva"></script>
+    <script src="js/sessionPage/studySessionPage.js?v=consultation-konva"></script>
   </body>
 </html>
