@@ -5,9 +5,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     let allStudents = [];
+    let activeMatches = [];
+    let visibleActiveMatchesCount = 3;
     let masterModules = []; 
     let availableLanguages = [];
     let visibleMatchesCount = 7;
+    const ACTIVE_MATCHES_PAGE_SIZE = 3;
     const MAX_COMPARE_STUDENTS = 3;
     let compareSelection = [];
     let userPreferences = {
@@ -15,6 +18,8 @@ document.addEventListener("DOMContentLoaded", function () {
         availability_days: [],
         selected_modes: [],
         selected_times: [],
+        start_time: '',
+        end_time: '',
         style: 'discussion',
         duration: 60,
         priority: 50,
@@ -77,10 +82,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 const isSelected = userPreferences.selected_modules.includes(m.module_id);
                 list.innerHTML += `
                     <div class="dropdown-item py-3 px-4 cursor-pointer d-flex justify-content-between align-items-center ${isSelected ? 'selected' : ''}" 
-                         onclick="window.addPrefModule(${m.module_id})">
+                        onclick="window.addPrefModule(${m.module_id})">
                         <div>
-                            <span class="fw-bold text-dark">${m.code}</span>
-                            <span class="text-muted small ms-2">${m.name}</span>
+                            <span class="fw-bold text-dark">${escapeHTML(m.code)}</span>
+                            <span class="text-muted small ms-2">${escapeHTML(m.name)}</span>
                         </div>
                         ${isSelected ? '<i class="fas fa-check-circle text-primary"></i>' : '<i class="fas fa-plus text-muted opacity-25"></i>'}
                     </div>
@@ -118,6 +123,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 availability_days: [],
                 selected_modes: [],
                 selected_times: [],
+                start_time: '',
+                end_time: '',
                 style: 'discussion',
                 duration: 60,
                 priority: 50,
@@ -278,7 +285,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (select) {
                     select.innerHTML = '';
                     availableLanguages.forEach(l => {
-                        select.innerHTML += `<option value="${l.name}">${l.name.toUpperCase()}</option>`;
+                        select.innerHTML += `<option value="${escapeHTML(l.name)}">${escapeHTML(l.name.toUpperCase())}</option>`;
                     });
                 }
             }
@@ -299,6 +306,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         availability_days: data.availability_days || [],
                         selected_modes: data.selected_modes || [],
                         selected_times: data.selected_times || [],
+                        start_time: data.start_time || '',
+                        end_time: data.end_time || '',
                         style: data.style || 'discussion',
                         duration: data.duration || 60,
                         priority: data.priority || 50,
@@ -336,8 +345,8 @@ document.addEventListener("DOMContentLoaded", function () {
             data = {
                 selected_modules: userPreferences.selected_modules,
                 availability_days: Array.from(form.querySelectorAll('[id^="day"]:checked')).map(el => el.value),
-                selected_modes: Array.from(form.querySelectorAll('[id^="mode"]:checked')).map(el => el.value),
-                selected_times: Array.from(form.querySelectorAll('[id^="time"]:checked')).map(el => el.value),
+                selected_modes: Array.from(form.querySelectorAll('#modeOnline:checked, #modeCampus:checked')).map(el => el.value),
+                selected_times: Array.from(form.querySelectorAll('#timeMorning:checked, #timeAfternoon:checked, #timeEvening:checked')).map(el => el.value),
                 style: Array.from(form.querySelectorAll('[id^="style"]:checked')).map(el => el.value).join(',') || userPreferences.style,
                 gender_pref: genderVal,
                 partner_level: learningVal,
@@ -422,21 +431,24 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    async function loadActiveMatchesCount() {
+    async function loadActiveMatchesDashboard() {
         try {
             const res = await fetch('/api/matches/active', {
                 headers: { Authorization: `Bearer ${auth.getToken()}` },
             });
             if (res.ok) {
-                const activeMatches = await res.json();
+                activeMatches = await res.json();
+                visibleActiveMatchesCount = ACTIVE_MATCHES_PAGE_SIZE;
                 const matchesCountEl = document.getElementById('stat-total-matches');
                 if (matchesCountEl) {
                     const count = Array.isArray(activeMatches) ? activeMatches.length : 0;
                     matchesCountEl.innerText = count === 1 ? '1 Active' : `${count} Active`;
                 }
+                renderActiveMatches(activeMatches);
             }
         } catch (err) {
             console.error('Error fetching active matches:', err);
+            renderActiveMatches([]);
         }
     }
 
@@ -449,7 +461,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 const code = m ? m.code : `Invalid (${mid})`;
                 moduleContainer.innerHTML += `
                     <span class="badge bg-primary rounded-pill p-2 px-3 fw-bold shadow-sm d-flex align-items-center gap-2">
-                        ${code}
+                        ${escapeHTML(code)}
                         <i class="fas fa-times-circle cursor-pointer" onclick="window.removePrefModule(${mid})"></i>
                     </span>
                 `;
@@ -468,6 +480,29 @@ document.addEventListener("DOMContentLoaded", function () {
         const summaryAutoMatch = document.getElementById('summaryAutoMatch');
         if (summaryAutoMatch) {
             summaryAutoMatch.innerText = userPreferences.auto_match_enabled ? 'Auto-Match On' : 'Manual Only';
+        }
+        const summaryMatchPotential = document.getElementById('summaryMatchPotential');
+        if (summaryMatchPotential) {
+            const modules = userPreferences.selected_modules || [];
+            const days = userPreferences.availability_days || [];
+            const times = normalizeList(userPreferences.selected_times);
+            const modes = normalizeList(userPreferences.selected_modes);
+            if (modules.length === 0) {
+                summaryMatchPotential.innerText = 'Add modules so matches can be ranked by shared classes.';
+            } else if (days.length === 0 || times.length === 0) {
+                summaryMatchPotential.innerText = 'Add availability to unlock better schedule suggestions.';
+            } else if (modes.length === 0) {
+                summaryMatchPotential.innerText = 'Choose online or campus mode to filter stronger partners.';
+            } else {
+                summaryMatchPotential.innerText = 'Profile ready: matches can use modules, schedule, and mode.';
+            }
+        }
+        const summaryActiveTimes = document.getElementById('summaryActiveTimes');
+        if (summaryActiveTimes) {
+            const times = normalizeList(userPreferences.selected_times);
+            summaryActiveTimes.innerText = times.length > 0
+                ? times.map(cap).join(', ')
+                : 'Set your availability to improve schedule suggestions.';
         }
 
         const form = document.getElementById('preferencesForm');
@@ -490,14 +525,15 @@ document.addEventListener("DOMContentLoaded", function () {
                     opt.selected = userPreferences.selected_languages.includes(opt.value);
                 });
             }
-            ['day', 'mode', 'time', 'style'].forEach(prefix => {
-                let list = [];
-                if (prefix === 'day') list = userPreferences.availability_days;
-                else if (prefix === 'mode') list = userPreferences.selected_modes;
-                else if (prefix === 'time') list = userPreferences.selected_times;
-                else if (prefix === 'style') list = (userPreferences.style || '').split(',');
-                document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
-                    if (el.type === 'checkbox') el.checked = list.includes(el.value);
+            const checkboxGroups = [
+                { values: normalizeList(userPreferences.availability_days), selector: '#preferencesForm [id^="day"]' },
+                { values: normalizeList(userPreferences.selected_modes), selector: '#modeOnline, #modeCampus' },
+                { values: normalizeList(userPreferences.selected_times), selector: '#timeMorning, #timeAfternoon, #timeEvening' },
+                { values: normalizeList(userPreferences.style), selector: '#stylequiet, #stylediscussion, #stylegroup' },
+            ];
+            checkboxGroups.forEach(({ values, selector }) => {
+                document.querySelectorAll(selector).forEach(el => {
+                    if (el.type === 'checkbox') el.checked = values.includes(el.value);
                 });
             });
         }
@@ -671,7 +707,12 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (student.request_status === 'Accepted') {
-            return `<button class="${className.replace('btn-primary', 'btn-success').replace('btn-accent', 'btn-success')} text-white" disabled>Matched</button>`;
+            return `
+                <button class="${className.replace('btn-primary', 'btn-success').replace('btn-accent', 'btn-success')} text-white"
+                    onclick="event.stopPropagation(); window.openChatWithStudent(${student.user_id})">
+                    <i class="fas fa-comments me-1"></i>Message
+                </button>
+            `;
         }
 
         return `
@@ -680,6 +721,323 @@ document.addEventListener("DOMContentLoaded", function () {
             </button>
         `;
     }
+
+    function getTimeFromSlot(timeSlot) {
+        if (!timeSlot) return 'Not scheduled';
+        const parts = String(timeSlot).replace('T', ' ').split(' ');
+        return (parts[1] || '').slice(0, 5) || 'Not scheduled';
+    }
+
+    function getScoreBreakdown(student) {
+        if (Array.isArray(student?.match_breakdown) && student.match_breakdown.length > 0) {
+            return student.match_breakdown
+                .map(item => ({
+                    label: item.label || 'Match factor',
+                    points: Number(item.points) || 0,
+                    max: Number(item.max) || 0,
+                    detail: item.detail || '',
+                }))
+                .filter(item => item.max > 0);
+        }
+
+        const score = getMatchScore(student);
+        const sharedCount = Number(student?.shared_modules_count) || getSharedModuleCodes(student).length;
+        return [{
+            label: 'Shared modules',
+            points: score,
+            max: 100,
+            detail: `${sharedCount} shared module${sharedCount === 1 ? '' : 's'}`,
+        }];
+    }
+
+    function getMiniBreakdownHTML(student) {
+        return getScoreBreakdown(student)
+            .filter(item => item.points > 0)
+            .slice(0, 3)
+            .map(item => `
+                <div class="score-factor-mini">
+                    <span>${escapeHTML(item.label)}</span>
+                    <strong>${Math.round(item.points)}/${Math.round(item.max)}</strong>
+                </div>
+            `)
+            .join('');
+    }
+
+    function getScoreBreakdownHTML(student) {
+        return getScoreBreakdown(student).map(item => {
+            const percent = item.max > 0 ? Math.min(Math.round((item.points / item.max) * 100), 100) : 0;
+            return `
+                <div class="score-breakdown-row">
+                    <div class="d-flex justify-content-between gap-3 mb-1">
+                        <span class="score-breakdown-label">${escapeHTML(item.label)}</span>
+                        <span class="score-breakdown-points">${Math.round(item.points)} / ${Math.round(item.max)}</span>
+                    </div>
+                    <div class="score-breakdown-track">
+                        <div class="score-breakdown-fill" style="width: ${percent}%"></div>
+                    </div>
+                    <div class="score-breakdown-detail">${escapeHTML(item.detail)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function getMatchSummary(student) {
+        if (student?.profile_text && student.profile_text.trim()) {
+            return student.profile_text.trim();
+        }
+        const strongestFactor = getScoreBreakdown(student)
+            .filter(item => item.points > 0)
+            .sort((a, b) => (b.points / b.max) - (a.points / a.max))[0];
+        if (strongestFactor) {
+            return `${strongestFactor.label}: ${strongestFactor.detail}`;
+        }
+        return 'This profile has limited matching data.';
+    }
+
+    function renderActiveMatches(matches) {
+        const grid = document.getElementById('activeMatchesGrid');
+        const countEl = document.getElementById('activeMatchesCount');
+        const actions = document.getElementById('activeMatchesActions');
+        const toggleBtn = document.getElementById('activeMatchesToggle');
+        const list = Array.isArray(matches) ? matches : [];
+
+        if (countEl) countEl.innerText = `${list.length} active`;
+        if (!grid) return;
+
+        if (list.length === 0) {
+            if (actions) actions.classList.add('d-none');
+            grid.innerHTML = `
+                <div class="col-12">
+                    <div class="active-match-empty">
+                        <i class="fas fa-handshake"></i>
+                        <div>
+                            <strong>No accepted matches yet</strong>
+                            <p class="mb-0">Accepted study requests will appear here with chat and calendar actions.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const hasExtraMatches = list.length > ACTIVE_MATCHES_PAGE_SIZE;
+        const isShowingAll = visibleActiveMatchesCount >= list.length;
+        const visibleList = list.slice(0, visibleActiveMatchesCount);
+        if (actions) actions.classList.toggle('d-none', !hasExtraMatches);
+        if (toggleBtn) {
+            toggleBtn.innerText = isShowingAll ? 'Show less' : `Show all ${list.length}`;
+            toggleBtn.onclick = () => {
+                visibleActiveMatchesCount = isShowingAll ? ACTIVE_MATCHES_PAGE_SIZE : list.length;
+                renderActiveMatches(activeMatches);
+            };
+        }
+
+        grid.innerHTML = visibleList.map(match => {
+            const date = formatDisplayDate(match.time_slot);
+            const time = getTimeFromSlot(match.time_slot);
+            const moduleLabel = match.module_code
+                ? `${match.module_code}${match.module_name ? ` - ${match.module_name}` : ''}`
+                : 'General study';
+            const sessionType = match.type === 'group' ? 'Group Study' : 'One-on-One';
+            const calendarButton = match.event_id
+                ? `<a href="home.html" class="btn btn-white active-match-action"><i class="fas fa-calendar-day me-1"></i>Calendar</a>`
+                : `<button type="button" class="btn btn-white active-match-action" disabled><i class="fas fa-calendar-day me-1"></i>No event</button>`;
+
+            return `
+                <div class="col-md-6 col-xl-4">
+                    <article class="active-match-card h-100">
+                        <div class="d-flex align-items-start gap-3 mb-3">
+                            <div class="active-match-avatar rounded-circle overflow-hidden">
+                                ${getAvatarHTML(match.profile_pic, match.name)}
+                            </div>
+                            <div class="min-w-0 flex-grow-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <h5 class="fw-bold mb-0 text-truncate">${escapeHTML(match.name)}</h5>
+                                    ${match.is_online ? '<span class="live-pulse-dot"></span>' : ''}
+                                </div>
+                                <p class="text-muted small mb-0 text-truncate">@${escapeHTML(match.username || 'student')}</p>
+                            </div>
+                        </div>
+                        <div class="active-match-meta mb-3">
+                            <div><i class="fas fa-book-open"></i><span>${escapeHTML(moduleLabel)}</span></div>
+                            <div><i class="fas fa-calendar-alt"></i><span>${escapeHTML(date)} at ${escapeHTML(time)}</span></div>
+                            <div><i class="fas fa-map-marker-alt"></i><span>${escapeHTML(match.location || 'Location not set')}</span></div>
+                            <div><i class="fas fa-users"></i><span>${escapeHTML(sessionType)}</span></div>
+                        </div>
+                        <p class="active-match-topic text-truncate mb-3">${escapeHTML(match.topic || 'No topic added')}</p>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-accent active-match-action" onclick="window.openChatWithStudent(${match.user_id})">
+                                <i class="fas fa-comments me-1"></i>Chat
+                            </button>
+                            ${calendarButton}
+                        </div>
+                    </article>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.openChatWithStudent = async function(userId) {
+        try {
+            const res = await fetch('/api/chats', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${auth.getToken()}`
+                },
+                body: JSON.stringify({ type: 'friend', friendId: Number(userId) })
+            });
+            if (res.status === 401) return auth.logout();
+            const data = await res.json();
+            if (res.ok && data.conversation_id) {
+                window.location.href = `chat.html?conversationId=${data.conversation_id}`;
+                return;
+            }
+            showThemedAlert(data.message || 'Chat is available after the match is accepted.', {
+                title: 'Chat Not Available',
+                tone: 'warning',
+            });
+        } catch (err) {
+            showThemedAlert('Network error opening chat.', {
+                title: 'Connection Issue',
+                tone: 'danger',
+            });
+        }
+    };
+
+    const dayNames = {
+        sun: 'Sunday',
+        mon: 'Monday',
+        tue: 'Tuesday',
+        wed: 'Wednesday',
+        thu: 'Thursday',
+        fri: 'Friday',
+        sat: 'Saturday',
+    };
+    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const timeCategoryMap = {
+        morning: '09:00',
+        afternoon: '14:00',
+        evening: '18:00',
+    };
+
+    function toLowerList(value) {
+        return normalizeList(value).map(item => item.toLowerCase());
+    }
+
+    function getDateInputValue(date) {
+        return [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, '0'),
+            String(date.getDate()).padStart(2, '0'),
+        ].join('-');
+    }
+
+    function buildScheduleSuggestions(student) {
+        if (!student) return { source: 'No partner selected', slots: [] };
+
+        const myDays = toLowerList(userPreferences.availability_days);
+        const peerDays = toLowerList(student.availability_days);
+        const sharedDays = myDays.filter(day => peerDays.includes(day));
+        let days = sharedDays;
+        let source = 'Shared availability';
+
+        if (days.length === 0) {
+            if (myDays.length > 0) {
+                days = myDays;
+                source = 'Your saved availability';
+            } else if (peerDays.length > 0) {
+                days = peerDays;
+                source = 'Partner availability';
+            }
+        }
+
+        const myTimes = toLowerList(userPreferences.selected_times);
+        const peerTimes = toLowerList(student.selected_times);
+        const sharedTimes = myTimes.filter(time => peerTimes.includes(time));
+        let timeValues = sharedTimes;
+
+        if (timeValues.length === 0) {
+            timeValues = myTimes.length > 0 ? myTimes : peerTimes;
+        }
+
+        const exactTimes = [
+            userPreferences.start_time,
+            student.start_time,
+        ].filter(Boolean);
+
+        const slots = [];
+        const today = new Date();
+        const datesToCheck = [];
+
+        for (let offset = 0; offset < 28; offset += 1) {
+            const candidate = new Date(today);
+            candidate.setDate(today.getDate() + offset);
+            const key = dayKeys[candidate.getDay()];
+            if (days.length === 0 || days.includes(key)) {
+                datesToCheck.push({ date: candidate, dayKey: key });
+            }
+            if (datesToCheck.length >= 10) break;
+        }
+
+        const candidateTimes = exactTimes.length > 0
+            ? exactTimes
+            : timeValues.map(time => timeCategoryMap[time]).filter(Boolean);
+
+        datesToCheck.forEach(({ date, dayKey }) => {
+            candidateTimes.forEach(time => {
+                if (!time) return;
+                const dateValue = getDateInputValue(date);
+                const dateTime = new Date(`${dateValue}T${time}`);
+                if (dateTime <= today) return;
+                slots.push({
+                    date: dateValue,
+                    time,
+                    label: `${dayNames[dayKey] || cap(dayKey)}, ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+                });
+            });
+        });
+
+        return {
+            source,
+            slots: slots.slice(0, 4),
+        };
+    }
+
+    function renderScheduleSuggestions(student) {
+        const wrap = document.getElementById('scheduleSuggestionsWrap');
+        const list = document.getElementById('scheduleSuggestions');
+        const sourceEl = document.getElementById('scheduleSuggestionSource');
+        if (!wrap || !list) return;
+
+        const { source, slots } = buildScheduleSuggestions(student);
+        wrap.style.display = 'block';
+        if (sourceEl) sourceEl.innerText = source;
+
+        if (slots.length === 0) {
+            list.innerHTML = `
+                <div class="schedule-suggestion-empty">
+                    No saved availability overlap yet. Pick any date and time manually.
+                </div>
+            `;
+            return;
+        }
+
+        list.innerHTML = slots.map(slot => `
+            <button type="button" class="schedule-suggestion-btn" onclick="window.applyScheduleSuggestion('${slot.date}', '${slot.time}')">
+                <span>${escapeHTML(slot.label)}</span>
+                <strong>${escapeHTML(slot.time)}</strong>
+            </button>
+        `).join('');
+    }
+
+    window.applyScheduleSuggestion = function(date, time) {
+        const dateInput = document.getElementById('reqDate');
+        const timeInput = document.getElementById('reqTime');
+        if (dateInput) dateInput.value = date;
+        if (timeInput) timeInput.value = time;
+        clearMatchErrors();
+    };
 
     function getCompareRows(student) {
         const sharedModules = getSharedModuleCodes(student);
@@ -976,7 +1334,10 @@ document.addEventListener("DOMContentLoaded", function () {
                                 <div class="flex-wrap gap-2 mb-3 d-flex match-hero-modules-list">
                                     ${moduleTagsHTML || '<span class="text-muted small">No modules enrolled</span>'}
                                 </div>
-                                <p class="match-hero-quote small mb-0 mt-2">"Looking for a study partner to prepare for upcoming tests. Let's work together!"</p>
+                                <div class="score-factor-list mb-3">
+                                    ${getMiniBreakdownHTML(bestMatch)}
+                                </div>
+                                <p class="match-hero-quote small mb-0 mt-2">${escapeHTML(getMatchSummary(bestMatch))}</p>
                             </div>
                             
                             <!-- Actions Column -->
@@ -1033,6 +1394,9 @@ document.addEventListener("DOMContentLoaded", function () {
                                     <span class="text-muted small fw-bold uppercase tracking-wider mb-2 d-block" style="font-size: 8px; letter-spacing: 0.05em;">SHARED MODULES</span>
                                     <div class="flex-wrap gap-1 mb-4 d-flex">
                                         ${moduleTagsHTML || '<span class="text-muted small">No modules</span>'}
+                                    </div>
+                                    <div class="score-factor-list mb-4">
+                                        ${getMiniBreakdownHTML(s)}
                                     </div>
                                 </div>
                             </div>
@@ -1147,7 +1511,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function loadRequests(isLoadMore = false, type = 'both') {
         try {
-            loadActiveMatchesCount();
+            loadActiveMatchesDashboard();
             if (!isLoadMore) {
                 if (type === 'both' || type === 'received') receivedOffset = 0;
                 if (type === 'both' || type === 'sent') sentOffset = 0;
@@ -1236,7 +1600,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function formatDisplayDate(dateStr) {
         if (!dateStr) return 'N/A';
-        const datePart = dateStr.split(' ')[0];
+        const datePart = String(dateStr).replace('T', ' ').split(' ')[0];
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
         if (datePart.includes('-')) {
@@ -1297,6 +1661,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const name = isReceived ? (req.sender_name || 'User') : (req.receiver_name || 'User');
         const pic = isReceived ? req.sender_pic : req.receiver_pic;
         const username = isReceived ? req.sender_username : req.receiver_username;
+        const otherId = isReceived ? req.sender_id : req.receiver_id;
         
         // Status config
         const statusMap = {
@@ -1310,7 +1675,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const sessionType = req.type === 'group' ? 'Group Study' : '1-on-1';
         const dateStr = formatDisplayDate(req.time_slot);
-        const timeStr = req.time_slot ? req.time_slot.split(' ')[1] : 'N/A';
+        const timeStr = getTimeFromSlot(req.time_slot);
 
         return `
             <div class="col-md-6 col-lg-4">
@@ -1324,8 +1689,8 @@ document.addEventListener("DOMContentLoaded", function () {
                             </div>
                         </div>
                         <div class="flex-grow-1 overflow-hidden">
-                            <div class="req-card-name fw-bold text-truncate">${name}</div>
-                            <div class="req-card-username text-truncate">@${username || 'unknown'}</div>
+                            <div class="req-card-name fw-bold text-truncate">${escapeHTML(name)}</div>
+                            <div class="req-card-username text-truncate">@${escapeHTML(username || 'unknown')}</div>
                         </div>
                         <span class="req-badge ${s.badge}">
                             <i class="fas ${s.icon} me-1"></i>${s.label}
@@ -1334,11 +1699,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     <!-- Middle: session info -->
                     <div class="req-card-body flex-grow-1">
-                        <div class="req-card-topic text-truncate mb-2">${req.topic || 'No specific topic'}</div>
+                        <div class="req-card-topic text-truncate mb-2">${escapeHTML(req.topic || 'No specific topic')}</div>
 
                         <div class="req-card-tags d-flex flex-wrap gap-1 mb-3">
                             <span class="req-tag req-tag-module">
-                                <i class="fas fa-book-open fa-xs"></i>${req.module_code || 'General'}
+                                <i class="fas fa-book-open fa-xs"></i>${escapeHTML(req.module_code || 'General')}
                             </span>
                             <span class="req-tag req-tag-type">
                                 <i class="fas fa-users fa-xs"></i>${sessionType}
@@ -1348,15 +1713,15 @@ document.addEventListener("DOMContentLoaded", function () {
                         <div class="req-card-details">
                             <div class="req-detail-row">
                                 <i class="fas fa-calendar-alt req-detail-icon"></i>
-                                <span>${dateStr}</span>
+                                <span>${escapeHTML(dateStr)}</span>
                             </div>
                             <div class="req-detail-row">
                                 <i class="fas fa-clock req-detail-icon"></i>
-                                <span>${timeStr}</span>
+                                <span>${escapeHTML(timeStr)}</span>
                             </div>
                             <div class="req-detail-row">
                                 <i class="fas fa-map-marker-alt req-detail-icon"></i>
-                                <span class="text-truncate">${req.location || 'N/A'}</span>
+                                <span class="text-truncate">${escapeHTML(req.location || 'N/A')}</span>
                             </div>
                         </div>
                     </div>
@@ -1379,6 +1744,15 @@ document.addEventListener("DOMContentLoaded", function () {
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-danger flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.confirmUpdateStatus(${req.request_id}, 'Cancelled')">
                                     <i class="fas fa-ban fa-xs me-1"></i>Cancel
+                                </button>
+                                <button class="btn btn-white flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.viewRequestDetail(${req.request_id})">
+                                    Details
+                                </button>
+                            </div>
+                        ` : req.status === 'Accepted' ? `
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-accent flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.openChatWithStudent(${otherId})">
+                                    <i class="fas fa-comments fa-xs me-1"></i>Chat
                                 </button>
                                 <button class="btn btn-white flex-grow-1 py-2 rounded-4 fw-bold small" onclick="window.viewRequestDetail(${req.request_id})">
                                     Details
@@ -1412,17 +1786,23 @@ document.addEventListener("DOMContentLoaded", function () {
             
             const isReceived = req.receiver_id == auth.getUser().user_id;
             const otherName = isReceived ? (req.sender_name || 'User') : (req.receiver_name || 'User');
+            const otherId = isReceived ? req.sender_id : req.receiver_id;
+            const relatedStudent = getStudentById(otherId) || activeMatches.find(match => Number(match.user_id) === Number(otherId));
+            const score = relatedStudent ? getMatchScore(relatedStudent) : null;
+            const coParticipantNames = Array.isArray(req.co_participant_names)
+                ? req.co_participant_names.map(name => escapeHTML(name)).join(', ')
+                : '';
             
             const statusClass = req.status === 'Accepted' ? 'status-badge-accepted' : req.status === 'Rejected' || req.status === 'Declined' || req.status === 'Cancelled' ? 'status-badge-declined' : 'status-badge-pending';
             
             content.innerHTML = `
                 <div class="mb-4 text-center position-relative">
-                    <span class="badge ${statusClass} rounded-pill position-absolute top-0 end-0 px-3 py-2 fw-bold uppercase smaller">${req.status}</span>
+                    <span class="badge ${statusClass} rounded-pill position-absolute top-0 end-0 px-3 py-2 fw-bold uppercase smaller">${escapeHTML(req.status || 'Pending')}</span>
                     <div class="avatar-wrap rounded-circle overflow-hidden mx-auto mb-3 border-0" style="width: 80px; height: 80px;">
                         ${isReceived ? getAvatarHTML(req.sender_pic, otherName) : getAvatarHTML(req.receiver_pic, otherName)}
                     </div>
-                    <h4 class="fw-bold mb-1">${otherName}</h4>
-                    <p class="text-muted mb-0 small">"${req.topic || 'Study Request'}"</p>
+                    <h4 class="fw-bold mb-1">${escapeHTML(otherName)}</h4>
+                    <p class="text-muted mb-0 small">"${escapeHTML(req.topic || 'Study Request')}"</p>
                 </div>
 
                 <!-- Similarity Insights / Match Analysis -->
@@ -1433,22 +1813,22 @@ document.addEventListener("DOMContentLoaded", function () {
                     </div>
                     <div class="d-flex justify-content-between align-items-center mb-3 position-relative z-1">
                         <h6 class="fw-bold text-primary smaller uppercase mb-0"><i class="fas fa-magic me-2"></i>Match Analysis</h6>
-                        <span class="badge bg-primary rounded-pill px-2.5 py-1 fw-bold">85% Match</span>
+                        <span class="badge bg-primary rounded-pill px-2.5 py-1 fw-bold">${score === null ? 'Accepted request' : `${score}% Match`}</span>
                     </div>
                     
                     <div class="progress mb-3 position-relative z-1" style="height: 6px;">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: 85%;"></div>
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: ${score === null ? 100 : score}%;"></div>
                     </div>
 
                     <div class="d-flex flex-wrap gap-2 position-relative z-1">
                         <div class="small d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded-pill shadow-xs border">
-                            <i class="fas fa-book text-primary smaller"></i> <span class="smaller">Shared Module: <strong>${req.module_code || 'General'}</strong></span>
+                            <i class="fas fa-book text-primary smaller"></i> <span class="smaller">Module: <strong>${escapeHTML(req.module_code || 'General')}</strong></span>
                         </div>
                         <div class="small d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded-pill shadow-xs border">
-                            <i class="fas fa-check-circle text-success smaller"></i> <span class="smaller">Matched on <strong>Schedule</strong></span>
+                            <i class="fas fa-calendar-check text-success smaller"></i> <span class="smaller"><strong>${escapeHTML(formatDisplayDate(req.time_slot))}</strong></span>
                         </div>
                         <div class="small d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded-pill shadow-xs border">
-                            <i class="fas fa-layer-group text-primary smaller"></i> <span class="smaller">Similar <strong>Level</strong></span>
+                            <i class="fas fa-clock text-primary smaller"></i> <span class="smaller"><strong>${escapeHTML(getTimeFromSlot(req.time_slot))}</strong></span>
                         </div>
                     </div>
                 </div>
@@ -1456,7 +1836,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 <div class="row g-4 mb-4">
                     <div class="col-6">
                         <label class="smaller text-muted fw-bold uppercase d-block">MODULE</label>
-                        <span class="fw-bold">${req.module_code || 'N/A'}</span>
+                        <span class="fw-bold">${escapeHTML(req.module_code || 'N/A')}</span>
                     </div>
                     <div class="col-6">
                         <label class="smaller text-muted fw-bold uppercase d-block">SESSION TYPE</label>
@@ -1464,26 +1844,26 @@ document.addEventListener("DOMContentLoaded", function () {
                     </div>
                     <div class="col-6">
                         <label class="smaller text-muted fw-bold uppercase d-block">DATE</label>
-                        <span class="fw-bold"><i class="far fa-calendar-alt me-2 text-primary"></i>${formatDisplayDate(req.time_slot)}</span>
+                        <span class="fw-bold"><i class="far fa-calendar-alt me-2 text-primary"></i>${escapeHTML(formatDisplayDate(req.time_slot))}</span>
                     </div>
                     <div class="col-6">
                         <label class="smaller text-muted fw-bold uppercase d-block">TIME</label>
-                        <span class="fw-bold"><i class="far fa-clock me-2 text-primary"></i>${req.time_slot ? req.time_slot.split(' ')[1] : 'N/A'}</span>
+                        <span class="fw-bold"><i class="far fa-clock me-2 text-primary"></i>${escapeHTML(getTimeFromSlot(req.time_slot))}</span>
                     </div>
                     <div class="col-12">
                         <label class="smaller text-muted fw-bold uppercase d-block">LOCATION</label>
-                        <span class="fw-bold"><i class="fas fa-map-marker-alt me-2 text-primary"></i>${req.location}</span>
+                        <span class="fw-bold"><i class="fas fa-map-marker-alt me-2 text-primary"></i>${escapeHTML(req.location || 'N/A')}</span>
                     </div>
                     ${req.type === 'group' ? `
                     <div class="col-12">
                         <label class="smaller text-muted fw-bold uppercase d-block">CO-PARTICIPANTS</label>
-                        <span class="fw-bold"><i class="fas fa-user-friends me-2 text-primary"></i>${req.co_participant_names && req.co_participant_names.length > 0 ? req.co_participant_names.join(', ') : 'No participants invited'}</span>
+                        <span class="fw-bold"><i class="fas fa-user-friends me-2 text-primary"></i>${coParticipantNames || 'No participants invited'}</span>
                     </div>
                     ` : ''}
                     <div class="col-12">
                         <label class="smaller text-muted fw-bold uppercase d-block">PERSONAL NOTE</label>
                         <div class="p-3 bg-light rounded-4 small italic">
-                            "${req.message || 'No note attached.'}"
+                            "${escapeHTML(req.message || 'No note attached.')}"
                         </div>
                     </div>
                 </div>
@@ -1496,6 +1876,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 ` : !isReceived && req.status === 'Pending' ? `
                     <div class="d-grid">
                         <button class="btn btn-outline-danger py-3 rounded-4" onclick="window.confirmUpdateStatus(${req.request_id}, 'Cancelled')">CANCEL REQUEST</button>
+                    </div>
+                ` : req.status === 'Accepted' ? `
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-accent py-3 rounded-4" onclick="window.openChatWithStudent(${otherId})">OPEN CHAT</button>
+                        ${req.event_id ? '<a class="btn btn-white py-3 rounded-4 fw-bold" href="home.html">VIEW CALENDAR</a>' : ''}
                     </div>
                 ` : ''}
             `;
@@ -1516,13 +1901,23 @@ document.addEventListener("DOMContentLoaded", function () {
             });
             if (res.status === 401) return auth.logout();
             if (res.ok) {
+                const result = await res.json();
                 // Close offcanvas if open
                 const drawerEl = document.getElementById('requestDetailDrawer');
                 const drawer = bootstrap.Offcanvas.getInstance(drawerEl);
                 if (drawer) drawer.hide();
                 
                 loadRequests();
-                if (typeof showSuccess === 'function') showSuccess(`Request ${status.toLowerCase()} successfully!`);
+                const suffix = status === 'Accepted' && result.conversation_id
+                    ? ' Chat is now available.'
+                    : '';
+                if (typeof showSuccess === 'function') showSuccess(`Request ${status.toLowerCase()} successfully!${suffix}`);
+            } else {
+                const err = await res.json();
+                showThemedAlert(err.message || 'Error updating status.', {
+                    title: 'Request Not Updated',
+                    tone: 'danger',
+                });
             }
         } catch (err) {
             showThemedAlert('Error updating status.', {
@@ -1537,8 +1932,11 @@ document.addEventListener("DOMContentLoaded", function () {
         clearMatchErrors();
         const targetStudent = getStudentById(id);
         const displayName = name || targetStudent?.name || 'this student';
+        const form = document.getElementById('matchRequestForm');
+        if (form) form.reset();
         document.getElementById('targetId').value = id;
         document.getElementById('targetName').innerText = displayName;
+        renderScheduleSuggestions(targetStudent);
         
         // Reset and show loading state
         const moduleSelect = document.getElementById('reqModuleId');
@@ -1564,7 +1962,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     moduleSelect.innerHTML = '<option value="">No shared modules found</option>';
                 } else {
                     shared.forEach(m => {
-                        moduleSelect.innerHTML += `<option value="${m.module_id}">${m.code} - ${m.name}</option>`;
+                        moduleSelect.innerHTML += `<option value="${m.module_id}">${escapeHTML(m.code)} - ${escapeHTML(m.name)}</option>`;
                     });
                 }
             }
@@ -1575,36 +1973,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     coPartSelect.innerHTML = '<option value="" disabled>No friends available to invite</option>';
                 } else {
                     friends.forEach(f => {
-                        coPartSelect.innerHTML += `<option value="${f.friend_id || f.user_id}">${f.username || f.name}</option>`;
+                        coPartSelect.innerHTML += `<option value="${f.friend_id || f.user_id}">${escapeHTML(f.username || f.name)}</option>`;
                     });
                 }
             }
         } catch (err) {
             moduleSelect.innerHTML = '<option value="">Error loading modules</option>';
             if (coPartSelect) coPartSelect.innerHTML = '<option value="">Error loading friends</option>';
-        }
-    };
-
-    window.updateStatus = async function(id, status) {
-        try {
-            const res = await fetch(`/api/matches/request/${id}/status`, {
-                method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${auth.getToken()}`
-                },
-                body: JSON.stringify({ status })
-            });
-            if (res.status === 401) return auth.logout();
-            if (res.ok) {
-                loadRequests();
-                showSuccess(`Request ${status.toLowerCase()} successfully!`);
-            }
-        } catch (err) {
-            showThemedAlert('Error updating status.', {
-                title: 'Request Not Updated',
-                tone: 'danger',
-            });
         }
     };
 
@@ -1771,9 +2146,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const matchScore = student.match_percentage !== undefined ? student.match_percentage : (student.shared_modules_count ? Math.min(student.shared_modules_count * 25, 100) : 0);
         document.getElementById('modalMatchRate').innerText = `${matchScore}%`;
         
-        const randomHours = Math.floor(Math.random() * 8) + 2;
-        const randomMinutes = Math.floor(Math.random() * 50) + 10;
-        document.getElementById('modalActiveHours').innerText = `${randomHours}h ${randomMinutes}m`;
+        document.getElementById('modalActiveHours').innerText = student.is_online ? 'Online' : 'Offline';
 
         const avatar = getAvatarHTML(student.profile_pic, student.name);
         document.getElementById('modalAvatarWrap').innerHTML = avatar;
@@ -1782,11 +2155,10 @@ document.addEventListener("DOMContentLoaded", function () {
         modulesList.innerHTML = '';
         const studentModules = (student.modules || '').split(',').filter(m => m.trim().length > 0);
         studentModules.forEach(m => {
-            modulesList.innerHTML += `<span class="badge bg-indigo-subtle text-primary px-3 py-2 rounded-3 fw-bold small uppercase tracking-wider">${m.trim()}</span>`;
+            modulesList.innerHTML += `<span class="badge bg-indigo-subtle text-primary px-3 py-2 rounded-3 fw-bold small uppercase tracking-wider">${escapeHTML(m.trim())}</span>`;
         });
 
-        const firstModule = studentModules[0] || 'Core';
-        const studentFirstWord = student.name.split(' ')[0];
+        const studentFirstWord = (student.name || 'Student').split(' ')[0];
         
         // Parse peer preferences safely
         const parsePeerJson = (val) => {
@@ -1812,12 +2184,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const peerLanguages = parsePeerJson(student.selected_languages);
 
         let dynamicLocation = 'SP Main Campus';
-        if (peerModes.includes('online') && peerModes.includes('in-person')) {
-            dynamicLocation = 'SP Campus & Online';
+        if (peerModes.includes('online') && (peerModes.includes('campus') || peerModes.includes('in-person'))) {
+            dynamicLocation = 'Campus & Online';
         } else if (peerModes.includes('online')) {
-            dynamicLocation = 'Online (Discord / Teams)';
-        } else if (peerModes.includes('in-person')) {
-            dynamicLocation = 'SP Main Campus';
+            dynamicLocation = 'Online';
+        } else if (peerModes.includes('campus') || peerModes.includes('in-person')) {
+            dynamicLocation = 'Campus';
         }
 
         let dynamicPref = 'Flexible Schedule';
@@ -1850,6 +2222,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.getElementById('modalLocation').innerText = dynamicLocation;
         document.getElementById('modalTimePreference').innerText = dynamicPref;
+        document.getElementById('modalCampus').innerText = student.institution_name || 'Institution not set';
         document.getElementById('modalGoals').innerText = dynamicGoals;
         document.getElementById('modalAbout').innerText = dynamicAbout;
 
@@ -1977,109 +2350,51 @@ document.addEventListener("DOMContentLoaded", function () {
         compatList.innerHTML = finalItems.map(item => `
             <div class="col-md-6 d-flex align-items-center gap-2 mb-2">
                 <i class="fas ${item.icon} ${item.color || 'text-success'}"></i>
-                <span class="small fw-bold">${item.text}</span>
+                <span class="small fw-bold">${escapeHTML(item.text)}</span>
             </div>
         `).join('');
 
-        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-        let insightText = '';
+        const insightParts = [];
 
         if (sharedModules.length > 1) {
-            insightText += pick([
-                `With <strong>${sharedModules.length}</strong> shared modules (<strong>${sharedModules.join(', ')}</strong>), <strong>${studentFirstWord}</strong> is a natural study partner for tackling assignments and revision together.`,
-                `You and <strong>${studentFirstWord}</strong> share <strong>${sharedModules.join(' & ')}</strong> — a strong academic foundation for collaborative learning and exam prep.`,
-                `<strong>${studentFirstWord}</strong> is studying the same modules as you (<strong>${sharedModules.join(', ')}</strong>), making them an excellent candidate for peer tutoring and group reviews.`
-            ]);
+            insightParts.push(`You and ${studentFirstWord} share ${sharedModules.join(', ')}, giving this match strong module overlap.`);
         } else if (sharedModules.length === 1) {
-            insightText += pick([
-                `Your shared focus in <strong>${sharedModules[0]}</strong> makes <strong>${studentFirstWord}</strong> an ideal partner for targeted revision sessions and concept discussions.`,
-                `Both of you are studying <strong>${sharedModules[0]}</strong> — collaborating on practice problems and code reviews could boost both your grades.`,
-                `<strong>${studentFirstWord}</strong> shares your <strong>${sharedModules[0]}</strong> module, opening up opportunities for joint study sprints and knowledge sharing.`
-            ]);
+            insightParts.push(`You and ${studentFirstWord} both study ${sharedModules[0]}, so the request can stay focused and practical.`);
         } else if (peerModuleCodes.length > 0) {
-            insightText += pick([
-                `While <strong>${studentFirstWord}</strong> focuses on <strong>${peerModuleCodes[0]}</strong>, cross-module study partnerships often bring fresh perspectives to problem-solving.`,
-                `<strong>${studentFirstWord}</strong> is studying <strong>${peerModuleCodes.slice(0, 2).join(' & ')}</strong> — connecting across modules can spark creative approaches to common challenges.`
-            ]);
+            insightParts.push(`${studentFirstWord} is studying ${peerModuleCodes.slice(0, 2).join(', ')}, which may still support cross-module study.`);
         } else {
-            insightText += pick([
-                `As a dedicated <strong>${student.diploma_code || 'IT'}</strong> student, <strong>${studentFirstWord}</strong> brings focus and motivation to any study partnership.`,
-                `<strong>${studentFirstWord}</strong> is an engaged <strong>${student.diploma_code || 'IT'}</strong> learner ready to team up on academic goals.`
-            ]);
+            insightParts.push(`${studentFirstWord} has limited module data, so check their profile before sending a request.`);
         }
 
         if (sharedDays.length > 0 && sharedTimes.length > 0) {
-            insightText += ' ' + pick([
-                `Your schedules align on <strong>${sharedDays.map(cap).join(' & ')}</strong> during <strong>${sharedTimes.map(cap).join(' / ')}</strong> hours — setting up regular sessions will be effortless.`,
-                `With both of you free on <strong>${sharedDays.map(cap).join(', ')}</strong> (${sharedTimes.map(cap).join('/')}) , coordinating weekly meetups is seamless.`
-            ]);
+            insightParts.push(`Your saved availability overlaps on ${sharedDays.map(cap).join(', ')} during ${sharedTimes.map(cap).join(' / ')} sessions.`);
         } else if (sharedDays.length > 0) {
-            insightText += ' ' + pick([
-                `You share availability on <strong>${sharedDays.map(cap).join(' & ')}</strong>, making it easy to lock in consistent study slots.`,
-                `Both of you are free on <strong>${sharedDays.map(cap).join(', ')}</strong> — perfect for building a recurring study routine.`
-            ]);
+            insightParts.push(`You share available days: ${sharedDays.map(cap).join(', ')}.`);
         } else if (sharedModes.length > 0) {
-            insightText += ' ' + pick([
-                `You both prefer <strong>${sharedModes.map(cap).join(' / ')}</strong> sessions, removing friction when planning how to meet.`,
-                `Since you both enjoy <strong>${sharedModes.map(cap).join('/')}</strong> study formats, collaboration logistics are already sorted.`
-            ]);
+            insightParts.push(`Both of you support ${sharedModes.map(cap).join(' / ')} sessions.`);
         } else if (sharedStyles.length > 0) {
-            insightText += ' ' + pick([
-                `Your shared preference for <strong>${sharedStyles.map(cap).join(' / ')}</strong> study means productive sessions from day one.`,
-                `Both of you thrive in a <strong>${sharedStyles.map(cap).join('/')}</strong> environment — a recipe for effective collaboration.`
-            ]);
+            insightParts.push(`Your study style overlap is ${sharedStyles.map(cap).join(' / ')}.`);
         } else if (sharedLanguages.length > 0) {
-            insightText += ' ' + pick([
-                `You both communicate in <strong>${sharedLanguages.map(cap).join(' & ')}</strong>, ensuring smooth and comfortable discussions.`,
-                `Sharing <strong>${sharedLanguages.map(cap).join(' & ')}</strong> as a common language removes any communication barriers.`
-            ]);
-        } else {
-            insightText += ' ' + pick([
-                `Reach out to align study schedules and discover shared learning goals!`,
-                `Connect to explore mutual academic interests and coordinate study sessions!`
-            ]);
+            insightParts.push(`You share ${sharedLanguages.map(cap).join(', ')} as a preferred language.`);
         }
 
-        document.getElementById('modalAiInsight').innerHTML = insightText;
+        document.getElementById('modalAiInsight').innerText = insightParts.join(' ');
+
+        const scoreBreakdown = document.getElementById('modalScoreBreakdown');
+        const scoreBreakdownTotal = document.getElementById('modalScoreBreakdownTotal');
+        if (scoreBreakdown) {
+            scoreBreakdown.innerHTML = getScoreBreakdownHTML(student) || `
+                <div class="score-breakdown-empty">No match score details available for this profile.</div>
+            `;
+        }
+        if (scoreBreakdownTotal) {
+            scoreBreakdownTotal.innerText = `${getMatchScore(student)} / 100`;
+        }
 
         const viewFullProfileBtn = document.getElementById('modalViewFullProfile');
         if (viewFullProfileBtn) {
             viewFullProfileBtn.href = `viewProfile.html?friendId=${student.user_id}`;
         }
-
-        const featuredReviews = [
-            { comment: `"One of the best partners I've worked with. Very meticulous with ${firstModule}!"`, author: "- Jason Lee (Peer Tutor)" },
-            { comment: `"Explains difficult concepts very clearly during our sessions."`, author: "- Sarah Tan (Study Partner)" },
-            { comment: `"Super focused and very organized. Great motivator."`, author: "- Mike Chen (Classmate)" }
-        ];
-        const featured = featuredReviews[userId % featuredReviews.length];
-        document.getElementById('modalFeaturedReviewComment').innerText = featured.comment;
-        document.getElementById('modalFeaturedReviewAuthor').innerText = featured.author;
-
-        const reviewsList = document.getElementById('modalReviewsList');
-        reviewsList.innerHTML = '';
-        const classmates = [
-            { name: "Chloe Wong", avatar: "👩🏽‍🎨", role: "Classmate", comment: "Really easy to communicate with!" },
-            { name: "Aaron Tan", avatar: "👨🏽‍💻", role: "Study Partner", comment: "Helped me debug my projects!" },
-            { name: "Rachel Lim", avatar: "👩🏼‍🔬", role: "Classmate", comment: "Super friendly and helpful!" }
-        ];
-        classmates.forEach((c) => {
-            reviewsList.innerHTML += `
-                <div class="p-3 bg-light rounded-4 flex-shrink-0" style="width: 220px; min-width: 220px;">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <div style="width: 32px; height: 32px; min-width: 32px;">
-                            ${getAvatarHTML(null, c.name)}
-                        </div>
-                        <div>
-                            <div class="fw-bold small text-dark" style="font-size: 11px;">${c.name}</div>
-                            <div class="text-muted" style="font-size: 9px;">${c.role}</div>
-                        </div>
-                    </div>
-                    <div class="small text-muted italic" style="font-size: 11px;">"${c.comment}"</div>
-                </div>
-            `;
-        });
-
         const connectBtn = document.getElementById('modalConnectBtn');
         if (student.request_status === 'Pending') {
             connectBtn.className = 'btn btn-secondary flex-grow-1 py-3 rounded-4 fw-bold uppercase small';
@@ -2087,8 +2402,11 @@ document.addEventListener("DOMContentLoaded", function () {
             connectBtn.disabled = true;
         } else if (student.request_status === 'Accepted') {
             connectBtn.className = 'btn btn-success flex-grow-1 py-3 rounded-4 fw-bold uppercase small';
-            connectBtn.innerHTML = `<i class="fas fa-handshake me-2"></i>Matched`;
-            connectBtn.disabled = true;
+            connectBtn.innerHTML = `<i class="fas fa-comments me-2"></i>Message`;
+            connectBtn.disabled = false;
+            connectBtn.onclick = function() {
+                window.openChatWithStudent(student.user_id);
+            };
         } else {
             connectBtn.className =
                 'btn btn-accent flex-grow-1 py-3 rounded-4 fw-bold uppercase small shadow-soft';

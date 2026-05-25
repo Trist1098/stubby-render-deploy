@@ -268,6 +268,29 @@
         </div>
 
         <div id="requestsSection" style="display: none;">
+            <section class="active-matches-panel mb-5" aria-labelledby="activeMatchesTitle">
+                <div class="d-flex align-items-center justify-content-between gap-3 mb-3 flex-wrap">
+                    <div>
+                        <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fw-bold uppercase smaller mb-2">
+                            Accepted Matches
+                        </span>
+                        <h4 class="fw-bold mb-1" id="activeMatchesTitle">Active Study Partners</h4>
+                        <p class="text-muted small mb-0">Accepted requests with session details, chat access, and calendar links.</p>
+                    </div>
+                    <span class="active-matches-count" id="activeMatchesCount">0 active</span>
+                </div>
+                <div id="activeMatchesGrid" class="row g-3">
+                    <div class="col-12 text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                    </div>
+                </div>
+                <div id="activeMatchesActions" class="active-matches-actions mt-3 text-center d-none">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="activeMatchesToggle">
+                        Show all matches
+                    </button>
+                </div>
+            </section>
+
             <div class="row mb-4">
                 <div class="col-12 text-center">
                     <div class="segmented-tabs" id="request-tabs" role="tablist">
@@ -391,6 +414,14 @@
                             </div>
                         </div>
 
+                        <div class="mb-3" id="scheduleSuggestionsWrap" style="display: none">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <label class="form-label small fw-bold text-muted uppercase mb-0">SUGGESTED SLOTS</label>
+                                <span class="text-muted smaller fw-bold" id="scheduleSuggestionSource">Based on availability</span>
+                            </div>
+                            <div id="scheduleSuggestions" class="schedule-suggestion-list"></div>
+                        </div>
+
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label small fw-bold text-muted uppercase mb-0">LOCATION<span class="text-danger" id="reqLocationStar">*</span></label>
@@ -476,14 +507,14 @@
                                             <div class="p-4 rounded-4 bg-primary text-white h-100">
                                                 <i class="fas fa-bolt mb-3 fs-3"></i>
                                                 <h5 class="fw-bold">Match Potential</h5>
-                                                <p class="small opacity-75 mb-0">Add more modules to increase your synergy with others.</p>
+                                                <p class="small opacity-75 mb-0" id="summaryMatchPotential">Complete your study details to improve ranking.</p>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="p-4 rounded-4 bg-light h-100 border border-2 border-dashed">
                                                 <i class="fas fa-clock text-primary mb-3 fs-3"></i>
-                                                <h5 class="fw-bold">Active Hours</h5>
-                                                <p class="small text-muted mb-0">Most study partners are active between 7PM - 11PM.</p>
+                                                <h5 class="fw-bold">Preferred Times</h5>
+                                                <p class="small text-muted mb-0" id="summaryActiveTimes">Set your availability to improve schedule suggestions.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -804,7 +835,7 @@
                                                 <span class="badge modal-ai-insight-badge px-2 py-1 rounded-3 fw-bold"><i class="fas fa-robot me-1"></i> AI INSIGHT</span>
                                             </div>
                                             <p class="text-white fw-medium mb-0 small line-height-relaxed" id="modalAiInsight">
-                                                Based on your shared focus in FOP2, this student is an ideal partner for weekly exam prep and code reviews.
+                                                Match insight will appear here after the profile loads.
                                             </p>
                                         </div>
                                     </div>
@@ -827,8 +858,8 @@
                                 </div>
                                 <div class="col-6">
                                     <div class="p-3 bg-light border rounded-4 text-center">
-                                        <div class="small text-muted fw-bold uppercase mb-1">Active Now</div>
-                                        <h3 class="fw-bold text-dark mb-0" id="modalActiveHours">6h 12m</h3>
+                                        <div class="small text-muted fw-bold uppercase mb-1">Status</div>
+                                        <h3 class="fw-bold text-dark mb-0" id="modalActiveHours">--</h3>
                                     </div>
                                 </div>
                             </div>
@@ -859,8 +890,8 @@
                                         <i class="fas fa-school"></i>
                                     </div>
                                     <div>
-                                        <div class="small text-muted fw-bold modal-quick-detail-label">Campus</div>
-                                        <div class="fw-bold text-dark small">SP Main Campus</div>
+                                        <div class="small text-muted fw-bold modal-quick-detail-label">Institution</div>
+                                        <div class="fw-bold text-dark small" id="modalCampus">Institution will appear here</div>
                                     </div>
                                 </div>
                             </div>
@@ -870,7 +901,7 @@
                                 <div class="col-12">
                                     <div class="p-3 bg-light rounded-4 h-100">
                                         <h6 class="fw-bold text-primary uppercase small mb-2">Goals</h6>
-                                        <p class="text-muted small mb-0 italic" id="modalGoals">"Aiming for an A in FOP2 and improving consistency in BED."</p>
+                                        <p class="text-muted small mb-0 italic" id="modalGoals">Study goals will appear here.</p>
                                     </div>
                                 </div>
                                 <div class="col-12">
@@ -910,25 +941,13 @@
                                 </div>
                             </div>
 
-                            <!-- Match Reviews -->
+                            <!-- Score Breakdown -->
                             <div>
                                 <div class="d-flex align-items-center justify-content-between mb-3">
-                                    <h6 class="fw-bold text-muted uppercase small mb-0">Partner Reviews</h6>
-                                    <div class="d-flex align-items-center gap-1">
-                                        <i class="fas fa-star text-warning"></i>
-                                        <span class="fw-bold text-dark small" id="modalReviewsRating">4.9/5.0</span>
-                                        <span class="text-muted small" id="modalReviewsCount">(12 reviews)</span>
-                                    </div>
+                                    <h6 class="fw-bold text-muted uppercase small mb-0">Match Score Breakdown</h6>
+                                    <span class="text-muted small fw-bold" id="modalScoreBreakdownTotal">0 / 100</span>
                                 </div>
-
-                                <div class="bg-warning-subtle border border-warning-subtle-200 p-3 rounded-4 mb-3 position-relative">
-                                    <span class="badge bg-warning text-dark uppercase small position-absolute top-0 end-0 m-3 modal-featured-review-badge">Featured Review</span>
-                                    <p class="text-dark fw-bold mb-1 italic small" id="modalFeaturedReviewComment">"One of the best partners I've worked with. Very meticulous!"</p>
-                                    <div class="small text-muted fw-bold modal-featured-review-author" id="modalFeaturedReviewAuthor">- Jason Lee (Peer Tutor)</div>
-                                </div>
-
-                                <!-- Review Carousel -->
-                                <div class="d-flex gap-3 overflow-x-auto pb-2 no-scrollbar" id="modalReviewsList">
+                                <div id="modalScoreBreakdown" class="score-breakdown-list">
                                     <!-- Populated dynamically -->
                                 </div>
                             </div>

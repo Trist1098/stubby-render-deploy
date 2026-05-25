@@ -50,6 +50,28 @@ module.exports.checkFriendship = async (userId, friendId) => {
   return result.rows.length > 0;
 };
 
+module.exports.getFriendConversation = async (userId, friendId) => {
+  const result = await pool.query(
+    `SELECT cc.*
+     FROM ChatConversation cc
+     JOIN ConversationMember cm ON cm.conversation_id = cc.conversation_id
+     WHERE cc.type = 'friend'
+       AND cm.user_id IN ($1, $2)
+     GROUP BY cc.conversation_id
+     HAVING COUNT(DISTINCT cm.user_id) = 2
+     ORDER BY cc.created_at ASC
+     LIMIT 1`,
+    [userId, friendId]
+  );
+  return result.rows[0] || null;
+};
+
+module.exports.ensureFriendConversation = async (userId, friendId, creatorId = userId) => {
+  const existing = await module.exports.getFriendConversation(userId, friendId);
+  if (existing) return existing;
+  return module.exports.createConversation(null, 'friend', [userId, friendId], creatorId);
+};
+
 module.exports.getConversationsByUserId = async (userId) => {
   const result = await pool.query(
     `SELECT
@@ -357,7 +379,7 @@ module.exports.searchMessages = async (conversationId, { q, dateFrom, dateTo, se
     values.push(dateTo);
   }
   if (senderId) {
-    conditions.push(`cm.sender_id = $${i++}`);
+    conditions.push(`cm.sender_id = $${i}`);
     values.push(Number(senderId));
   }
   if (type === 'text') {
