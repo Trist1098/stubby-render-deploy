@@ -665,9 +665,10 @@ async function refreshMessages() {
   chatState.messageRefreshInFlight = true;
   const conversationId = chatState.activeConversationId;
 
-  const [data, typingData] = await Promise.all([
+  const [data, typingData, pinned] = await Promise.all([
     fetchMessages(conversationId),
     fetchTypingUsers(conversationId),
+    fetchPinnedMessages(conversationId),
   ]);
   chatState.messageRefreshInFlight = false;
 
@@ -676,14 +677,40 @@ async function refreshMessages() {
   chatState.typingUsers = Array.isArray(typingData) ? typingData : [];
   renderTypingIndicator();
 
+  if (Array.isArray(pinned)) {
+    const pinnedChanged = JSON.stringify(pinned.map((p) => p.message_id)) !==
+      JSON.stringify(chatState.pinnedMessages.map((p) => p.message_id));
+    if (pinnedChanged) {
+      chatState.pinnedMessages = pinned;
+      updatePinnedBar();
+    }
+  }
+
   if (!Array.isArray(data)) return;
 
-  const oldLastId = chatState.activeMessages.at(-1)?.message_id;
-  const newLastId = data.at(-1)?.message_id;
-  if (chatState.activeMessages.length === data.length && oldLastId === newLastId) return;
+  const messagesChanged = data.length !== chatState.activeMessages.length ||
+    data.some((msg, i) => {
+      const old = chatState.activeMessages[i];
+      if (!old || old.message_id !== msg.message_id) return true;
+      if (old.is_deleted !== msg.is_deleted) return true;
+      if (old.edited_at !== msg.edited_at) return true;
+      if ((old.read_by_count || 0) !== (msg.read_by_count || 0)) return true;
+      if (JSON.stringify(old.reactions || []) !== JSON.stringify(msg.reactions || [])) return true;
+      return false;
+    });
+
+  if (!messagesChanged) return;
+
+  const currentUserId = Number(getCurrentUserId());
+  const hasNewOthersMessages = data.some(
+    (msg) => Number(msg.sender_id) !== currentUserId &&
+      !chatState.activeMessages.some((old) => old.message_id === msg.message_id),
+  );
 
   chatState.activeMessages = data;
   renderMessageList(true);
+
+  if (hasNewOthersMessages) markConversationAsRead(conversationId).catch(() => {});
 
   const latestMessage = chatState.activeMessages.at(-1);
   const conv = getActiveConversation();
@@ -692,6 +719,25 @@ async function refreshMessages() {
       || (latestMessage.file_type?.startsWith('audio/') ? 'Voice message' : latestMessage.file_name || 'File');
     conv.last_message_at = latestMessage.created_at;
     renderConversationList(loadMessages);
+  }
+}
+
+function updatePinnedBar() {
+  const existing = document.getElementById('pinnedBar');
+  const newHtml = renderPinnedBar();
+  if (existing) {
+    if (!newHtml) {
+      existing.remove();
+    } else {
+      existing.outerHTML = newHtml;
+      document.getElementById('pinnedBar').addEventListener('click', handlePinnedBarClick);
+    }
+  } else if (newHtml) {
+    const messagesList = document.getElementById('messagesList');
+    if (messagesList) {
+      messagesList.insertAdjacentHTML('beforebegin', newHtml);
+      document.getElementById('pinnedBar').addEventListener('click', handlePinnedBarClick);
+    }
   }
 }
 
