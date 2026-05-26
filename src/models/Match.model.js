@@ -92,6 +92,17 @@ module.exports.selectActiveMatches = async function selectActiveMatches(data) {
         LEFT JOIN CalendarEvent ce ON ce.request_id = mr.request_id
         WHERE (mr.sender_id = $1 OR mr.receiver_id = $2) 
         AND mr.status = 'Accepted' 
+        AND NOT EXISTS (
+            SELECT 1
+            FROM MatchBlockedStudent mb
+            WHERE (mb.user_id = $1 AND mb.target_user_id = u.user_id)
+               OR (mb.user_id = u.user_id AND mb.target_user_id = $1)
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM MatchReport mrep
+            WHERE mrep.reporter_id = $1 AND mrep.reported_user_id = u.user_id
+        )
         ORDER BY mr.updated_at DESC, mr.request_id DESC
     `;
   const VALUES = [data.user_id, data.user_id];
@@ -175,6 +186,11 @@ module.exports.autoMatch = async function autoMatch(data) {
             ORDER BY request_id DESC
             LIMIT 1
         ) as request_status,
+        EXISTS (
+            SELECT 1
+            FROM MatchSavedStudent mss
+            WHERE mss.user_id = $1 AND mss.target_user_id = u.user_id
+        ) AS is_saved,
         mp.availability_days, mp.selected_modes, mp.selected_times, mp.start_time, mp.end_time,
         mp.style, mp.duration, mp.priority, mp.gender_pref, mp.partner_level, mp.selected_languages
         FROM "User" u
@@ -184,6 +200,22 @@ module.exports.autoMatch = async function autoMatch(data) {
         JOIN UserModule um2 ON u.user_id = um2.user_id
         JOIN UserModule um1 ON um1.module_id = um2.module_id
         WHERE um1.user_id = $1 AND u.user_id != $2
+        AND NOT EXISTS (
+            SELECT 1
+            FROM MatchHiddenStudent mh
+            WHERE mh.user_id = $1 AND mh.target_user_id = u.user_id
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM MatchBlockedStudent mb
+            WHERE (mb.user_id = $1 AND mb.target_user_id = u.user_id)
+               OR (mb.user_id = u.user_id AND mb.target_user_id = $1)
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM MatchReport mrep
+            WHERE mrep.reporter_id = $1 AND mrep.reported_user_id = u.user_id
+        )
         GROUP BY u.user_id, u.name, u.username, u.profile_pic, u.year, u.is_online, u.profile_text, u.institution_id, u.diploma_id, d.name, d.code, i.name,
                  mp.availability_days, mp.selected_modes, mp.selected_times, mp.start_time, mp.end_time,
                  mp.style, mp.duration, mp.priority, mp.gender_pref, mp.partner_level, mp.selected_languages
@@ -242,4 +274,224 @@ module.exports.selectById = async function selectById(data) {
   const VALUES = [data.id];
   const { rows } = await pool.query(SQLSTATEMENT, VALUES);
   return rows[0];
+};
+
+module.exports.selectSavedStudents = async function selectSavedStudents(data) {
+  const SQLSTATEMENT = `
+        SELECT u.user_id,
+               u.name,
+               u.username,
+               u.profile_pic,
+               u.year,
+               u.is_online,
+               u.profile_text,
+               u.institution_id,
+               u.diploma_id,
+               d.name AS diploma_name,
+               d.code AS diploma_code,
+               i.name AS institution_name,
+               (
+                   SELECT STRING_AGG(m.code, ', ')
+                   FROM UserModule um
+                   JOIN Module m ON um.module_id = m.module_id
+                   WHERE um.user_id = u.user_id
+               ) AS modules,
+               (
+                   SELECT COUNT(*)
+                   FROM UserModule um2
+                   JOIN UserModule um1 ON um1.module_id = um2.module_id
+                   WHERE um1.user_id = $1 AND um2.user_id = u.user_id
+               ) AS shared_modules_count,
+               (
+                   SELECT status
+                   FROM MatchRequest
+                   WHERE ((sender_id = $1 AND receiver_id = u.user_id)
+                      OR (sender_id = u.user_id AND receiver_id = $1))
+                   ORDER BY request_id DESC
+                   LIMIT 1
+               ) AS request_status,
+               TRUE AS is_saved,
+               mp.availability_days,
+               mp.selected_modes,
+               mp.selected_times,
+               mp.start_time,
+               mp.end_time,
+               mp.style,
+               mp.duration,
+               mp.priority,
+               mp.gender_pref,
+               mp.partner_level,
+               mp.selected_languages
+        FROM MatchSavedStudent mss
+        JOIN "User" u ON u.user_id = mss.target_user_id
+        LEFT JOIN Diploma d ON u.diploma_id = d.diploma_id
+        LEFT JOIN Institution i ON u.institution_id = i.institution_id
+        LEFT JOIN MatchPreference mp ON u.user_id = mp.user_id
+        WHERE mss.user_id = $1
+          AND NOT EXISTS (
+              SELECT 1
+              FROM MatchHiddenStudent mh
+              WHERE mh.user_id = $1 AND mh.target_user_id = u.user_id
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM MatchBlockedStudent mb
+              WHERE (mb.user_id = $1 AND mb.target_user_id = u.user_id)
+                 OR (mb.user_id = u.user_id AND mb.target_user_id = $1)
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM MatchReport mrep
+              WHERE mrep.reporter_id = $1 AND mrep.reported_user_id = u.user_id
+          )
+        ORDER BY mss.created_at DESC
+    `;
+  const { rows } = await pool.query(SQLSTATEMENT, [data.user_id]);
+  return rows;
+};
+
+module.exports.selectInteractionState = async function selectInteractionState(data) {
+  const SQLSTATEMENT = `
+        SELECT
+            EXISTS (
+                SELECT 1 FROM MatchSavedStudent
+                WHERE user_id = $1 AND target_user_id = $2
+            ) AS is_saved,
+            EXISTS (
+                SELECT 1 FROM MatchHiddenStudent
+                WHERE user_id = $1 AND target_user_id = $2
+            ) AS is_hidden,
+            EXISTS (
+                SELECT 1 FROM MatchBlockedStudent
+                WHERE user_id = $1 AND target_user_id = $2
+            ) AS blocked_by_me,
+            EXISTS (
+                SELECT 1 FROM MatchBlockedStudent
+                WHERE user_id = $2 AND target_user_id = $1
+            ) AS blocked_me,
+            EXISTS (
+                SELECT 1 FROM MatchReport
+                WHERE reporter_id = $1 AND reported_user_id = $2
+            ) AS is_reported
+    `;
+  const { rows } = await pool.query(SQLSTATEMENT, [data.user_id, data.target_user_id]);
+  return rows[0];
+};
+
+module.exports.saveStudent = async function saveStudent(data) {
+  const SQLSTATEMENT = `
+        INSERT INTO MatchSavedStudent (user_id, target_user_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, target_user_id) DO NOTHING
+        RETURNING *
+    `;
+  const { rows } = await pool.query(SQLSTATEMENT, [data.user_id, data.target_user_id]);
+  return rows[0] || null;
+};
+
+module.exports.unsaveStudent = async function unsaveStudent(data) {
+  const result = await pool.query(
+    'DELETE FROM MatchSavedStudent WHERE user_id = $1 AND target_user_id = $2',
+    [data.user_id, data.target_user_id]
+  );
+  return result.rowCount;
+};
+
+module.exports.hideStudent = async function hideStudent(data) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'DELETE FROM MatchSavedStudent WHERE user_id = $1 AND target_user_id = $2',
+      [data.user_id, data.target_user_id]
+    );
+    await client.query(
+      `INSERT INTO MatchHiddenStudent (user_id, target_user_id, reason)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, target_user_id)
+       DO UPDATE SET reason = EXCLUDED.reason`,
+      [data.user_id, data.target_user_id, data.reason || null]
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports.unhideStudent = async function unhideStudent(data) {
+  const result = await pool.query(
+    'DELETE FROM MatchHiddenStudent WHERE user_id = $1 AND target_user_id = $2',
+    [data.user_id, data.target_user_id]
+  );
+  return result.rowCount;
+};
+
+module.exports.blockStudent = async function blockStudent(data) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'DELETE FROM MatchSavedStudent WHERE user_id = $1 AND target_user_id = $2',
+      [data.user_id, data.target_user_id]
+    );
+    await client.query(
+      'DELETE FROM MatchHiddenStudent WHERE user_id = $1 AND target_user_id = $2',
+      [data.user_id, data.target_user_id]
+    );
+    await client.query(
+      `INSERT INTO MatchBlockedStudent (user_id, target_user_id, reason)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, target_user_id)
+       DO UPDATE SET reason = EXCLUDED.reason`,
+      [data.user_id, data.target_user_id, data.reason || null]
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports.unblockStudent = async function unblockStudent(data) {
+  const result = await pool.query(
+    'DELETE FROM MatchBlockedStudent WHERE user_id = $1 AND target_user_id = $2',
+    [data.user_id, data.target_user_id]
+  );
+  return result.rowCount;
+};
+
+module.exports.reportStudent = async function reportStudent(data) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const reportResult = await client.query(
+      `INSERT INTO MatchReport (reporter_id, reported_user_id, reason, details)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [data.user_id, data.target_user_id, data.reason, data.details || null]
+    );
+    await client.query(
+      'DELETE FROM MatchSavedStudent WHERE user_id = $1 AND target_user_id = $2',
+      [data.user_id, data.target_user_id]
+    );
+    await client.query(
+      `INSERT INTO MatchHiddenStudent (user_id, target_user_id, reason)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, target_user_id)
+       DO UPDATE SET reason = EXCLUDED.reason`,
+      [data.user_id, data.target_user_id, 'Reported']
+    );
+    await client.query('COMMIT');
+    return reportResult.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };

@@ -55,6 +55,10 @@ DROP TABLE IF EXISTS StudySessionDiscussionPost CASCADE;
 DROP TABLE IF EXISTS SessionReflection CASCADE;
 DROP TABLE IF EXISTS SessionMember CASCADE;
 DROP TABLE IF EXISTS MatchRequest CASCADE;
+DROP TABLE IF EXISTS MatchReport CASCADE;
+DROP TABLE IF EXISTS MatchBlockedStudent CASCADE;
+DROP TABLE IF EXISTS MatchHiddenStudent CASCADE;
+DROP TABLE IF EXISTS MatchSavedStudent CASCADE;
 DROP TABLE IF EXISTS MatchPreference CASCADE;
 DROP TABLE IF EXISTS ProfileExperience CASCADE;
 DROP TABLE IF EXISTS UserBadge CASCADE;
@@ -262,6 +266,54 @@ CREATE TABLE MatchRequest (
 CREATE TRIGGER set_updated_at_match_request
   BEFORE UPDATE ON MatchRequest
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TABLE MatchSavedStudent (
+    saved_id       SERIAL PRIMARY KEY,
+    user_id        INT NOT NULL,
+    target_user_id INT NOT NULL,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id)        REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(user_id, target_user_id),
+    CHECK (user_id <> target_user_id)
+);
+
+CREATE TABLE MatchHiddenStudent (
+    hidden_id      SERIAL PRIMARY KEY,
+    user_id        INT NOT NULL,
+    target_user_id INT NOT NULL,
+    reason         VARCHAR(120),
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id)        REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(user_id, target_user_id),
+    CHECK (user_id <> target_user_id)
+);
+
+CREATE TABLE MatchBlockedStudent (
+    block_id       SERIAL PRIMARY KEY,
+    user_id        INT NOT NULL,
+    target_user_id INT NOT NULL,
+    reason         VARCHAR(120),
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id)        REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    UNIQUE(user_id, target_user_id),
+    CHECK (user_id <> target_user_id)
+);
+
+CREATE TABLE MatchReport (
+    report_id        SERIAL PRIMARY KEY,
+    reporter_id      INT NOT NULL,
+    reported_user_id INT NOT NULL,
+    reason           VARCHAR(120) NOT NULL,
+    details          TEXT,
+    status           VARCHAR(30) DEFAULT 'Open',
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reporter_id)      REFERENCES "User"(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (reported_user_id) REFERENCES "User"(user_id) ON DELETE CASCADE,
+    CHECK (reporter_id <> reported_user_id)
+);
 
 -- =============================================
 -- STUDY SESSIONS

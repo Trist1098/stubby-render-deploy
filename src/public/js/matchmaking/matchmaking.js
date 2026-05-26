@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let allStudents = [];
     let activeMatches = [];
+    let savedStudents = [];
     let visibleActiveMatchesCount = 3;
     let masterModules = []; 
     let availableLanguages = [];
@@ -136,6 +137,9 @@ document.addEventListener("DOMContentLoaded", function () {
             };
             
             await savePreferences(true);
+        }, {
+            title: 'Reset Matchmaking Preferences',
+            confirmText: 'Reset',
         });
     };
 
@@ -152,12 +156,16 @@ document.addEventListener("DOMContentLoaded", function () {
         modal.show();
     }
 
-    function showConfirm(msg, callback) {
+    function showConfirm(msg, callback, options = {}) {
+        const titleEl = document.getElementById('confirmModalTitle');
         const msgEl = document.getElementById('confirmModalMessage');
+        if (titleEl) titleEl.innerText = options.title || 'Confirm Action';
         if (msgEl) msgEl.innerText = msg;
         const btn = document.getElementById('confirmModalBtn');
         const modalEl = document.getElementById('confirmModal');
         const modal = new bootstrap.Modal(modalEl);
+        btn.innerText = options.confirmText || 'Confirm';
+        btn.className = `btn ${options.confirmClass || 'btn-accent'} flex-grow-1 py-3 rounded-4 fw-bold uppercase small`;
         
         btn.onclick = () => {
             modal.hide();
@@ -395,15 +403,51 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    function mergeStudentLists(primaryList, savedList) {
+        const map = new Map();
+        primaryList.forEach(student => {
+            map.set(Number(student.user_id), {
+                ...student,
+                is_saved: Boolean(student.is_saved),
+            });
+        });
+        savedList.forEach(student => {
+            const id = Number(student.user_id);
+            const existing = map.get(id) || {};
+            map.set(id, {
+                ...student,
+                ...existing,
+                is_saved: true,
+            });
+        });
+        return Array.from(map.values());
+    }
+
+    async function fetchSavedStudents() {
+        const res = await fetch('/api/matches/saved', {
+            headers: { 'Authorization': `Bearer ${auth.getToken()}` }
+        });
+        if (res.status === 401) {
+            auth.logout();
+            return [];
+        }
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data.matches) ? data.matches : [];
+    }
+
     async function loadStudents() {
         try {
-            const res = await fetch('/api/matches/auto', {
-                headers: { 'Authorization': `Bearer ${auth.getToken()}` }
-            });
+            const headers = { 'Authorization': `Bearer ${auth.getToken()}` };
+            const [res, savedList] = await Promise.all([
+                fetch('/api/matches/auto', { headers }),
+                fetchSavedStudents()
+            ]);
             if (res.status === 401) return auth.logout();
             if (res.ok) {
                 const data = await res.json();
-                allStudents = data.matches || [];
+                savedStudents = savedList;
+                allStudents = mergeStudentLists(data.matches || [], savedStudents);
 
                 // Dynamic Live Peers Hero Stat
                 const livePeersEl = document.getElementById('stat-live-peers');
@@ -548,25 +592,42 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!searchInput) return;
         const search = searchInput.value.toLowerCase();
         const onlineOnly = document.getElementById('onlineFilter')?.checked || false;
+        const savedOnly = document.getElementById('savedOnlyFilter')?.checked || false;
         const sortBy = document.getElementById('sortSelect')?.value || 'match';
         const selectedModuleIds = Array.from(document.querySelectorAll('#filterModules input:checked')).map(el => el.value);
 
         let filtered = allStudents.filter(s => {
             const isUnavailable = isUnavailableMatchStatus(s.request_status);
             const matchesSearch = s.name.toLowerCase().includes(search) || (s.modules && s.modules.toLowerCase().includes(search));
-            const matchesOnline = !onlineOnly || s.is_online;
+            const matchesOnline = !onlineOnly || isFlagOn(s.is_online);
+            const matchesSaved = !savedOnly || isFlagOn(s.is_saved);
             const studentModules = (s.modules || '').split(',').map(m => m.trim());
             const matchesModules = selectedModuleIds.length === 0 || selectedModuleIds.some(mid => {
                 const m = masterModules.find(um => um.module_id == mid);
                 return m && studentModules.includes(m.code);
             });
 
-            return !isUnavailable && matchesSearch && matchesOnline && matchesModules;
+            return !isUnavailable && matchesSearch && matchesOnline && matchesSaved && matchesModules;
         });
 
         if (sortBy === 'match') {
             filtered.sort((a, b) => {
                 return getMatchScore(b) - getMatchScore(a);
+            });
+        } else if (sortBy === 'shared') {
+            filtered.sort((a, b) => {
+                const sharedDiff = (Number(b.shared_modules_count) || 0) - (Number(a.shared_modules_count) || 0);
+                return sharedDiff || getMatchScore(b) - getMatchScore(a);
+            });
+        } else if (sortBy === 'online') {
+            filtered.sort((a, b) => {
+                const onlineDiff = Number(isFlagOn(b.is_online)) - Number(isFlagOn(a.is_online));
+                return onlineDiff || getMatchScore(b) - getMatchScore(a);
+            });
+        } else if (sortBy === 'saved') {
+            filtered.sort((a, b) => {
+                const savedDiff = Number(isFlagOn(b.is_saved)) - Number(isFlagOn(a.is_saved));
+                return savedDiff || getMatchScore(b) - getMatchScore(a);
             });
         } else if (sortBy === 'name') {
             filtered.sort((a, b) => a.name.localeCompare(b.name));
@@ -619,6 +680,12 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!value) return '';
         const text = String(value).replace(/-/g, ' ');
         return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    function isFlagOn(value) {
+        if (value === true || value === 1) return true;
+        if (value === false || value === 0 || value == null) return false;
+        return ['true', '1', 'yes', 'y'].includes(String(value).trim().toLowerCase());
     }
 
     function getAvatarHTML(profilePic, name, sizeClass = '') {
@@ -701,6 +768,58 @@ document.addEventListener("DOMContentLoaded", function () {
         `;
     }
 
+    function getProfileIconButtonHTML(userId) {
+        return `
+            <button type="button"
+                class="btn btn-white match-card-icon-btn"
+                title="View profile"
+                aria-label="View profile"
+                onclick="event.stopPropagation(); window.openProfileModal(${userId})">
+                <i class="fas fa-user-circle"></i>
+            </button>
+        `;
+    }
+
+    function getSaveButtonHTML(student, className) {
+        const isSaved = Boolean(student.is_saved);
+        return `
+            <button type="button"
+                class="${className} save-student-btn ${isSaved ? 'is-saved' : ''}"
+                aria-pressed="${isSaved ? 'true' : 'false'}"
+                onclick="event.stopPropagation(); window.toggleSavedStudent(${student.user_id})">
+                <i class="${isSaved ? 'fas' : 'far'} fa-bookmark me-1"></i>${isSaved ? 'Saved' : 'Save'}
+            </button>
+        `;
+    }
+
+    function getSaveIconButtonHTML(student) {
+        const isSaved = Boolean(student.is_saved);
+        return `
+            <button type="button"
+                class="btn btn-white match-card-icon-btn save-student-btn ${isSaved ? 'is-saved' : ''}"
+                title="${isSaved ? 'Remove from shortlist' : 'Save for later'}"
+                aria-label="${isSaved ? 'Remove from shortlist' : 'Save for later'}"
+                aria-pressed="${isSaved ? 'true' : 'false'}"
+                onclick="event.stopPropagation(); window.toggleSavedStudent(${student.user_id})">
+                <i class="${isSaved ? 'fas' : 'far'} fa-bookmark"></i>
+            </button>
+        `;
+    }
+
+    function getCompareIconButtonHTML(student) {
+        return `
+            <button type="button"
+                class="btn btn-white match-card-icon-btn compare-toggle-btn"
+                data-compare-id="${student.user_id}"
+                title="Compare"
+                aria-label="Compare"
+                aria-pressed="false"
+                onclick="event.stopPropagation(); window.toggleCompareStudent(${student.user_id})">
+                <i class="fas fa-code-compare"></i>
+            </button>
+        `;
+    }
+
     function getConnectButtonHTML(student, className, label = 'Connect') {
         if (student.request_status === 'Pending') {
             return `<button class="${className.replace('btn-primary', 'btn-secondary').replace('btn-accent', 'btn-secondary')} text-white" disabled>Request Sent</button>`;
@@ -750,19 +869,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }];
     }
 
-    function getMiniBreakdownHTML(student) {
-        return getScoreBreakdown(student)
-            .filter(item => item.points > 0)
-            .slice(0, 3)
-            .map(item => `
-                <div class="score-factor-mini">
-                    <span>${escapeHTML(item.label)}</span>
-                    <strong>${Math.round(item.points)}/${Math.round(item.max)}</strong>
-                </div>
-            `)
-            .join('');
-    }
-
     function getScoreBreakdownHTML(student) {
         return getScoreBreakdown(student).map(item => {
             const percent = item.max > 0 ? Math.min(Math.round((item.points / item.max) * 100), 100) : 0;
@@ -792,6 +898,12 @@ document.addEventListener("DOMContentLoaded", function () {
             return `${strongestFactor.label}: ${strongestFactor.detail}`;
         }
         return 'This profile has limited matching data.';
+    }
+
+    function getStudentCardSummary(student) {
+        const summary = getMatchSummary(student);
+        if (!summary) return 'Open profile to review study goals and preferences.';
+        return summary.length > 118 ? `${summary.slice(0, 115).trim()}...` : summary;
     }
 
     function renderActiveMatches(matches) {
@@ -904,6 +1016,273 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
     };
+
+    function setStudentSavedState(userId, isSaved) {
+        const numericId = Number(userId);
+        allStudents = allStudents.map(student => (
+            Number(student.user_id) === numericId
+                ? { ...student, is_saved: isSaved }
+                : student
+        ));
+
+        if (isSaved) {
+            const student = getStudentById(numericId);
+            if (student && !savedStudents.some(saved => Number(saved.user_id) === numericId)) {
+                savedStudents = [{ ...student, is_saved: true }, ...savedStudents];
+            }
+        } else {
+            savedStudents = savedStudents.filter(student => Number(student.user_id) !== numericId);
+        }
+    }
+
+    function removeStudentFromMatchmaking(userId) {
+        const numericId = Number(userId);
+        allStudents = allStudents.filter(student => Number(student.user_id) !== numericId);
+        savedStudents = savedStudents.filter(student => Number(student.user_id) !== numericId);
+        compareSelection = compareSelection.filter(id => Number(id) !== numericId);
+        window.filterStudents(false);
+        refreshCompareUI();
+    }
+
+    async function sendStudentAction(url, options = {}) {
+        const res = await fetch(url, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${auth.getToken()}`,
+                ...(options.headers || {}),
+            },
+        });
+        if (res.status === 401) {
+            auth.logout();
+            return { ok: false, data: { message: 'Session expired' } };
+        }
+        let data = {};
+        try {
+            data = await res.json();
+        } catch {
+            data = {};
+        }
+        return { ok: res.ok, data };
+    }
+
+    window.toggleSavedStudent = async function(userId) {
+        const student = getStudentById(userId);
+        if (!student) return;
+
+        const shouldSave = !student.is_saved;
+        try {
+            const result = await sendStudentAction(`/api/matches/saved/${userId}`, {
+                method: shouldSave ? 'POST' : 'DELETE',
+            });
+
+            if (!result.ok) {
+                showThemedAlert(result.data.message || 'Unable to update shortlist.', {
+                    title: 'Shortlist Not Updated',
+                    tone: 'warning',
+                });
+                return;
+            }
+
+            setStudentSavedState(userId, shouldSave);
+            window.filterStudents(false);
+            const modalSaveBtn = document.getElementById('modalSaveBtn');
+            if (modalSaveBtn && Number(modalSaveBtn.dataset.userId) === Number(userId)) {
+                updateModalSaveButton(student.user_id);
+            }
+        } catch {
+            showThemedAlert('Network error updating shortlist.', {
+                title: 'Connection Issue',
+                tone: 'danger',
+            });
+        }
+    };
+
+    window.hideMatchStudent = function(userId) {
+        const student = getStudentById(userId);
+        const name = student?.name || 'this student';
+        closeStudentProfileModal(() => {
+            showConfirm(`Hide ${name} from your matchmaking recommendations?`, async () => {
+                try {
+                    const result = await sendStudentAction(`/api/matches/hidden/${userId}`, {
+                        method: 'POST',
+                        body: JSON.stringify({ reason: 'Not a suitable match' }),
+                    });
+                    if (!result.ok) {
+                        showThemedAlert(result.data.message || 'Unable to hide this student.', {
+                            title: 'Student Not Hidden',
+                            tone: 'warning',
+                        });
+                        return;
+                    }
+                    removeStudentFromMatchmaking(userId);
+                    showSuccess('Student hidden from your matchmaking recommendations.');
+                } catch {
+                    showThemedAlert('Network error hiding student.', {
+                        title: 'Connection Issue',
+                        tone: 'danger',
+                    });
+                }
+            }, {
+                title: 'Hide Student',
+                confirmText: 'Hide',
+            });
+        });
+    };
+
+    window.blockMatchStudent = function(userId) {
+        const student = getStudentById(userId);
+        const name = student?.name || 'this student';
+        closeStudentProfileModal(() => {
+            showConfirm(`Block ${name}? They will no longer appear in matchmaking and match requests will be blocked.`, async () => {
+                try {
+                    const result = await sendStudentAction(`/api/matches/blocked/${userId}`, {
+                        method: 'POST',
+                        body: JSON.stringify({ reason: 'Blocked from matchmaking' }),
+                    });
+                    if (!result.ok) {
+                        showThemedAlert(result.data.message || 'Unable to block this student.', {
+                            title: 'Student Not Blocked',
+                            tone: 'warning',
+                        });
+                        return;
+                    }
+                    removeStudentFromMatchmaking(userId);
+                    showSuccess('Student blocked from matchmaking.');
+                } catch {
+                    showThemedAlert('Network error blocking student.', {
+                        title: 'Connection Issue',
+                        tone: 'danger',
+                    });
+                }
+            }, {
+                title: 'Block Student',
+                confirmText: 'Block',
+                confirmClass: 'btn-danger',
+            });
+        });
+    };
+
+    window.openReportStudentDialog = function(userId) {
+        closeStudentProfileModal(() => {
+            showReportStudentDialog(userId);
+        });
+    };
+
+    function showReportStudentDialog(userId) {
+        const student = getStudentById(userId);
+        const name = student?.name || 'this student';
+        const old = document.getElementById('reportStudentModal');
+        if (old) old.remove();
+
+        const modalHtml = `
+            <div class="modal fade" id="reportStudentModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 rounded-4 shadow-lg">
+                        <div class="modal-header border-0 pb-0">
+                            <div>
+                                <h5 class="modal-title fw-bold">Report ${escapeHTML(name)}</h5>
+                                <p class="text-muted small mb-0">The student will also be hidden from your matchmaking list.</p>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body pt-3">
+                            <label class="form-label small fw-bold text-muted uppercase" for="reportReason">Reason</label>
+                            <select id="reportReason" class="form-select rounded-4 border-0 bg-light py-3 mb-3">
+                                <option value="">Choose a reason</option>
+                                <option value="Spam or fake profile">Spam or fake profile</option>
+                                <option value="Inappropriate behavior">Inappropriate behavior</option>
+                                <option value="Harassment or bullying">Harassment or bullying</option>
+                                <option value="Unsafe or suspicious request">Unsafe or suspicious request</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <label class="form-label small fw-bold text-muted uppercase" for="reportDetails">Details</label>
+                            <textarea id="reportDetails" class="form-control rounded-4 border-0 bg-light" rows="4" placeholder="Add context for the report..."></textarea>
+                            <div class="invalid-feedback d-block mt-2 d-none" id="reportReasonError">Please choose a reason.</div>
+                            <div class="invalid-feedback d-block mt-2 d-none" id="reportDetailsError">Please add details when choosing Other.</div>
+                        </div>
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn btn-white rounded-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger rounded-4 fw-bold" id="submitReportStudentBtn">
+                                <i class="fas fa-flag me-1"></i>Submit Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modalEl = document.getElementById('reportStudentModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove(), { once: true });
+
+        document.getElementById('submitReportStudentBtn').onclick = async () => {
+            const reason = document.getElementById('reportReason').value;
+            const details = document.getElementById('reportDetails').value.trim();
+            const reasonError = document.getElementById('reportReasonError');
+            const detailsError = document.getElementById('reportDetailsError');
+            if (!reason) {
+                reasonError.classList.remove('d-none');
+                detailsError.classList.add('d-none');
+                return;
+            }
+            if (reason === 'Other' && !details) {
+                reasonError.classList.add('d-none');
+                detailsError.classList.remove('d-none');
+                return;
+            }
+            reasonError.classList.add('d-none');
+            detailsError.classList.add('d-none');
+
+            try {
+                const result = await sendStudentAction(`/api/matches/reports/${userId}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ reason, details }),
+                });
+                if (!result.ok) {
+                    showThemedAlert(result.data.message || 'Unable to submit report.', {
+                        title: 'Report Not Submitted',
+                        tone: 'warning',
+                    });
+                    return;
+                }
+                modal.hide();
+                closeStudentProfileModal();
+                removeStudentFromMatchmaking(userId);
+                showSuccess('Report submitted. The student has been hidden from matchmaking.');
+            } catch {
+                showThemedAlert('Network error submitting report.', {
+                    title: 'Connection Issue',
+                    tone: 'danger',
+                });
+            }
+        };
+
+        modal.show();
+    }
+
+    function updateModalSaveButton(userId) {
+        const student = getStudentById(userId);
+        const saveBtn = document.getElementById('modalSaveBtn');
+        if (!student || !saveBtn) return;
+        const isSaved = Boolean(student.is_saved);
+        saveBtn.dataset.userId = String(student.user_id);
+        saveBtn.className = `btn ${isSaved ? 'btn-primary' : 'btn-outline-primary'} rounded-4 fw-bold uppercase small`;
+        saveBtn.innerHTML = `<i class="${isSaved ? 'fas' : 'far'} fa-bookmark me-1"></i>${isSaved ? 'Saved' : 'Save'}`;
+        saveBtn.onclick = () => window.toggleSavedStudent(student.user_id);
+    }
+
+    function closeStudentProfileModal(callback) {
+        const profileModalEl = document.getElementById('studentProfileModal');
+        const modal = bootstrap.Modal.getInstance(profileModalEl);
+        if (modal && profileModalEl.classList.contains('show')) {
+            if (callback) profileModalEl.addEventListener('hidden.bs.modal', callback, { once: true });
+            modal.hide();
+            return;
+        }
+        if (callback) callback();
+    }
 
     const dayNames = {
         sun: 'Sunday',
@@ -1190,11 +1569,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.querySelectorAll('[data-compare-id]').forEach(button => {
             const isSelected = compareSelection.includes(Number(button.dataset.compareId));
+            const isIconButton = button.classList.contains('match-card-icon-btn');
             button.classList.toggle('is-selected', isSelected);
             button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
-            button.innerHTML = isSelected
-                ? '<i class="fas fa-check me-1"></i>Selected'
-                : '<i class="fas fa-code-compare me-1"></i>Compare';
+            button.setAttribute('title', isSelected ? 'Selected for compare' : 'Compare');
+            button.setAttribute('aria-label', isSelected ? 'Selected for compare' : 'Compare');
+            if (isIconButton) {
+                button.innerHTML = isSelected
+                    ? '<i class="fas fa-check"></i>'
+                    : '<i class="fas fa-code-compare"></i>';
+            } else {
+                button.innerHTML = isSelected
+                    ? '<i class="fas fa-check me-1"></i>Selected'
+                    : '<i class="fas fa-code-compare me-1"></i>Compare';
+            }
         });
 
         const tray = document.getElementById('compareTray');
@@ -1281,15 +1669,16 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!grid) return;
         grid.innerHTML = '';
         if (students.length === 0) {
-            grid.innerHTML = '<div class="col-12 text-center py-5"><p class="text-muted">No available matches found. Try adjusting your preferences.</p></div>';
+            const savedOnly = document.getElementById('savedOnlyFilter')?.checked || false;
+            const message = savedOnly
+                ? 'No saved students yet. Save a profile to build your shortlist.'
+                : 'No available matches found. Try adjusting your preferences.';
+            grid.innerHTML = `<div class="col-12 text-center py-5"><p class="text-muted">${message}</p></div>`;
             refreshCompareUI();
             return;
         }
 
-        // Sort students: highest match percentage or shared modules first
-        const sorted = [...students].sort((a, b) => {
-            return getMatchScore(b) - getMatchScore(a);
-        });
+        const sorted = [...students];
 
         const bestMatch = sorted[0];
         const recommended = sorted.slice(1);
@@ -1329,22 +1718,24 @@ document.addEventListener("DOMContentLoaded", function () {
                             </div>
                             
                             <!-- Shared Modules Column -->
-                            <div class="col-lg-4 border-end-lg d-flex flex-column justify-content-center match-hero-modules">
+                            <div class="col-lg-3 border-end-lg d-flex flex-column justify-content-center match-hero-modules">
                                 <span class="small fw-bold uppercase tracking-wider mb-2 d-block match-hero-modules-label">SHARED MODULES</span>
                                 <div class="flex-wrap gap-2 mb-3 d-flex match-hero-modules-list">
                                     ${moduleTagsHTML || '<span class="text-muted small">No modules enrolled</span>'}
-                                </div>
-                                <div class="score-factor-list mb-3">
-                                    ${getMiniBreakdownHTML(bestMatch)}
                                 </div>
                                 <p class="match-hero-quote small mb-0 mt-2">${escapeHTML(getMatchSummary(bestMatch))}</p>
                             </div>
                             
                             <!-- Actions Column -->
-                            <div class="col-lg-3 d-flex flex-column justify-content-center gap-2 match-hero-actions">
-                                ${getProfileButtonHTML(bestMatch.user_id, 'btn btn-white w-100 py-2 rounded-4 fw-bold shadow-xs', 'View Profile')}
-                                ${getCompareButtonHTML(bestMatch, 'btn btn-outline-primary w-100 py-2 rounded-4 fw-bold shadow-xs')}
-                                ${getConnectButtonHTML(bestMatch, 'btn btn-accent w-100 py-2 rounded-4 fw-bold shadow-soft')}
+                            <div class="col-lg-4 d-flex align-items-center">
+                                <div class="match-hero-actions-stack">
+                                    <div class="match-hero-secondary-actions">
+                                        ${getSaveButtonHTML(bestMatch, 'btn btn-white py-2 rounded-4 fw-bold shadow-xs')}
+                                        ${getCompareButtonHTML(bestMatch, 'btn btn-white py-2 rounded-4 fw-bold shadow-xs')}
+                                    </div>
+                                    ${getProfileButtonHTML(bestMatch.user_id, 'btn btn-white w-100 py-2 rounded-4 fw-bold shadow-xs', 'View Profile')}
+                                    ${getConnectButtonHTML(bestMatch, 'btn btn-accent w-100 py-2 rounded-4 fw-bold shadow-soft')}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1369,6 +1760,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     .slice(0, 3)
                     .map((m) => `<span class="module-tag">${escapeHTML(m.trim())}</span>`)
                     .join(' ');
+                const cardSummary = getStudentCardSummary(s);
 
                 html += `
                     <div class="col-md-6 col-xl-4">
@@ -1392,19 +1784,18 @@ document.addEventListener("DOMContentLoaded", function () {
                                 
                                 <div class="mt-3">
                                     <span class="text-muted small fw-bold uppercase tracking-wider mb-2 d-block" style="font-size: 8px; letter-spacing: 0.05em;">SHARED MODULES</span>
-                                    <div class="flex-wrap gap-1 mb-4 d-flex">
+                                    <div class="flex-wrap gap-1 mb-2 d-flex">
                                         ${moduleTagsHTML || '<span class="text-muted small">No modules</span>'}
                                     </div>
-                                    <div class="score-factor-list mb-4">
-                                        ${getMiniBreakdownHTML(s)}
-                                    </div>
+                                    <p class="student-card-summary my-2">${escapeHTML(cardSummary)}</p>
                                 </div>
                             </div>
 
                             <div class="d-grid gap-2">
-                                <div class="d-flex gap-2">
-                                    ${getProfileButtonHTML(s.user_id, 'btn btn-white py-1 rounded-4 fw-bold flex-grow-1 small match-card-mini-btn')}
-                                    ${getCompareButtonHTML(s, 'btn btn-white py-1 rounded-4 fw-bold flex-grow-1 small match-card-mini-btn')}
+                                <div class="match-card-actions-row">
+                                    ${getProfileIconButtonHTML(s.user_id)}
+                                    ${getSaveIconButtonHTML(s)}
+                                    ${getCompareIconButtonHTML(s)}
                                 </div>
                                 ${getConnectButtonHTML(s, 'btn btn-primary py-1 rounded-4 fw-bold w-100 small')}
                             </div>
@@ -2395,6 +2786,27 @@ document.addEventListener("DOMContentLoaded", function () {
         if (viewFullProfileBtn) {
             viewFullProfileBtn.href = `viewProfile.html?friendId=${student.user_id}`;
         }
+
+        updateModalSaveButton(student.user_id);
+        const hideBtn = document.getElementById('modalHideBtn');
+        if (hideBtn) {
+            hideBtn.onclick = function() {
+                window.hideMatchStudent(student.user_id);
+            };
+        }
+        const reportBtn = document.getElementById('modalReportBtn');
+        if (reportBtn) {
+            reportBtn.onclick = function() {
+                window.openReportStudentDialog(student.user_id);
+            };
+        }
+        const blockBtn = document.getElementById('modalBlockBtn');
+        if (blockBtn) {
+            blockBtn.onclick = function() {
+                window.blockMatchStudent(student.user_id);
+            };
+        }
+
         const connectBtn = document.getElementById('modalConnectBtn');
         if (student.request_status === 'Pending') {
             connectBtn.className = 'btn btn-secondary flex-grow-1 py-3 rounded-4 fw-bold uppercase small';

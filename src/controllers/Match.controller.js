@@ -41,6 +41,26 @@ const parseMatchTimeSlot = (timeSlot) => {
   };
 };
 
+const getValidTargetUserId = async (req, res) => {
+  const targetUserId = Number(req.params.userId || req.body.receiver_id);
+  const currentUserId = Number(res.locals.userId);
+
+  if (!targetUserId || Number.isNaN(targetUserId)) {
+    return { error: { status: 400, message: 'A valid userId is required' } };
+  }
+
+  if (targetUserId === currentUserId) {
+    return { error: { status: 400, message: 'You cannot choose yourself for this action' } };
+  }
+
+  const targetUser = await userModel.selectPublicUserById({ userId: targetUserId });
+  if (!targetUser) {
+    return { error: { status: 404, message: 'Student not found' } };
+  }
+
+  return { targetUserId, currentUserId, targetUser };
+};
+
 module.exports.getAllRequests = async (req, res, next) => {
   try {
     const data = { user_id: res.locals.userId };
@@ -91,6 +111,15 @@ module.exports.getActiveMatches = async (req, res, next) => {
   }
 };
 
+module.exports.getSavedStudents = async (req, res, next) => {
+  try {
+    const results = await model.selectSavedStudents({ user_id: res.locals.userId });
+    res.status(200).json({ matches: results });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports.getProfileMatches = async (req, res, next) => {
   const profileUserId = Number(req.params.userId);
   if (!profileUserId || Number.isNaN(profileUserId)) {
@@ -121,9 +150,27 @@ module.exports.sendRequest = async (req, res, next) => {
   }
 
   try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    const actionState = await model.selectInteractionState({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    if (actionState?.blocked_by_me || actionState?.blocked_me) {
+      return res.status(403).json({ message: 'This student is not available for match requests' });
+    }
+
+    if (actionState?.is_reported) {
+      return res.status(409).json({ message: 'You already reported this student' });
+    }
+
     const data = {
-      sender_id: res.locals.userId,
-      receiver_id,
+      sender_id: validation.currentUserId,
+      receiver_id: validation.targetUserId,
       module_id: req.body.module_id || null,
       topic: req.body.topic || null,
       time_slot: time_slot || null,
@@ -138,6 +185,163 @@ module.exports.sendRequest = async (req, res, next) => {
     res.status(201).json({
       request_id: result.request_id,
       message: 'Match request sent successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.saveStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    const actionState = await model.selectInteractionState({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    if (actionState?.blocked_by_me || actionState?.blocked_me) {
+      return res.status(403).json({ message: 'Blocked students cannot be shortlisted' });
+    }
+
+    if (actionState?.is_hidden || actionState?.is_reported) {
+      return res.status(409).json({ message: 'This student is hidden from your matchmaking list' });
+    }
+
+    await model.saveStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student saved to your shortlist', is_saved: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.unsaveStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.unsaveStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student removed from shortlist', is_saved: false });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.hideStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.hideStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+      reason: req.body.reason || 'Not a suitable match',
+    });
+
+    res.status(200).json({ message: 'Student hidden from your matchmaking list' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.unhideStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.unhideStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student restored to matchmaking' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.blockStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.blockStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+      reason: req.body.reason || 'Blocked from matchmaking',
+    });
+
+    res.status(200).json({ message: 'Student blocked from matchmaking' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.unblockStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.unblockStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student unblocked from matchmaking' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.reportStudent = async (req, res, next) => {
+  const reason = String(req.body.reason || '').trim();
+  const details = String(req.body.details || '').trim();
+
+  if (!reason) {
+    return res.status(400).json({ message: 'Report reason is required' });
+  }
+
+  if (reason === 'Other' && !details) {
+    return res.status(400).json({ message: 'Report details are required when reason is Other' });
+  }
+
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    const report = await model.reportStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+      reason,
+      details,
+    });
+
+    res.status(201).json({
+      message: 'Report submitted and student hidden from matchmaking',
+      report_id: report.report_id,
     });
   } catch (error) {
     next(error);
