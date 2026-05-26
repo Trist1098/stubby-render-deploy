@@ -82,6 +82,89 @@ document.addEventListener('DOMContentLoaded', function () {
 
   renderNavbar();
 
+  const ensureBadge = (target, role) => {
+    if (!target) return null;
+
+    let badge =
+      target.querySelector(`[data-match-request-badge="${role}"]`) ||
+      target.querySelector(role === 'nav' ? '#matchmakingNavBadge' : '#navRequestBadge');
+
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'match-nav-badge d-none';
+      badge.dataset.matchRequestBadge = role;
+
+      const dropdownIcon = target.querySelector('.nav-dropdown-icon');
+      if (dropdownIcon && dropdownIcon.parentNode === target) {
+        target.insertBefore(badge, dropdownIcon);
+      } else {
+        target.appendChild(badge);
+      }
+    }
+
+    return badge;
+  };
+
+  const getMatchRequestBadges = () => {
+    const navLinks = Array.from(document.querySelectorAll('.nav-link')).filter((link) => {
+      const href = link.getAttribute('href') || '';
+      return href.startsWith('matchmaking.html') || link.textContent.includes('Matchmaking');
+    });
+
+    const requestLinks = Array.from(
+      document.querySelectorAll('#tab-requests, a.dropdown-item[href*="matchmaking.html?tab=requests"]')
+    );
+
+    navLinks.forEach((link) => {
+      link.classList.add('d-flex', 'align-items-center', 'gap-1');
+      ensureBadge(link, 'nav');
+    });
+
+    requestLinks.forEach((link) => {
+      link.classList.add('d-flex', 'align-items-center', 'justify-content-between', 'gap-2');
+      ensureBadge(link, 'requests');
+    });
+
+    return document.querySelectorAll('[data-match-request-badge], #matchmakingNavBadge, #navRequestBadge');
+  };
+
+  const setMatchRequestBadges = (count) => {
+    const safeCount = Number(count) || 0;
+    getMatchRequestBadges().forEach((badge) => {
+      badge.textContent = safeCount.toString();
+      badge.classList.toggle('d-none', safeCount <= 0);
+    });
+  };
+
+  const refreshMatchRequestBadges = async () => {
+    const activeToken = localStorage.getItem('token');
+    getMatchRequestBadges();
+    if (!activeToken) {
+      setMatchRequestBadges(0);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/matches/requests/received?limit=1&offset=0', {
+        headers: { Authorization: `Bearer ${activeToken}` },
+      });
+      if (!res.ok) return;
+      const requests = await res.json();
+      const pending = Array.isArray(requests) && requests[0]?.pending_count
+        ? parseInt(requests[0].pending_count, 10)
+        : 0;
+      setMatchRequestBadges(pending);
+    } catch {
+      setMatchRequestBadges(0);
+    }
+  };
+
+  refreshMatchRequestBadges();
+
+  window.addEventListener('matchRequestCountUpdated', (event) => {
+    setMatchRequestBadges(event.detail?.pending || 0);
+  });
+
   // 3. SCROLL EVENT FOR TRANSPARENT NAVBAR
   const headerEl = document.querySelector('.header-transparent');
 
@@ -108,5 +191,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     renderNavbar();
+    refreshMatchRequestBadges();
   });
 });

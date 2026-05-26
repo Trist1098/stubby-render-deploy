@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const ACTIVE_MATCHES_PAGE_SIZE = 3;
     const MAX_COMPARE_STUDENTS = 3;
     let compareSelection = [];
+    let receivedPendingCount = 0;
     let userPreferences = {
         selected_modules: [],
         availability_days: [],
@@ -215,6 +216,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const modal = new bootstrap.Modal(modalEl);
         modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove(), { once: true });
         modal.show();
+    }
+
+    function updateMatchmakingBadges() {
+        window.dispatchEvent(new CustomEvent('matchRequestCountUpdated', {
+            detail: { pending: receivedPendingCount },
+        }));
     }
 
     async function init() {
@@ -484,14 +491,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 activeMatches = await res.json();
                 visibleActiveMatchesCount = ACTIVE_MATCHES_PAGE_SIZE;
                 const matchesCountEl = document.getElementById('stat-total-matches');
+                const activeCount = Array.isArray(activeMatches) ? activeMatches.length : 0;
                 if (matchesCountEl) {
-                    const count = Array.isArray(activeMatches) ? activeMatches.length : 0;
-                    matchesCountEl.innerText = count === 1 ? '1 Active' : `${count} Active`;
+                    matchesCountEl.innerText = activeCount === 1 ? '1 Active' : `${activeCount} Active`;
                 }
+                updateMatchmakingBadges();
                 renderActiveMatches(activeMatches);
             }
         } catch (err) {
             console.error('Error fetching active matches:', err);
+            updateMatchmakingBadges();
             renderActiveMatches([]);
         }
     }
@@ -1268,7 +1277,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!student || !saveBtn) return;
         const isSaved = Boolean(student.is_saved);
         saveBtn.dataset.userId = String(student.user_id);
-        saveBtn.className = `btn ${isSaved ? 'btn-primary' : 'btn-outline-primary'} rounded-4 fw-bold uppercase small`;
+        saveBtn.className = `btn ${isSaved ? 'btn-rose' : 'btn-outline-rose'} rounded-4 fw-bold uppercase small`;
         saveBtn.innerHTML = `<i class="${isSaved ? 'fas' : 'far'} fa-bookmark me-1"></i>${isSaved ? 'Saved' : 'Save'}`;
         saveBtn.onclick = () => window.toggleSavedStudent(student.user_id);
     }
@@ -1614,6 +1623,13 @@ document.addEventListener("DOMContentLoaded", function () {
             openBtn.innerText = canCompare ? `Compare ${selectedStudents.length}` : 'Pick 1 more';
         }
 
+        const groupBtn = document.getElementById('compareGroupBtn');
+        if (groupBtn) {
+            const canCreateGroup = selectedStudents.length >= 2;
+            groupBtn.disabled = !canCreateGroup;
+            groupBtn.innerText = canCreateGroup ? 'Group Request' : 'Pick 2+';
+        }
+
         const modalEl = document.getElementById('compareModal');
         if (modalEl && modalEl.classList.contains('show')) renderCompareModal();
     }
@@ -1649,6 +1665,26 @@ document.addEventListener("DOMContentLoaded", function () {
         renderCompareModal();
         const modal = new bootstrap.Modal(document.getElementById('compareModal'));
         modal.show();
+    };
+
+    window.openGroupMatchFromCompare = async function() {
+        const selectedStudents = getComparedStudents();
+        if (selectedStudents.length < 2) {
+            showThemedAlert('Select at least two students before creating a group request.', {
+                title: 'Group Request Needs Students',
+                tone: 'info',
+            });
+            return;
+        }
+
+        const [primaryStudent, ...coParticipants] = [...selectedStudents].sort((a, b) => {
+            const scoreDiff = getMatchScore(b) - getMatchScore(a);
+            return scoreDiff || String(a.name || '').localeCompare(String(b.name || ''));
+        });
+        await window.openMatchModal(primaryStudent.user_id, primaryStudent.name, {
+            type: 'group',
+            coParticipants: coParticipants.map(student => Number(student.user_id)),
+        });
     };
 
     function closeCompareModalIfOpen() {
@@ -1693,8 +1729,6 @@ document.addEventListener("DOMContentLoaded", function () {
             html += `
                 <div class="col-12 mb-4">
                     <div class="match-hero-card position-relative overflow-hidden">
-                        <div class="match-hero-halo"></div>
-                        
                         <div class="row g-4 position-relative match-hero-content">
                             <!-- Profile Details Column -->
                             <div class="col-lg-5 border-end-lg match-hero-profile">
@@ -1797,7 +1831,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                     ${getSaveIconButtonHTML(s)}
                                     ${getCompareIconButtonHTML(s)}
                                 </div>
-                                ${getConnectButtonHTML(s, 'btn btn-primary py-1 rounded-4 fw-bold w-100 small')}
+                                ${getConnectButtonHTML(s, 'btn btn-primary py-2 rounded-4 fw-bold w-100 small')}
                             </div>
                         </div>
                     </div>
@@ -1944,6 +1978,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 document.getElementById('receivedLoadMore').style.display = (receivedOffset + list.length < total) ? 'block' : 'none';
                 
                 if (!isLoadMore || list.length > 0) {
+                    receivedPendingCount = pending;
+                    updateMatchmakingBadges();
                     countEl.innerText = pending;
                     if (pending === 0) countEl.style.display = 'none';
                     else countEl.style.display = 'inline-block';
@@ -2318,15 +2354,21 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     };
 
-    window.openMatchModal = async function(id, name) {
+    window.openMatchModal = async function(id, name, options = {}) {
         await closeCompareModalIfOpen();
         clearMatchErrors();
         const targetStudent = getStudentById(id);
         const displayName = name || targetStudent?.name || 'this student';
+        const requestedType = options.type === 'group' ? 'group' : 'one-on-one';
+        const selectedCoParticipantIds = Array.isArray(options.coParticipants)
+            ? options.coParticipants.map(Number).filter(coId => coId && coId !== Number(id))
+            : [];
         const form = document.getElementById('matchRequestForm');
         if (form) form.reset();
         document.getElementById('targetId').value = id;
         document.getElementById('targetName').innerText = displayName;
+        const reqType = document.getElementById('reqType');
+        if (reqType) reqType.value = requestedType;
         renderScheduleSuggestions(targetStudent);
         
         // Reset and show loading state
@@ -2335,8 +2377,8 @@ document.addEventListener("DOMContentLoaded", function () {
         
         const coPartGroup = document.getElementById('coParticipantsGroup');
         const coPartSelect = document.getElementById('reqCoParticipants');
-        if (coPartGroup) coPartGroup.classList.add('d-none');
-        if (coPartSelect) coPartSelect.innerHTML = '<option value="">Loading friends...</option>';
+        if (coPartGroup) coPartGroup.classList.toggle('d-none', requestedType !== 'group');
+        if (coPartSelect) coPartSelect.innerHTML = '<option value="">Loading participants...</option>';
         
         const modal = new bootstrap.Modal(document.getElementById('matchModal'));
         modal.show();
@@ -2357,20 +2399,59 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                 }
             }
-            if (friendsRes.ok && coPartSelect) {
-                const friends = await friendsRes.json();
+            if (coPartSelect) {
+                const participantMap = new Map();
                 coPartSelect.innerHTML = '';
-                if (friends.length === 0) {
-                    coPartSelect.innerHTML = '<option value="" disabled>No friends available to invite</option>';
-                } else {
-                    friends.forEach(f => {
-                        coPartSelect.innerHTML += `<option value="${f.friend_id || f.user_id}">${escapeHTML(f.username || f.name)}</option>`;
+
+                selectedCoParticipantIds.forEach(coId => {
+                    const selectedStudent = getStudentById(coId);
+                    if (!selectedStudent) return;
+                    participantMap.set(coId, {
+                        id: coId,
+                        name: selectedStudent.name,
+                        source: 'selected',
+                        selected: true,
                     });
+                });
+
+                if (friendsRes.ok) {
+                    const friends = await friendsRes.json();
+                    friends.forEach(f => {
+                        const participantId = Number(f.friend_id || f.user_id);
+                        if (!participantId || participantId === Number(id)) return;
+                        if (participantMap.has(participantId)) return;
+                        participantMap.set(participantId, {
+                            id: participantId,
+                            name: f.username || f.name,
+                            source: 'friend',
+                            selected: false,
+                        });
+                    });
+                }
+
+                const participants = Array.from(participantMap.values());
+                if (participants.length === 0) {
+                    coPartSelect.innerHTML = '<option value="" disabled>No participants available to invite</option>';
+                } else {
+                    const renderOption = participant => {
+                        const selected = participant.selected ? 'selected' : '';
+                        return `<option value="${participant.id}" ${selected}>${escapeHTML(participant.name)}</option>`;
+                    };
+                    const selectedParticipants = participants.filter(participant => participant.source === 'selected');
+                    const friendParticipants = participants.filter(participant => participant.source === 'friend');
+                    coPartSelect.innerHTML = [
+                        selectedParticipants.length
+                            ? `<optgroup label="Selected from compare">${selectedParticipants.map(renderOption).join('')}</optgroup>`
+                            : '',
+                        friendParticipants.length
+                            ? `<optgroup label="Friends">${friendParticipants.map(renderOption).join('')}</optgroup>`
+                            : '',
+                    ].join('');
                 }
             }
         } catch (err) {
             moduleSelect.innerHTML = '<option value="">Error loading modules</option>';
-            if (coPartSelect) coPartSelect.innerHTML = '<option value="">Error loading friends</option>';
+            if (coPartSelect) coPartSelect.innerHTML = '<option value="">Error loading participants</option>';
         }
     };
 
@@ -2394,6 +2475,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 'errModule': 'reqModuleId',
                 'errTopic': 'reqTopic',
                 'errType': 'reqType',
+                'errParticipants': 'reqCoParticipants',
                 'errDate': 'reqDate',
                 'errTime': 'reqTime',
                 'errLocation': 'reqLocation'
@@ -2452,6 +2534,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (!type) {
             showMatchError('errType', "Please select a session type.");
+            hasError = true;
+        }
+
+        if (type === 'group' && coParticipants.length === 0) {
+            showMatchError('errParticipants', "Choose at least one participant for a group request.");
             hasError = true;
         }
 
