@@ -64,6 +64,16 @@ module.exports.getIncomingRequests = async function (userId) {
   return rows;
 };
 
+module.exports.countIncomingRequests = async function (userId) {
+  const SQLSTATEMENT = `
+    SELECT COUNT(*)::int AS count
+    FROM FriendRequest
+    WHERE receiver_id = $1
+  `;
+  const { rows } = await pool.query(SQLSTATEMENT, [userId]);
+  return rows[0]?.count || 0;
+};
+
 module.exports.getOutgoingRequests = async function (userId) {
   const SQLSTATEMENT = `
     SELECT fr.request_id,
