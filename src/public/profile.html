@@ -212,7 +212,7 @@
 
           <!-- EXPERIENCE -->
           <div id="profile-experience-section" class="premium-card profile-hover-card mt-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="profile-section-heading d-flex justify-content-between align-items-center mb-3">
               <h4 class="fw-bold mb-0">Experience</h4>
               <button id="add-experience-button" type="button" class="btn btn-sm btn-primary">
                 <i class="fas fa-plus me-1"></i>
@@ -329,6 +329,18 @@
 
             <div id="profile-friends-list" class="d-flex flex-column text-secondary">
               Loading friends...
+            </div>
+          </div>
+
+          <!-- SESSION LOGS -->
+          <div class="sidebar-card profile-hover-card">
+            <div class="profile-section-heading d-flex justify-content-between align-items-center gap-2 mb-3">
+              <h5 class="fw-bold mb-0">Session Logs</h5>
+              <a href="sessions.html" class="session-logs-link">View all</a>
+            </div>
+
+            <div id="profile-session-logs-list" class="session-logs-list">
+              <div class="profile-loading-state">Loading session logs...</div>
             </div>
           </div>
         </div>
@@ -563,6 +575,41 @@
             <button id="confirm-remove-friend-btn" type="button" class="btn btn-danger">
               Remove Friend
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="sessionLogModal"
+      tabindex="-1"
+      aria-labelledby="sessionLogModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content activity-match-modal">
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title" id="sessionLogModalLabel">Session Details</h5>
+              <p class="mb-0 small opacity-75">Your study session log</p>
+            </div>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div id="session-log-content" class="modal-body">
+            <div class="profile-loading-state">Loading session details...</div>
+          </div>
+          <div class="modal-footer">
+            <a href="sessions.html" class="btn btn-white">All Sessions</a>
+            <a id="session-log-open-link" href="sessions.html" class="btn btn-primary"
+              >Open Session</a
+            >
+            <button type="button" class="btn btn-white" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>

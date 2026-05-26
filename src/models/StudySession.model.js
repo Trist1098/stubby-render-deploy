@@ -1419,6 +1419,7 @@ module.exports.selectSessionsForUser = async function selectSessionsForUser(user
       host.name AS host_name,
       COALESCE(ss.planned_duration_seconds, ss.duration, 0)::INT AS planned_duration_seconds,
       ss.status,
+      ss.created_at,
       ss.started_at,
       COALESCE(ss.ended_at, ss.completed_at) AS ended_at,
       CASE

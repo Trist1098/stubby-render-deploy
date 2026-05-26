@@ -167,7 +167,7 @@ const interests = [
 
 const users = [
   { username: 'admin', email: 'admin@admin.com', name: 'Admin', inst: 1, dip: 1, year: 1, bio: 'Site Administrator.', is_online: true, has_completed_quiz: true },
-  { username: 'james', email: 'james@ichat.sp.edu.sg', name: 'James Lee', inst: 1, dip: 1, year: 2, bio: 'Bio:\\nPassionate about software development and AI.', is_online: true, has_completed_quiz: true },
+  { username: 'james', email: 'james@ichat.sp.edu.sg', name: 'James Lee', inst: 1, dip: 1, year: 2, bio: 'Passionate about software development and AI.', is_online: true, has_completed_quiz: true },
   { username: 'sarah', email: 'sarah@ichat.sp.edu.sg', name: 'Sarah Lim', inst: 1, dip: 1, year: 2, bio: 'Loves front-end development and UI design.', is_online: false, has_completed_quiz: true },
   { username: 'marcus', email: 'marcus@ichat.sp.edu.sg', name: 'Marcus Tan', inst: 1, dip: 1, year: 2, bio: 'Backend enthusiast. Enjoys databases and APIs.', is_online: false, has_completed_quiz: true },
   { username: 'emily', email: 'emily@ichat.sp.edu.sg', name: 'Emily Wong', inst: 1, dip: 1, year: 2, bio: 'Full-stack developer in training.', is_online: false, has_completed_quiz: true },

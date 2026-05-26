@@ -789,7 +789,8 @@ html.theme-dark #badgeDetailsModal .modal-body {
 
 html.theme-dark #friendRequestModal :is(.modal-body, .modal-footer),
 html.theme-dark #experienceModal :is(.modal-body, .modal-footer),
-html.theme-dark #activityMatchModal :is(.modal-body, .modal-footer) {
+html.theme-dark #activityMatchModal :is(.modal-body, .modal-footer),
+html.theme-dark #sessionLogModal :is(.modal-body, .modal-footer) {
   background: #0f172a;
   border-color: #334155;
   color: #e2e8f0;
