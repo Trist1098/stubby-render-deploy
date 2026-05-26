@@ -135,5 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
   bindPage();
   bindStudySessionEvents();
 
+  startStudySessionRealtime();
   loadSession();
 });
