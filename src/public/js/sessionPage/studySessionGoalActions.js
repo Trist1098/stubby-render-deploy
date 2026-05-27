@@ -41,6 +41,7 @@ async function addMicroGoal(event) {
       }),
     });
     resetGoalForm();
+    showModal(page.goalModal, false);
     await loadSession();
   } catch (error) {
     showMessage(error.message, 'danger');
@@ -49,7 +50,6 @@ async function addMicroGoal(event) {
 
 function resetGoalForm() {
   page.goalForm.reset();
-  page.goalForm.classList.add('d-none');
 }
 
 function progressFromPointer(event) {

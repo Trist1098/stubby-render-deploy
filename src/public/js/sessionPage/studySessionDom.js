@@ -57,6 +57,8 @@ function bindPage() {
 
   page.goalInput = byId('microGoalTitleInput');
 
+  page.goalModal = byId('microGoalModal');
+
   page.goalQuestionInput = byId('microGoalQuestionInput');
 
   page.goalTitle = byId('currentGoalTitle');
@@ -114,7 +116,5 @@ function bindPage() {
 }
 
 function byId(id) {
-
   return document.getElementById(id);
-
 }

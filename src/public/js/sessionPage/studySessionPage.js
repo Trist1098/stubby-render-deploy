@@ -20,9 +20,14 @@ function bindBackdropClosers(bindings) {
   bindings.forEach(([modal, handler]) => bindBackdropClose(modal, handler));
 }
 
-function toggleGoalForm() {
-  page.goalForm.classList.toggle('d-none');
-  if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
+function openGoalModal() {
+  showModal(page.goalModal, true);
+  window.setTimeout(() => page.goalInput?.focus(), 0);
+}
+
+function closeGoalModal() {
+  resetGoalForm();
+  showModal(page.goalModal, false);
 }
 
 function toggleMembersExpanded() {
@@ -74,7 +79,9 @@ function bindStudySessionEvents() {
   ]);
 
   bindClicks([
-    ['showGoalFormButton', toggleGoalForm],
+    ['showGoalFormButton', openGoalModal],
+    ['closeGoalModalButton', closeGoalModal],
+    ['cancelGoalModalButton', closeGoalModal],
     ['exitSessionButton', () => showModal(page.exitModal, true)],
     ['cancelExitButton', () => showModal(page.exitModal, false)],
     ['confirmExitButton', exitSession],
@@ -95,6 +102,7 @@ function bindStudySessionEvents() {
 
   bindBackdropClosers([
     [page.exitModal, () => showModal(page.exitModal, false)],
+    [page.goalModal, closeGoalModal],
     [page.timeExpiryModal, renderTimeExpiryModal],
     [page.queueModal, () => showModal(page.queueModal, false)],
     [page.consultationModal, () => showModal(page.consultationModal, false)],

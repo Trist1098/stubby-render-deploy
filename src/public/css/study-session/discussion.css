@@ -23,11 +23,12 @@
   gap: 14px;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   height: 100%;
-  border: 1px solid #dbe3ee;
-  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 20px;
   padding: 18px;
-  background: #ffffff;
-  box-shadow: -18px 0 48px rgba(15, 23, 42, 0.18);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.1), transparent 18rem), #ffffff;
+  box-shadow: -22px 0 56px rgba(15, 23, 42, 0.2);
   overflow: hidden;
 }
 
@@ -38,10 +39,10 @@
 }
 
 .discussion-form {
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 12px;
-  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(248, 250, 252, 0.9);
 }
 
 .discussion-form-row {
@@ -64,8 +65,8 @@
   width: 100%;
   min-width: 0;
   border: 1px solid #d8dee8;
-  border-radius: 10px;
-  padding: 9px 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
   color: #1f2937;
   font: inherit;
   font-size: 0.86rem;
@@ -73,8 +74,36 @@
 }
 
 .discussion-file-field input {
-  padding: 8px;
+  border-color: #cbd5e1;
+  padding: 7px 8px;
   background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.discussion-file-field input::file-selector-button {
+  margin-right: 12px;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #203047;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(32, 48, 71, 0.16);
+  transition:
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.discussion-file-field input:hover::file-selector-button {
+  background: #111827;
+  box-shadow: 0 12px 22px rgba(32, 48, 71, 0.2);
+  transform: translateY(-1px);
 }
 
 .discussion-form textarea {
@@ -85,9 +114,9 @@
   justify-self: end;
   min-height: 38px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 0 13px;
-  background: #203047;
+  background: linear-gradient(135deg, #6366f1, #2563eb);
   color: #ffffff;
   font: inherit;
   font-size: 0.82rem;
@@ -123,9 +152,13 @@
 .discussion-empty,
 .discussion-post {
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 14px;
   background: #ffffff;
+}
+
+.discussion-post {
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
 }
 
 .discussion-empty {

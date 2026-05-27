@@ -49,10 +49,14 @@
                   </a>
                   <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
                     <li>
-                      <a class="dropdown-item py-2 rounded-3" href="/matchmaking?tab=browse">Browse Matches</a>
+                      <a class="dropdown-item py-2 rounded-3" href="/matchmaking?tab=browse"
+                        >Browse Matches</a
+                      >
                     </li>
                     <li>
-                      <a class="dropdown-item py-2 rounded-3" href="/matchmaking?tab=requests">My Requests</a>
+                      <a class="dropdown-item py-2 rounded-3" href="/matchmaking?tab=requests"
+                        >My Requests</a
+                      >
                     </li>
                   </ul>
                 </li>
@@ -112,8 +116,8 @@
             <div class="micro-goal-heading-row">
               <h2 id="currentGoalTitle">Finish Tutorial Q1-Q3</h2>
             </div>
-            <div id="nextQueuedGoal" class="queued-goal-preview d-none"></div>
             <p id="currentGoalDescription">Current task for this study session.</p>
+            <div id="nextQueuedGoal" class="queued-goal-preview d-none"></div>
             <div class="micro-goal-actions">
               <button
                 id="discussionButton"
@@ -141,31 +145,6 @@
                 <i class="fas fa-plus"></i>
               </button>
             </div>
-
-            <form id="microGoalForm" class="micro-goal-form d-none">
-              <label>
-                <span>Micro-goal label</span>
-                <input
-                  id="microGoalTitleInput"
-                  name="title"
-                  type="text"
-                  maxlength="255"
-                  placeholder="Tutorial 4 Q3"
-                  required
-                />
-              </label>
-              <label>
-                <span>Question or task</span>
-                <textarea
-                  id="microGoalQuestionInput"
-                  name="description"
-                  rows="3"
-                  placeholder="Paste the question, prompt, or task the answer should be checked against"
-                  required
-                ></textarea>
-              </label>
-              <button type="submit">Add</button>
-            </form>
           </div>
         </section>
 
@@ -275,6 +254,60 @@
             ></textarea>
           </label>
           <button type="submit">Set Mission</button>
+        </form>
+      </section>
+    </div>
+
+    <div
+      id="microGoalModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="microGoalModalTitle"
+    >
+      <section class="session-modal-card micro-goal-modal-card">
+        <div class="session-modal-header">
+          <div>
+            <span class="time-expiry-kicker">Micro-goal</span>
+            <h2 id="microGoalModalTitle">Add Micro-goal</h2>
+          </div>
+          <button
+            id="closeGoalModalButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close micro-goal form"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form id="microGoalForm" class="micro-goal-form">
+          <label>
+            <span>Micro-goal label</span>
+            <input
+              id="microGoalTitleInput"
+              name="title"
+              type="text"
+              maxlength="255"
+              placeholder="Tutorial 4 Q3"
+              required
+            />
+          </label>
+          <label>
+            <span>Question or task</span>
+            <textarea
+              id="microGoalQuestionInput"
+              name="description"
+              rows="3"
+              placeholder="Paste the question, prompt, or task the answer should be checked against"
+              required
+            ></textarea>
+          </label>
+          <div class="session-modal-actions">
+            <button id="cancelGoalModalButton" class="btn-secondary" type="button">Cancel</button>
+            <button class="btn-primary" type="submit">Add</button>
+          </div>
         </form>
       </section>
     </div>
@@ -449,7 +482,7 @@
       aria-hidden="true"
       aria-labelledby="consultationModalTitle"
     >
-      <section class="session-modal-card">
+      <section class="session-modal-card consultation-confirm-card">
         <h2 id="consultationModalTitle">Start Consultation?</h2>
         <p>
           <span id="consultationMemberName">This user</span> has requested help. Would you like to

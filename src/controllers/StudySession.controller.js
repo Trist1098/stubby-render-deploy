@@ -1,7 +1,9 @@
 const model = require('../models/StudySession.model');
 const { checkWorkWithAi } = require('../services/workCheckAi.service');
+const { moderateDiscussionText } = require('../services/contentModeration.service');
 const { emitSessionEvent } = require('../realtime/studySessionRealtime');
 const { badReq, created, notFound, ok } = require('../utils/responseHelpers');
+const fs = require('fs/promises');
 const mammoth = require('mammoth');
 
 const parseId = (value) => {
@@ -82,6 +84,35 @@ const discussionAttachmentFromUpload = (file) => {
   };
 };
 
+const isDiscussionTxtAttachment = (file) =>
+  file?.path &&
+  /\.txt$/i.test(file.originalname) &&
+  (!file.mimetype ||
+    file.mimetype === 'text/plain' ||
+    file.mimetype === 'application/octet-stream');
+
+const isDiscussionDocxAttachment = (file) =>
+  file?.path &&
+  /\.docx$/i.test(file.originalname) &&
+  (!file.mimetype ||
+    file.mimetype === docxMimeType ||
+    file.mimetype === 'application/octet-stream');
+
+const getDiscussionAttachmentText = async (file) => {
+  if (!file) return '';
+  if (isDiscussionTxtAttachment(file)) return fs.readFile(file.path, 'utf8');
+  if (isDiscussionDocxAttachment(file)) {
+    const result = await mammoth.extractRawText({ path: file.path });
+    return result.value || '';
+  }
+  return '';
+};
+
+const getDiscussionModerationText = async ({ title, content, file }) => {
+  const attachmentText = await getDiscussionAttachmentText(file);
+  return [title, content, attachmentText].map(getTrimmedString).filter(Boolean).join('\n');
+};
+
 const clampUnit = (value) => {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return null;
@@ -96,13 +127,13 @@ const getWhiteboardStrokes = (value) => {
     .map((stroke) => {
       const points = Array.isArray(stroke?.points)
         ? stroke.points
-          .slice(0, 500)
-          .map((point) => {
-            const x = clampUnit(point?.x);
-            const y = clampUnit(point?.y);
-            return x === null || y === null ? null : { x, y };
-          })
-          .filter(Boolean)
+            .slice(0, 500)
+            .map((point) => {
+              const x = clampUnit(point?.x);
+              const y = clampUnit(point?.y);
+              return x === null || y === null ? null : { x, y };
+            })
+            .filter(Boolean)
         : [];
 
       if (!points.length) return null;
@@ -134,7 +165,8 @@ module.exports.getSession = async function getSession(req, res, next) {
 
   try {
     const access = await model.ensureSessionAccessForUser(sessionId, userId);
-    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+    if (!access)
+      return res.status(403).json({ error: 'You are not invited to this study session' });
 
     await model.expireSessionIfTimeElapsed(sessionId);
     await model.ensureActiveSessionTimers(sessionId);
@@ -558,7 +590,8 @@ module.exports.openSessionGroupChat = async function openSessionGroupChat(req, r
 
   try {
     const access = await model.ensureSessionAccessForUser(sessionId, userId);
-    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+    if (!access)
+      return res.status(403).json({ error: 'You are not invited to this study session' });
 
     const chat = await model.ensureSessionGroupChat({
       study_session_id: sessionId,
@@ -600,11 +633,16 @@ module.exports.createDiscussionPost = async function createDiscussionPost(req, r
 
   if (!ids) return null;
   if (!title) return badReq(res, 'Discussion title is required');
-  if (!content && !req.file) return badReq(res, 'Add discussion text or attach a file before posting');
+  if (!content && !req.file)
+    return badReq(res, 'Add discussion text or attach a file before posting');
 
   try {
     const hasAccess = await ensureSessionRequestAccess(ids.sessionId, ids.userId, res);
     if (!hasAccess) return null;
+
+    await moderateDiscussionText(
+      await getDiscussionModerationText({ title, content, file: req.file }),
+    );
 
     const post = await model.insertDiscussionPost({
       study_session_id: ids.sessionId,
@@ -697,7 +735,8 @@ module.exports.updateMemberMission = async function updateMemberMission(req, res
 
   try {
     const access = await model.ensureSessionAccessForUser(sessionId, userId);
-    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+    if (!access)
+      return res.status(403).json({ error: 'You are not invited to this study session' });
 
     const member = await model.updateMemberMission({
       study_session_id: sessionId,

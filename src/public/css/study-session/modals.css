@@ -63,6 +63,10 @@
   width: min(100%, 460px);
 }
 
+.micro-goal-modal-card {
+  width: min(100%, 500px);
+}
+
 .member-goals-modal-card {
   width: min(100%, 560px);
 }
@@ -73,6 +77,39 @@
 
 .time-expiry-card {
   width: min(430px, calc(100vw - 32px));
+}
+
+.consultation-confirm-card {
+  width: min(100%, 520px);
+  padding: 28px;
+}
+
+.consultation-confirm-card p {
+  max-width: 42ch;
+  line-height: 1.45;
+}
+
+.consultation-confirm-card .session-modal-actions {
+  display: grid;
+  grid-template-columns: minmax(92px, auto) minmax(98px, auto) minmax(220px, 1fr);
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.consultation-confirm-card .session-modal-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  margin: 0;
+  border-radius: 12px;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+.consultation-confirm-card .consultation-chat-button {
+  gap: 8px;
 }
 
 .time-expiry-kicker {
