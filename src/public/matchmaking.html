@@ -7,7 +7,10 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+    <link href="css/shared-ui.css" rel="stylesheet" />
     <link href="css/style.css" rel="stylesheet" />
+    <link href="css/theme.css" rel="stylesheet" />
+    <script src="js/core/auth.js"></script>
 </head>
 <body class="d-flex flex-column min-vh-100">
     <header class="header-transparent">
@@ -30,11 +33,17 @@
                             <li class="nav-item dropdown">
                                 <a href="#" class="nav-link active dropdown-toggle d-flex align-items-center gap-1" data-bs-toggle="dropdown" id="matchmakingDropdown">
                                     Matchmaking
+                                    <span id="matchmakingNavBadge" class="match-nav-badge d-none">0</span>
                                     <i class="fas fa-chevron-down nav-dropdown-icon ms-1"></i>
                                 </a>
                                 <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
                                     <li><a class="dropdown-item py-2 rounded-3 active" href="#" id="tab-browse" onclick="switchTab('browse')">Browse Matches</a></li>
-                                    <li><a class="dropdown-item py-2 rounded-3" href="#" id="tab-requests" onclick="switchTab('requests')">My Requests</a></li>
+                                    <li>
+                                        <a class="dropdown-item py-2 rounded-3 d-flex align-items-center justify-content-between gap-2" href="#" id="tab-requests" onclick="switchTab('requests')">
+                                            <span>My Requests</span>
+                                            <span id="navRequestBadge" class="match-nav-badge d-none">0</span>
+                                        </a>
+                                    </li>
                                 </ul>
                             </li>
                             <li class="nav-item">
@@ -209,44 +218,60 @@
         <div id="browseSection">
             <div class="row g-4">
                 <!-- Sidebar Filters -->
-                <div class="col-lg-3">
+                <div class="col-lg-3 filter-sidebar-column">
                     <div class="filter-sidebar">
-                        <div class="d-flex align-items-center justify-content-between mb-4">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
                             <h5 class="fw-bold mb-0" style="font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase;">Filters </h5>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label class="form-label text-muted small fw-bold">SEARCH</label>
                             <div class="input-group">
                                 <span class="input-group-text bg-transparent border-end-0 border-0 bg-light"><i class="fas fa-search text-muted"></i></span>
-                                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 bg-light border-0 py-3 rounded-end-4" placeholder="Name or module..." onkeyup="filterStudents()"/>
+                                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 bg-light border-0 py-2 rounded-end-4" placeholder="Name or module..." onkeyup="filterStudents()"/>
                             </div>
                         </div>
 
-                        <div class="mb-4">
-                            <label class="form-label text-muted small fw-bold">AVAILABILITY</label>
-                            <div class="form-check form-switch custom-switch">
-                                <input class="form-check-input" type="checkbox" id="onlineFilter" onchange="filterStudents()"/>
-                                <label class="form-check-label fw-bold small text-dark" for="onlineFilter">Online</label>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold">AVAILABILITY</label>
+                                <div class="filter-toggle-box">
+                                    <div class="form-check form-switch custom-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="onlineFilter" onchange="filterStudents()"/>
+                                        <label class="form-check-label fw-bold small text-dark" for="onlineFilter">Online</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold">SHORTLIST</label>
+                                <div class="filter-toggle-box">
+                                    <div class="form-check form-switch custom-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="savedOnlyFilter" onchange="filterStudents()"/>
+                                        <label class="form-check-label fw-bold small text-dark" for="savedOnlyFilter">Saved</label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label class="form-label text-muted small fw-bold">MODULES</label>
                             <div id="filterModules" class="d-flex flex-wrap">
                                 <!-- Populated by JS -->
                             </div>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label class="form-label text-muted small fw-bold">SORT BY</label>
-                            <select id="sortSelect" class="form-select border-0 bg-light py-3 rounded-4" onchange="filterStudents()">
+                            <select id="sortSelect" class="form-select border-0 bg-light py-2 rounded-4" onchange="filterStudents()">
                                 <option value="match">Best Match</option>
+                                <option value="shared">Most Shared Modules</option>
+                                <option value="online">Online First</option>
+                                <option value="saved">Saved First</option>
                                 <option value="name">Name (A-Z)</option>
                             </select>
                         </div>
 
-                        <hr class="opacity-10 my-4" />
+                        <hr class="opacity-10 my-3" />
 
                         <button class="btn btn-accent w-100 py-3 shadow-soft" onclick="triggerAutoMatch()">
                             <i class="fas fa-bolt me-2"></i> Auto-Match
@@ -266,6 +291,29 @@
         </div>
 
         <div id="requestsSection" style="display: none;">
+            <section class="active-matches-panel mb-5" aria-labelledby="activeMatchesTitle">
+                <div class="d-flex align-items-center justify-content-between gap-3 mb-3 flex-wrap">
+                    <div>
+                        <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fw-bold uppercase smaller mb-2">
+                            Accepted Matches
+                        </span>
+                        <h4 class="fw-bold mb-1" id="activeMatchesTitle">Active Study Partners</h4>
+                        <p class="text-muted small mb-0">Accepted requests with session details, chat access, and calendar links.</p>
+                    </div>
+                    <span class="active-matches-count" id="activeMatchesCount">0 active</span>
+                </div>
+                <div id="activeMatchesGrid" class="row g-3">
+                    <div class="col-12 text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                    </div>
+                </div>
+                <div id="activeMatchesActions" class="active-matches-actions mt-3 text-center d-none">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="activeMatchesToggle">
+                        Show all matches
+                    </button>
+                </div>
+            </section>
+
             <div class="row mb-4">
                 <div class="col-12 text-center">
                     <div class="segmented-tabs" id="request-tabs" role="tablist">
@@ -326,9 +374,14 @@
             </div>
         </div>
         <div id="compareTrayAvatars" class="compare-tray-avatars"></div>
-        <button type="button" id="compareOpenBtn" class="btn btn-accent compare-tray-action" onclick="window.openCompareModal()">
-            Compare
-        </button>
+        <div class="compare-tray-actions">
+            <button type="button" id="compareOpenBtn" class="btn btn-accent compare-tray-action" onclick="window.openCompareModal()">
+                Compare
+            </button>
+            <button type="button" id="compareGroupBtn" class="btn btn-rose compare-tray-action" onclick="window.openGroupMatchFromCompare()" disabled>
+                Pick 2+
+            </button>
+        </div>
         <button type="button" class="btn btn-white compare-tray-clear" onclick="window.clearCompareSelection()" aria-label="Clear compared students">
             <i class="fas fa-times"></i>
         </button>
@@ -373,7 +426,8 @@
                             <select id="reqCoParticipants" class="form-select bg-light border-0 py-3 rounded-4" multiple>
                                 <!-- Populated dynamically -->
                             </select>
-                            <div class="form-text mt-1 small text-muted">Hold Ctrl/Cmd to select multiple friends.</div>
+                            <div class="form-text mt-1 small text-muted">Hold Ctrl/Cmd to select multiple participants.</div>
+                            <div id="errParticipants" class="error-message"></div>
                         </div>
 
                         <div class="row g-3 mb-3">
@@ -387,6 +441,14 @@
                                 <input type="time" id="reqTime" class="form-control bg-light border-0 py-3 rounded-4"/>
                                 <div id="errTime" class="error-message"></div>
                             </div>
+                        </div>
+
+                        <div class="mb-3" id="scheduleSuggestionsWrap" style="display: none">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <label class="form-label small fw-bold text-muted uppercase mb-0">SUGGESTED SLOTS</label>
+                                <span class="text-muted smaller fw-bold" id="scheduleSuggestionSource">Based on availability</span>
+                            </div>
+                            <div id="scheduleSuggestions" class="schedule-suggestion-list"></div>
                         </div>
 
                         <div class="mb-3">
@@ -474,14 +536,14 @@
                                             <div class="p-4 rounded-4 bg-primary text-white h-100">
                                                 <i class="fas fa-bolt mb-3 fs-3"></i>
                                                 <h5 class="fw-bold">Match Potential</h5>
-                                                <p class="small opacity-75 mb-0">Add more modules to increase your synergy with others.</p>
+                                                <p class="small opacity-75 mb-0" id="summaryMatchPotential">Complete your study details to improve ranking.</p>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="p-4 rounded-4 bg-light h-100 border border-2 border-dashed">
                                                 <i class="fas fa-clock text-primary mb-3 fs-3"></i>
-                                                <h5 class="fw-bold">Active Hours</h5>
-                                                <p class="small text-muted mb-0">Most study partners are active between 7PM - 11PM.</p>
+                                                <h5 class="fw-bold">Preferred Times</h5>
+                                                <p class="small text-muted mb-0" id="summaryActiveTimes">Set your availability to improve schedule suggestions.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -712,7 +774,7 @@
                 <div class="mb-4">
                     <i class="fas fa-question-circle text-warning" style="font-size: 80px;"></i>
                 </div>
-                <h3 class="fw-bold mb-2">RESET MATCHMAKING PREFERENCES</h3>
+                <h3 id="confirmModalTitle" class="fw-bold mb-2">CONFIRM ACTION</h3>
                 <p id="confirmModalMessage" class="text-muted mb-4">This action cannot be undone.</p>
                 <div class="d-flex gap-3">
                     <button type="button" class="btn btn-white flex-grow-1 py-3 rounded-4 fw-bold uppercase small" data-bs-dismiss="modal">Cancel</button>
@@ -802,7 +864,7 @@
                                                 <span class="badge modal-ai-insight-badge px-2 py-1 rounded-3 fw-bold"><i class="fas fa-robot me-1"></i> AI INSIGHT</span>
                                             </div>
                                             <p class="text-white fw-medium mb-0 small line-height-relaxed" id="modalAiInsight">
-                                                Based on your shared focus in FOP2, this student is an ideal partner for weekly exam prep and code reviews.
+                                                Match insight will appear here after the profile loads.
                                             </p>
                                         </div>
                                     </div>
@@ -825,8 +887,8 @@
                                 </div>
                                 <div class="col-6">
                                     <div class="p-3 bg-light border rounded-4 text-center">
-                                        <div class="small text-muted fw-bold uppercase mb-1">Active Now</div>
-                                        <h3 class="fw-bold text-dark mb-0" id="modalActiveHours">6h 12m</h3>
+                                        <div class="small text-muted fw-bold uppercase mb-1">Status</div>
+                                        <h3 class="fw-bold text-dark mb-0" id="modalActiveHours">--</h3>
                                     </div>
                                 </div>
                             </div>
@@ -857,8 +919,8 @@
                                         <i class="fas fa-school"></i>
                                     </div>
                                     <div>
-                                        <div class="small text-muted fw-bold modal-quick-detail-label">Campus</div>
-                                        <div class="fw-bold text-dark small">SP Main Campus</div>
+                                        <div class="small text-muted fw-bold modal-quick-detail-label">Institution</div>
+                                        <div class="fw-bold text-dark small" id="modalCampus">Institution will appear here</div>
                                     </div>
                                 </div>
                             </div>
@@ -868,7 +930,7 @@
                                 <div class="col-12">
                                     <div class="p-3 bg-light rounded-4 h-100">
                                         <h6 class="fw-bold text-primary uppercase small mb-2">Goals</h6>
-                                        <p class="text-muted small mb-0 italic" id="modalGoals">"Aiming for an A in FOP2 and improving consistency in BED."</p>
+                                        <p class="text-muted small mb-0 italic" id="modalGoals">Study goals will appear here.</p>
                                     </div>
                                 </div>
                                 <div class="col-12">
@@ -879,13 +941,27 @@
                                 </div>
                             </div>
 
-                            <div class="d-flex gap-2">
-                                <button type="button" id="modalConnectBtn" class="btn btn-accent flex-grow-1 py-3 rounded-4 fw-bold uppercase small shadow-soft">
+                            <div class="profile-primary-actions">
+                                <button type="button" id="modalConnectBtn" class="btn btn-accent py-3 rounded-4 fw-bold uppercase small shadow-soft">
                                     <i class="fas fa-paper-plane me-2"></i>Send Request
                                 </button>
-                                <a href="#" id="modalViewFullProfile" target="_blank" class="btn btn-outline-primary py-3 rounded-4 fw-bold uppercase small d-flex align-items-center justify-content-center" style="min-width: 160px;">
+                                <a href="#" id="modalViewFullProfile" target="_blank" class="btn btn-outline-primary py-3 rounded-4 fw-bold uppercase small d-flex align-items-center justify-content-center">
                                     <i class="fas fa-user-circle me-2"></i>Full Profile
                                 </a>
+                            </div>
+                            <div class="profile-safety-actions mt-2">
+                                <button type="button" id="modalSaveBtn" class="btn btn-outline-rose rounded-4 fw-bold uppercase small">
+                                    <i class="fas fa-bookmark me-1"></i>Save
+                                </button>
+                                <button type="button" id="modalHideBtn" class="btn btn-rose rounded-4 fw-bold uppercase small">
+                                    <i class="fas fa-eye-slash me-1"></i>Hide
+                                </button>
+                                <button type="button" id="modalReportBtn" class="btn btn-outline-danger rounded-4 fw-bold uppercase small">
+                                    <i class="fas fa-flag me-1"></i>Report
+                                </button>
+                                <button type="button" id="modalBlockBtn" class="btn btn-danger rounded-4 fw-bold uppercase small">
+                                    <i class="fas fa-ban me-1"></i>Block
+                                </button>
                             </div>
                         </div>
 
@@ -908,25 +984,13 @@
                                 </div>
                             </div>
 
-                            <!-- Match Reviews -->
+                            <!-- Score Breakdown -->
                             <div>
                                 <div class="d-flex align-items-center justify-content-between mb-3">
-                                    <h6 class="fw-bold text-muted uppercase small mb-0">Partner Reviews</h6>
-                                    <div class="d-flex align-items-center gap-1">
-                                        <i class="fas fa-star text-warning"></i>
-                                        <span class="fw-bold text-dark small" id="modalReviewsRating">4.9/5.0</span>
-                                        <span class="text-muted small" id="modalReviewsCount">(12 reviews)</span>
-                                    </div>
+                                    <h6 class="fw-bold text-muted uppercase small mb-0">Match Score Breakdown</h6>
+                                    <span class="text-muted small fw-bold" id="modalScoreBreakdownTotal">0 / 100</span>
                                 </div>
-
-                                <div class="bg-warning-subtle border border-warning-subtle-200 p-3 rounded-4 mb-3 position-relative">
-                                    <span class="badge bg-warning text-dark uppercase small position-absolute top-0 end-0 m-3 modal-featured-review-badge">Featured Review</span>
-                                    <p class="text-dark fw-bold mb-1 italic small" id="modalFeaturedReviewComment">"One of the best partners I've worked with. Very meticulous!"</p>
-                                    <div class="small text-muted fw-bold modal-featured-review-author" id="modalFeaturedReviewAuthor">- Jason Lee (Peer Tutor)</div>
-                                </div>
-
-                                <!-- Review Carousel -->
-                                <div class="d-flex gap-3 overflow-x-auto pb-2 no-scrollbar" id="modalReviewsList">
+                                <div id="modalScoreBreakdown" class="score-breakdown-list">
                                     <!-- Populated dynamically -->
                                 </div>
                             </div>
@@ -944,7 +1008,6 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/core/auth.js"></script>
     <script src="js/core/navbar.js"></script>
     <script src="js/matchmaking/matchmaking.js"></script>
 </body>

@@ -643,6 +643,14 @@
   color: #0d6efd;
 }
 
+.message-row.sent .msg-ticks {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.message-row.sent .msg-ticks.read {
+  color: #ffffff;
+}
+
 /* Day separator */
 .day-separator {
   display: flex;

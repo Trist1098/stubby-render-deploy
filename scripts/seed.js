@@ -167,7 +167,7 @@ const interests = [
 
 const users = [
   { username: 'admin', email: 'admin@admin.com', name: 'Admin', inst: 1, dip: 1, year: 1, bio: 'Site Administrator.', is_online: true, has_completed_quiz: true },
-  { username: 'james', email: 'james@ichat.sp.edu.sg', name: 'James Lee', inst: 1, dip: 1, year: 2, bio: 'Bio:\\nPassionate about software development and AI.', is_online: true, has_completed_quiz: true },
+  { username: 'james', email: 'james@ichat.sp.edu.sg', name: 'James Lee', inst: 1, dip: 1, year: 2, bio: 'Passionate about software development and AI.', is_online: true, has_completed_quiz: true },
   { username: 'sarah', email: 'sarah@ichat.sp.edu.sg', name: 'Sarah Lim', inst: 1, dip: 1, year: 2, bio: 'Loves front-end development and UI design.', is_online: false, has_completed_quiz: true },
   { username: 'marcus', email: 'marcus@ichat.sp.edu.sg', name: 'Marcus Tan', inst: 1, dip: 1, year: 2, bio: 'Backend enthusiast. Enjoys databases and APIs.', is_online: false, has_completed_quiz: true },
   { username: 'emily', email: 'emily@ichat.sp.edu.sg', name: 'Emily Wong', inst: 1, dip: 1, year: 2, bio: 'Full-stack developer in training.', is_online: false, has_completed_quiz: true },
@@ -188,6 +188,27 @@ const users = [
   { username: 'lucas', email: 'lucas@rp.edu.sg', name: 'Lucas Teo', inst: 4, dip: 1, year: 1, bio: 'RP student learning back-end.', is_online: false, has_completed_quiz: false },
   { username: 'mia', email: 'mia@tp.edu.sg', name: 'Mia Lim', inst: 5, dip: 1, year: 2, bio: 'TP student interested in UI/UX.', is_online: false, has_completed_quiz: false },
   { username: 'sam', email: 'sam@ichat.sp.edu.sg', name: 'Sam', inst: 1, dip: 1, year: 2, bio: 'Study session member taking a short break.', is_online: true, has_completed_quiz: true }
+];
+
+const profileExperiences = [
+  {
+    username: 'james',
+    type: 'academic',
+    title: 'Diploma in Information Technology',
+    organization: 'Singapore Polytechnic',
+    start: '2025-04-01',
+    end: null,
+    description: 'Developing software engineering skills through applied projects and collaborative learning.'
+  },
+  {
+    username: 'james',
+    type: 'work',
+    title: 'Web Development Intern',
+    organization: 'BrightLabs Singapore',
+    start: '2024-09-01',
+    end: '2025-02-28',
+    description: 'Built responsive web interfaces and supported usability testing for student-facing tools.'
+  }
 ];
 
 const matchRequests = [
@@ -422,6 +443,31 @@ async function seed() {
     const placeholders = users.map((_, i) => `($${i * 10 + 1}, $${i * 10 + 2}, $${i * 10 + 3}, $${i * 10 + 4}, $${i * 10 + 5}, $${i * 10 + 6}, $${i * 10 + 7}, $${i * 10 + 8}, $${i * 10 + 9}, $${i * 10 + 10})`).join(', ');
     const values = users.flatMap(u => [u.username, u.email, hash, u.name, u.inst, u.dip, u.year, u.bio, u.is_online, u.has_completed_quiz]);
     await pool.query(`INSERT INTO "User" ("username", "email", "password", "name", "institution_id", "diploma_id", "year", "profile_text", "is_online", "has_completed_quiz") VALUES ${placeholders} ON CONFLICT DO NOTHING`, values);
+  }
+
+  // 7.5. Profile Experiences
+  if (profileExperiences.length > 0) {
+    const placeholders = profileExperiences.map((_, i) => `($${i * 7 + 1}::VARCHAR, $${i * 7 + 2}::VARCHAR, $${i * 7 + 3}::VARCHAR, $${i * 7 + 4}::VARCHAR, $${i * 7 + 5}::DATE, $${i * 7 + 6}::DATE, $${i * 7 + 7}::TEXT)`).join(', ');
+    const values = profileExperiences.flatMap(e => [e.username, e.type, e.title, e.organization, e.start, e.end, e.description]);
+    await pool.query(
+      `WITH seeded_experience (username, type, title, organization, start_date, end_date, description) AS (
+        VALUES ${placeholders}
+      )
+      INSERT INTO ProfileExperience ("user_id", "type", "title", "organization", "start_date", "end_date", "description")
+      SELECT u.user_id, seed.type, seed.title, seed.organization, seed.start_date, seed.end_date, seed.description
+      FROM seeded_experience seed
+      INNER JOIN "User" u ON u.username = seed.username
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM ProfileExperience existing
+        WHERE existing.user_id = u.user_id
+          AND existing.type = seed.type
+          AND existing.title = seed.title
+          AND existing.organization = seed.organization
+          AND existing.start_date = seed.start_date
+      )`,
+      values
+    );
   }
 
   // 8. Match Requests

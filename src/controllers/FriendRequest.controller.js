@@ -208,6 +208,22 @@ module.exports.getIncomingFriendRequests = async function (req, res, next) {
   }
 };
 
+module.exports.getIncomingFriendRequestCount = async function (req, res, next) {
+  const authUserId = res.locals.userId;
+
+  if (!authUserId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const count = await friendRequestModel.countIncomingRequests(authUserId);
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error('Error getIncomingFriendRequestCount:', error);
+    next(error);
+  }
+};
+
 module.exports.getOutgoingFriendRequests = async function (req, res, next) {
   const authUserId = res.locals.userId;
   const userId = Number(req.params.user_id);

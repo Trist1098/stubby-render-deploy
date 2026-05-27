@@ -1,0 +1,94 @@
+:root {
+    --match-rose: #f16399;
+    --match-rose-rgb: 241, 99, 153;
+    --match-rose-border-rgb: 252, 165, 226;
+    --match-rose-soft: #ffebf8;
+    --match-rose-strong: #b40964;
+    --match-rose-quote-rgb: 241, 99, 182;
+    --match-plum: #7a075d;
+    --match-plum-deep: #46082a;
+    --match-plum-muted-rgb: 132, 33, 71;
+    --match-plum-deep-rgb: 95, 3, 38;
+    --match-berry: #f50b65;
+    --match-magenta: #d90688;
+}
+
+.btn-rose,
+.btn-outline-rose {
+    border-radius: var(--radius-md, 0.5rem);
+    padding: 12px 24px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.8px;
+    transition: all var(--transition-smooth, 0.25s cubic-bezier(0.16, 1, 0.3, 1));
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-rose {
+    background: linear-gradient(135deg, var(--match-rose) 0%, var(--match-berry) 100%);
+    color: #ffffff !important;
+    border: none;
+}
+
+.btn-outline-rose {
+    background: #ffffff;
+    color: var(--match-rose-strong) !important;
+    border: 1.5px solid rgba(var(--match-rose-rgb), 0.45);
+}
+
+.btn-rose::after,
+.btn-outline-rose::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, transparent 52%);
+    opacity: 0;
+    transition: opacity var(--transition-smooth, 0.25s cubic-bezier(0.16, 1, 0.3, 1));
+    pointer-events: none;
+}
+
+.btn-rose:hover,
+.btn-outline-rose:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(var(--match-rose-rgb), 0.24);
+}
+
+.btn-rose:hover {
+    background: linear-gradient(135deg, var(--match-berry) 0%, var(--match-plum) 100%);
+    color: #ffffff !important;
+}
+
+.btn-outline-rose:hover {
+    background: var(--match-rose-soft);
+    border-color: rgba(var(--match-rose-rgb), 0.72);
+    color: var(--match-plum) !important;
+}
+
+.btn-rose:hover::after,
+.btn-outline-rose:hover::after {
+    opacity: 1;
+}
+
+.btn-rose:active,
+.btn-outline-rose:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(var(--match-rose-rgb), 0.18);
+}
+
+.match-nav-badge {
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.42rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #be255d;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    font-size: 0.65rem;
+    font-weight: 800;
+    line-height: 1;
+}

@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileBadgesList = document.getElementById('profile-badges-list');
   const profileActivitySummary = document.getElementById('profile-activity-summary');
   const profileExperienceList = document.getElementById('profile-experience-list');
+  const profileSessionLogsList = document.getElementById('profile-session-logs-list');
   const profileActions = document.querySelector('.profile-action-buttons');
   const connectButton = document.getElementById('profile-connect-button');
   const messageButton = document.getElementById('profile-message-button');
@@ -35,6 +36,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allBadgesList = document.getElementById('all-badges-list');
   const activityMatchModalEl = document.getElementById('activityMatchModal');
   const activityMatchContent = document.getElementById('activity-match-content');
+  const sessionLogModalEl = document.getElementById('sessionLogModal');
+  const sessionLogContent = document.getElementById('session-log-content');
+  const sessionLogOpenLink = document.getElementById('session-log-open-link');
   const experienceModalEl = document.getElementById('experienceModal');
   const experienceModalLabel = document.getElementById('experienceModalLabel');
   const experienceForm = document.getElementById('experience-form');
@@ -95,6 +99,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     : null;
   const activityMatchModal = activityMatchModalEl
     ? bootstrap.Modal.getOrCreateInstance(activityMatchModalEl)
+    : null;
+  const sessionLogModal = sessionLogModalEl
+    ? bootstrap.Modal.getOrCreateInstance(sessionLogModalEl)
     : null;
   const experienceModal = experienceModalEl
     ? bootstrap.Modal.getOrCreateInstance(experienceModalEl)
@@ -174,11 +181,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const applyTheme = (theme) => {
-    if (theme === 'Dark') {
-      document.body.classList.add('theme-dark');
-    } else {
-      document.body.classList.remove('theme-dark');
+    const isDark = theme === 'Dark';
+    if (typeof window.applyThemeMode === 'function') {
+      window.applyThemeMode(isDark);
+      return;
     }
+
+    document.documentElement.classList.toggle('theme-dark', isDark);
+    document.body.classList.toggle('theme-dark', isDark);
   };
 
   const loadProfileSettings = () => {
@@ -733,6 +743,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
   };
 
+  const formatSessionLogDate = (value) => {
+    if (!value) return 'Date unavailable';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Date unavailable';
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const formatSessionLogDateTime = (value) => {
+    if (!value) return 'Not recorded';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Not recorded';
+    return date.toLocaleString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const formatSessionLogDuration = (value) => {
+    const totalMinutes = Math.round((Number(value) || 0) / 60);
+    if (totalMinutes <= 0) return 'Duration not recorded';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours && minutes) return `${hours}h ${minutes}m`;
+    if (hours) return `${hours}h`;
+    return `${minutes}m`;
+  };
+
   const renderActivityItem = (icon, title, detail, matchId = '') => {
     const tag = matchId ? 'button' : 'div';
     const linkAttributes = matchId
@@ -1079,6 +1119,156 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   };
 
+  let profileSessionLogs = [];
+
+  const sessionLogStatusLabel = (status) =>
+    ({ active: 'Live', upcoming: 'Upcoming', completed: 'Completed' })[status] || 'Session';
+
+  const sessionLogDate = (session) =>
+    session.scheduled_start_at || session.ended_at || session.started_at || session.created_at;
+
+  const renderSessionLogCategory = (heading, status, sessions, emptyMessage) => {
+    const sessionItems = sessions
+      .map((session) => {
+        const sessionIndex = profileSessionLogs.indexOf(session);
+        return `
+          <button class="session-log-item" type="button" data-session-log-index="${sessionIndex}">
+            <div class="session-log-header">
+              <span class="session-log-title">${escapeHtml(session.title || 'Study session')}</span>
+              <span class="session-log-status ${status}">${sessionLogStatusLabel(status)}</span>
+            </div>
+            <div class="session-log-meta">
+              <span><i class="far fa-calendar"></i>${escapeHtml(formatSessionLogDate(sessionLogDate(session)))}</span>
+              <span><i class="far fa-clock"></i>${escapeHtml(formatSessionLogDuration(session.planned_duration_seconds))}</span>
+            </div>
+          </button>
+        `;
+      })
+      .join('');
+
+    return `
+      <section class="session-log-section">
+        <h6 class="session-log-section-title">${heading}</h6>
+        ${sessionItems || `<div class="session-log-empty">${escapeHtml(emptyMessage)}</div>`}
+      </section>
+    `;
+  };
+
+  const openSessionLogDetails = (session) => {
+    if (!sessionLogModal || !sessionLogContent || !session) return;
+    const status = String(session.status || '').toLowerCase();
+    const statusLabel = sessionLogStatusLabel(status);
+    const dateLabel =
+      status === 'upcoming'
+        ? 'Starts'
+        : status === 'completed' && session.ended_at
+          ? 'Completed'
+          : session.started_at
+            ? 'Started'
+            : 'Logged';
+    const dateValue =
+      status === 'upcoming'
+        ? session.scheduled_start_at
+        : status === 'completed'
+          ? session.ended_at || session.started_at || session.created_at
+          : session.started_at || session.created_at;
+    const sessionGoal = session.micro_goal || 'No session goal recorded.';
+
+    sessionLogContent.innerHTML = `
+      <div class="match-detail-hero">
+        <div class="match-detail-avatar"><i class="fas fa-book-open"></i></div>
+        <div class="match-detail-hero-copy">
+          <h4 class="fw-bold mb-1">${escapeHtml(session.title || 'Study session')}</h4>
+          <p class="match-detail-topic">${escapeHtml(session.host_name || 'Study host')}</p>
+        </div>
+        <span class="session-log-status ${status}">${statusLabel}</span>
+      </div>
+      <div class="match-detail-grid">
+        <div class="match-detail-field">
+          <div class="match-detail-label">Status</div>
+          <div class="match-detail-value">${statusLabel}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Members</div>
+          <div class="match-detail-value">${Number(session.member_count) || 0}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">${dateLabel}</div>
+          <div class="match-detail-value">${escapeHtml(formatSessionLogDateTime(dateValue))}</div>
+        </div>
+        <div class="match-detail-field">
+          <div class="match-detail-label">Duration</div>
+          <div class="match-detail-value">${escapeHtml(formatSessionLogDuration(session.planned_duration_seconds))}</div>
+        </div>
+        <div class="match-detail-note">
+          <div class="match-detail-label">Session Goal</div>
+          <div class="match-detail-value">${escapeHtml(sessionGoal)}</div>
+        </div>
+      </div>
+    `;
+
+    if (sessionLogOpenLink) {
+      const canOpenSession = status !== 'upcoming' && Number.isInteger(Number(session.id));
+      sessionLogOpenLink.classList.toggle('d-none', !canOpenSession);
+      if (canOpenSession) {
+        sessionLogOpenLink.href = `study-session.html?id=${encodeURIComponent(session.id)}`;
+        sessionLogOpenLink.textContent = status === 'completed' ? 'View Summary' : 'Open Session';
+      }
+    }
+    sessionLogModal.show();
+  };
+
+  const loadSessionLogs = async () => {
+    if (!profileSessionLogsList || !isOwnProfile) return;
+
+    const response = await fetchJson('/api/sessions');
+    if (!Array.isArray(response?.data)) {
+      profileSessionLogsList.innerHTML = `
+        <div class="profile-empty-state compact">
+          <i class="fas fa-circle-exclamation"></i>
+          <span>Unable to load session logs.</span>
+        </div>
+      `;
+      return;
+    }
+
+    profileSessionLogs = response.data.filter((session) =>
+      ['active', 'upcoming', 'completed'].includes(String(session.status).toLowerCase()),
+    );
+    const sessionsByStatus = (status, limit) =>
+      profileSessionLogs
+        .filter((session) => String(session.status).toLowerCase() === status)
+        .slice(0, limit);
+
+    profileSessionLogsList.innerHTML = [
+      renderSessionLogCategory(
+        'Current Live Sessions',
+        'active',
+        sessionsByStatus('active', 2),
+        'No sessions live right now.',
+      ),
+      renderSessionLogCategory(
+        'Upcoming Sessions',
+        'upcoming',
+        sessionsByStatus('upcoming', 2),
+        'No upcoming sessions scheduled.',
+      ),
+      renderSessionLogCategory(
+        'Completed Sessions',
+        'completed',
+        sessionsByStatus('completed', 4),
+        'No completed study sessions yet.',
+      ),
+    ].join('');
+  };
+
+  profileSessionLogsList?.addEventListener('click', (event) => {
+    const sessionButton = event.target.closest('[data-session-log-index]');
+    if (!sessionButton) return;
+    const session = profileSessionLogs[Number(sessionButton.dataset.sessionLogIndex)];
+    openSessionLogDetails(session);
+  });
+
   profileActivitySummary?.addEventListener('click', (event) => {
     const toggleButton = event.target.closest('[data-activity-toggle]');
     if (toggleButton) {
@@ -1171,6 +1361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await loadProfileActivity();
+  await loadSessionLogs();
 
   const friendRequestModalElement = document.getElementById('friendRequestModal');
   const friendRequestModalTitle = document.getElementById('friendRequestModalLabel');
@@ -1278,10 +1469,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const updateIncomingRequestCount = async () => {
     if (!isOwnProfile || !userId || incomingRequestCounts.length === 0) return;
 
-    const response = await requestWithBody(`/api/friendrequest/incoming/${userId}`, 'GET');
-    if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) return;
+    const response = await requestWithBody('/api/friendrequest/incoming-count', 'GET');
+    if (response.status < 200 || response.status >= 300) {
+      if (friendRequestHint) {
+        friendRequestHint.textContent = 'Unable to load friend request updates right now.';
+      }
+      return;
+    }
 
-    const count = response.data.length;
+    const count = Number(response.data?.count) || 0;
     incomingRequestCounts.forEach((countElement) => {
       countElement.textContent = count > 99 ? '99+' : String(count);
       countElement.classList.toggle('d-none', count === 0);
@@ -1488,8 +1684,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         type === 'incoming' ? 'Incoming Friend Requests' : 'Outgoing Friend Requests';
       friendRequestModal?.show();
     } else {
-      renderRequests(type, []);
       friendRequestModalTitle.textContent = 'Friend Requests';
+      friendRequestList.innerHTML = '';
+      friendRequestEmpty.textContent = 'Unable to load friend requests. Please try again.';
+      friendRequestEmpty.style.display = 'block';
       friendRequestModal?.show();
     }
   };
@@ -1519,10 +1717,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadFriendRequests(currentType);
       await loadProfileActivity();
       await updateIncomingRequestCount();
-      showFeedback('Friend request updated.');
+      showFeedback(
+        action === 'accept'
+          ? 'Friend request accepted.'
+          : action === 'reject'
+            ? 'Friend request declined.'
+            : 'Friend request cancelled.',
+      );
     } else {
       console.error('Failed to update friend request', response.data);
-      showFeedback('Unable to complete the request. Please try again.', 'error');
+      showFeedback(
+        response.data?.message || 'Unable to complete the request. Please try again.',
+        'error',
+      );
     }
   };
 

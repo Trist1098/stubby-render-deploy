@@ -1,5 +1,65 @@
 const model = require('../models/Match.model');
 const userModel = require('../models/User.model');
+const friendModel = require('../models/Friend.model');
+const chatModel = require('../models/Chat.model');
+const homeModel = require('../models/Home.model');
+
+const FINAL_REQUEST_STATUSES = ['Accepted', 'Declined', 'Cancelled'];
+
+const parseMatchTimeSlot = (timeSlot) => {
+  if (!timeSlot) return null;
+
+  let text = String(timeSlot).trim();
+  if (!text) return null;
+  if (text.includes('T')) text = text.replace('T', ' ');
+
+  const [rawDate = '', rawTime = ''] = text.split(' ');
+  const dateParts = rawDate.split(/[-/]/);
+  if (dateParts.length !== 3) return null;
+
+  let eventDate = '';
+  if (dateParts[0].length === 4) {
+    eventDate = `${dateParts[0]}-${dateParts[1].padStart(2, '0')}-${dateParts[2].padStart(2, '0')}`;
+  } else if (dateParts[2].length === 4) {
+    eventDate = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+  }
+  if (!eventDate) return null;
+
+  const timeParts = rawTime.split(':');
+  if (timeParts.length < 2) return null;
+
+  const hour = Number(timeParts[0]);
+  const minute = Number(timeParts[1]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+
+  const start = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  const end = `${String((hour + 1) % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+  return {
+    eventDate,
+    bookingTime: `${start} - ${end}`,
+  };
+};
+
+const getValidTargetUserId = async (req, res) => {
+  const targetUserId = Number(req.params.userId || req.body.receiver_id);
+  const currentUserId = Number(res.locals.userId);
+
+  if (!targetUserId || Number.isNaN(targetUserId)) {
+    return { error: { status: 400, message: 'A valid userId is required' } };
+  }
+
+  if (targetUserId === currentUserId) {
+    return { error: { status: 400, message: 'You cannot choose yourself for this action' } };
+  }
+
+  const targetUser = await userModel.selectPublicUserById({ userId: targetUserId });
+  if (!targetUser) {
+    return { error: { status: 404, message: 'Student not found' } };
+  }
+
+  return { targetUserId, currentUserId, targetUser };
+};
 
 module.exports.getAllRequests = async (req, res, next) => {
   try {
@@ -51,6 +111,15 @@ module.exports.getActiveMatches = async (req, res, next) => {
   }
 };
 
+module.exports.getSavedStudents = async (req, res, next) => {
+  try {
+    const results = await model.selectSavedStudents({ user_id: res.locals.userId });
+    res.status(200).json({ matches: results });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports.getProfileMatches = async (req, res, next) => {
   const profileUserId = Number(req.params.userId);
   if (!profileUserId || Number.isNaN(profileUserId)) {
@@ -81,9 +150,27 @@ module.exports.sendRequest = async (req, res, next) => {
   }
 
   try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    const actionState = await model.selectInteractionState({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    if (actionState?.blocked_by_me || actionState?.blocked_me) {
+      return res.status(403).json({ message: 'This student is not available for match requests' });
+    }
+
+    if (actionState?.is_reported) {
+      return res.status(409).json({ message: 'You already reported this student' });
+    }
+
     const data = {
-      sender_id: res.locals.userId,
-      receiver_id,
+      sender_id: validation.currentUserId,
+      receiver_id: validation.targetUserId,
       module_id: req.body.module_id || null,
       topic: req.body.topic || null,
       time_slot: time_slot || null,
@@ -98,6 +185,163 @@ module.exports.sendRequest = async (req, res, next) => {
     res.status(201).json({
       request_id: result.request_id,
       message: 'Match request sent successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.saveStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    const actionState = await model.selectInteractionState({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    if (actionState?.blocked_by_me || actionState?.blocked_me) {
+      return res.status(403).json({ message: 'Blocked students cannot be shortlisted' });
+    }
+
+    if (actionState?.is_hidden || actionState?.is_reported) {
+      return res.status(409).json({ message: 'This student is hidden from your matchmaking list' });
+    }
+
+    await model.saveStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student saved to your shortlist', is_saved: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.unsaveStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.unsaveStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student removed from shortlist', is_saved: false });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.hideStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.hideStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+      reason: req.body.reason || 'Not a suitable match',
+    });
+
+    res.status(200).json({ message: 'Student hidden from your matchmaking list' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.unhideStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.unhideStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student restored to matchmaking' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.blockStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.blockStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+      reason: req.body.reason || 'Blocked from matchmaking',
+    });
+
+    res.status(200).json({ message: 'Student blocked from matchmaking' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.unblockStudent = async (req, res, next) => {
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    await model.unblockStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+    });
+
+    res.status(200).json({ message: 'Student unblocked from matchmaking' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.reportStudent = async (req, res, next) => {
+  const reason = String(req.body.reason || '').trim();
+  const details = String(req.body.details || '').trim();
+
+  if (!reason) {
+    return res.status(400).json({ message: 'Report reason is required' });
+  }
+
+  if (reason === 'Other' && !details) {
+    return res.status(400).json({ message: 'Report details are required when reason is Other' });
+  }
+
+  try {
+    const validation = await getValidTargetUserId(req, res);
+    if (validation.error) {
+      return res.status(validation.error.status).json({ message: validation.error.message });
+    }
+
+    const report = await model.reportStudent({
+      user_id: validation.currentUserId,
+      target_user_id: validation.targetUserId,
+      reason,
+      details,
+    });
+
+    res.status(201).json({
+      message: 'Report submitted and student hidden from matchmaking',
+      report_id: report.report_id,
     });
   } catch (error) {
     next(error);
@@ -126,7 +370,36 @@ module.exports.updateRequestStatus = async (req, res, next) => {
     return res.status(400).json({ message: 'status is required' });
   }
 
+  if (!FINAL_REQUEST_STATUSES.includes(status)) {
+    return res.status(400).json({ message: 'Invalid request status' });
+  }
+
   try {
+    const matchReq = await model.selectById({ id: req.params.id });
+    if (!matchReq) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    const userId = Number(res.locals.userId);
+    const isSender = Number(matchReq.sender_id) === userId;
+    const isReceiver = Number(matchReq.receiver_id) === userId;
+
+    if (!isSender && !isReceiver) {
+      return res.status(403).json({ message: 'You are not part of this request' });
+    }
+
+    if (matchReq.status !== 'Pending') {
+      return res.status(409).json({ message: `Request is already ${matchReq.status}` });
+    }
+
+    if ((status === 'Accepted' || status === 'Declined') && !isReceiver) {
+      return res.status(403).json({ message: 'Only the receiver can accept or decline this request' });
+    }
+
+    if (status === 'Cancelled' && !isSender) {
+      return res.status(403).json({ message: 'Only the sender can cancel this request' });
+    }
+
     const data = {
       id: req.params.id,
       status,
@@ -138,97 +411,54 @@ module.exports.updateRequestStatus = async (req, res, next) => {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    // If the request was accepted, automatically schedule a calendar event
+    let conversation = null;
+    let calendarEvent = null;
+
     if (status === 'Accepted') {
-      try {
-        const matchReq = await model.selectById({ id: req.params.id });
-        if (matchReq) {
-          let dateStr = '2026-05-18';
-          let startStr = '16:00';
-          let endStr = '17:00';
+      await Promise.all([
+        friendModel.createFriendship({
+          userId: matchReq.sender_id,
+          friendId: matchReq.receiver_id,
+        }),
+        friendModel.createFriendship({
+          userId: matchReq.receiver_id,
+          friendId: matchReq.sender_id,
+        }),
+      ]);
 
-          if (matchReq.time_slot) {
-            let tsString = '';
-            if (matchReq.time_slot instanceof Date) {
-              const yr = matchReq.time_slot.getFullYear();
-              const mo = String(matchReq.time_slot.getMonth() + 1).padStart(2, '0');
-              const dy = String(matchReq.time_slot.getDate()).padStart(2, '0');
-              const hr = String(matchReq.time_slot.getHours()).padStart(2, '0');
-              const mn = String(matchReq.time_slot.getMinutes()).padStart(2, '0');
-              tsString = `${yr}-${mo}-${dy} ${hr}:${mn}`;
-            } else {
-              tsString = String(matchReq.time_slot);
-            }
+      conversation = await chatModel.ensureFriendConversation(
+        Number(matchReq.sender_id),
+        Number(matchReq.receiver_id),
+        userId
+      );
 
-            // Normalize ISO format e.g. "2026-05-18T14:00:00.000Z"
-            if (tsString.includes('T')) {
-              tsString = tsString.replace('T', ' ');
-            }
-
-            const parts = tsString.split(' ');
-            let rawDate = parts[0] || '';
-            let rawTime = parts[1] || '';
-
-            if (rawTime.includes(':')) {
-              const timeParts = rawTime.split(':');
-              if (timeParts[0] && timeParts[1]) {
-                rawTime = `${timeParts[0]}:${timeParts[1]}`;
-              }
-            }
-
-            // Normalize rawDate (handle DD/MM/YYYY or similar)
-            const dParts = rawDate.split(/[-/]/);
-            if (dParts.length === 3) {
-              if (dParts[2].length === 4) {
-                // e.g. "18/05/2026" -> "2026-05-18"
-                dateStr = `${dParts[2]}-${dParts[1].padStart(2, '0')}-${dParts[0].padStart(2, '0')}`;
-              } else if (dParts[0].length === 4) {
-                // e.g. "2026/05/18" -> "2026-05-18"
-                dateStr = `${dParts[0]}-${dParts[1].padStart(2, '0')}-${dParts[2].padStart(2, '0')}`;
-              } else {
-                dateStr = rawDate;
-              }
-            } else {
-              dateStr = rawDate;
-            }
-
-            if (rawTime && rawTime.includes(':')) {
-              const [h, m] = rawTime.split(':');
-              startStr = `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
-              const nextHour = (parseInt(h) + 1) % 24;
-              endStr = `${nextHour.toString().padStart(2, '0')}:${m.padStart(2, '0')}`;
-            }
-          }
-
-          const homeModel = require('../models/Home.model');
-          const isOnline = matchReq.is_online || false;
-          const meetingUrl = isOnline
-            ? `/api/chats/call/${matchReq.request_id || req.params.id}`
-            : null;
-          await homeModel.createCalendarEvent({
-            creator_id: res.locals.userId || 1,
-            request_id: matchReq.request_id || req.params.id,
-            partner_id: matchReq.sender_id,
-            co_participants: matchReq.co_participants || [],
-            module_id: matchReq.module_id || null,
-            name: matchReq.type === 'group' ? 'Group Study' : 'Match Session',
-            topic: matchReq.topic || '',
-            location: matchReq.location || 'Online',
-            is_online: isOnline,
-            meeting_url: meetingUrl,
-            event_date: dateStr,
-            booking_time: `${startStr} - ${endStr}`,
-            type: matchReq.type === 'group' ? 'Group Study' : 'Match Session',
-            status: 'Confirmed',
-            notes: matchReq.message || '',
-          });
-        }
-      } catch (err) {
-        console.error('Error creating auto calendar event:', err);
+      const schedule = parseMatchTimeSlot(matchReq.time_slot);
+      if (schedule) {
+        calendarEvent = await homeModel.createCalendarEvent({
+          creator_id: userId,
+          request_id: matchReq.request_id || req.params.id,
+          partner_id: matchReq.sender_id,
+          co_participants: matchReq.co_participants || [],
+          module_id: matchReq.module_id || null,
+          name: matchReq.type === 'group' ? 'Group Study' : 'Match Session',
+          topic: matchReq.topic || '',
+          location: matchReq.location || '',
+          is_online: Boolean(matchReq.is_online),
+          meeting_url: null,
+          event_date: schedule.eventDate,
+          booking_time: schedule.bookingTime,
+          type: matchReq.type === 'group' ? 'Group Study' : 'Match Session',
+          status: 'Confirmed',
+          notes: matchReq.message || '',
+        });
       }
     }
 
-    res.status(200).json({ message: 'Request status updated successfully' });
+    res.status(200).json({
+      message: 'Request status updated successfully',
+      conversation_id: conversation?.conversation_id || null,
+      event_id: calendarEvent?.event_id || null,
+    });
   } catch (error) {
     next(error);
   }
@@ -249,101 +479,148 @@ module.exports.autoMatch = async (req, res, next) => {
     if (myPref) {
       const parseJson = (val) => {
         if (!val) return [];
+        if (Array.isArray(val)) return val.map((item) => String(item).trim()).filter(Boolean);
         if (typeof val === 'string') {
+          const trimmed = val.trim();
+          if (!trimmed) return [];
           try {
-            return JSON.parse(val);
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
           } catch {
-            return [];
+            return trimmed.split(',').map((item) => item.trim()).filter(Boolean);
           }
         }
-        return val;
+        return [String(val).trim()].filter(Boolean);
       };
 
-      const myDays = parseJson(myPref.availability_days);
-      const myModes = parseJson(myPref.selected_modes);
-      const myTimes = parseJson(myPref.selected_times);
-      const myLangs = parseJson(myPref.selected_languages);
-      const myStyle = (myPref.style || '').toLowerCase().trim();
+      const lowerList = (values) => parseJson(values).map((value) => value.toLowerCase());
+      const describeOverlap = (overlap, fallback) => {
+        if (overlap.length > 0) return overlap.join(', ');
+        return fallback;
+      };
+
+      const myDays = lowerList(myPref.availability_days);
+      const myModes = lowerList(myPref.selected_modes);
+      const myTimes = lowerList(myPref.selected_times);
+      const myLangs = lowerList(myPref.selected_languages);
+      const myStyles = lowerList(myPref.style);
 
       results.forEach((partner) => {
         let score = 0;
+        const breakdown = [];
 
-        // 1. Modules overlap (Max 40 points)
         const sharedCount = parseInt(partner.shared_modules_count) || 0;
+        let moduleScore = 0;
         if (sharedCount >= 3) {
-          score += 40;
+          moduleScore = 40;
         } else if (sharedCount === 2) {
-          score += 32;
+          moduleScore = 32;
         } else if (sharedCount === 1) {
-          score += 20;
+          moduleScore = 20;
         }
+        score += moduleScore;
+        breakdown.push({
+          label: 'Shared modules',
+          points: moduleScore,
+          max: 40,
+          detail: `${sharedCount} shared module${sharedCount === 1 ? '' : 's'}`,
+        });
 
-        // 2. Days overlap (Max 20 points)
-        const partnerDays = parseJson(partner.availability_days);
+        const partnerDays = lowerList(partner.availability_days);
+        const overlapDays = myDays.filter((day) => partnerDays.includes(day));
+        let daysScore = 0;
         if (myDays.length === 0 || partnerDays.length === 0) {
-          score += 15; // default moderate score if either hasn't set days
-        } else {
-          const intersectDays = myDays.filter((d) => partnerDays.includes(d));
-          if (intersectDays.length >= 2) {
-            score += 20;
-          } else if (intersectDays.length === 1) {
-            score += 10;
-          }
+          daysScore = 15;
+        } else if (overlapDays.length >= 2) {
+          daysScore = 20;
+        } else if (overlapDays.length === 1) {
+          daysScore = 10;
         }
+        score += daysScore;
+        breakdown.push({
+          label: 'Availability days',
+          points: daysScore,
+          max: 20,
+          detail: describeOverlap(overlapDays, 'Availability not fully set'),
+        });
 
-        // 3. Modes overlap (Max 15 points)
-        const partnerModes = parseJson(partner.selected_modes);
+        const partnerModes = lowerList(partner.selected_modes);
+        const overlapModes = myModes.filter((mode) => partnerModes.includes(mode));
+        let modesScore = 0;
         if (myModes.length === 0 || partnerModes.length === 0) {
-          score += 10;
-        } else {
-          const intersectModes = myModes.filter((m) => partnerModes.includes(m));
-          if (intersectModes.length > 0) {
-            score += 15;
-          }
+          modesScore = 10;
+        } else if (overlapModes.length > 0) {
+          modesScore = 15;
         }
+        score += modesScore;
+        breakdown.push({
+          label: 'Study mode',
+          points: modesScore,
+          max: 15,
+          detail: describeOverlap(overlapModes, 'Flexible mode'),
+        });
 
-        // 4. Times overlap (Max 10 points)
-        const partnerTimes = parseJson(partner.selected_times);
+        const partnerTimes = lowerList(partner.selected_times);
+        const overlapTimes = myTimes.filter((time) => partnerTimes.includes(time));
+        let timesScore = 0;
         if (myTimes.length === 0 || partnerTimes.length === 0) {
-          score += 7;
-        } else {
-          const intersectTimes = myTimes.filter((t) => partnerTimes.includes(t));
-          if (intersectTimes.length > 0) {
-            score += 10;
-          }
+          timesScore = 7;
+        } else if (overlapTimes.length > 0) {
+          timesScore = 10;
         }
+        score += timesScore;
+        breakdown.push({
+          label: 'Study time',
+          points: timesScore,
+          max: 10,
+          detail: describeOverlap(overlapTimes, 'Flexible time'),
+        });
 
-        // 5. Languages overlap (Max 5 points)
-        const partnerLangs = parseJson(partner.selected_languages);
+        const partnerLangs = lowerList(partner.selected_languages);
+        const overlapLangs = myLangs.filter((language) => partnerLangs.includes(language));
+        let languagesScore = 0;
         if (myLangs.length === 0 || partnerLangs.length === 0) {
-          score += 3;
-        } else {
-          const intersectLangs = myLangs.filter((l) => partnerLangs.includes(l));
-          if (intersectLangs.length > 0) {
-            score += 5;
-          }
+          languagesScore = 3;
+        } else if (overlapLangs.length > 0) {
+          languagesScore = 5;
         }
+        score += languagesScore;
+        breakdown.push({
+          label: 'Language',
+          points: languagesScore,
+          max: 5,
+          detail: describeOverlap(overlapLangs, 'No language preference'),
+        });
 
-        // 6. Style overlap (Max 5 points)
-        const partnerStyle = (partner.style || '').toLowerCase().trim();
-        if (!myStyle || !partnerStyle) {
-          score += 3;
-        } else if (
-          myStyle === partnerStyle ||
-          myStyle.includes(partnerStyle) ||
-          partnerStyle.includes(myStyle)
-        ) {
-          score += 5;
-        } else {
-          score += 2;
-        }
+        const partnerStyles = lowerList(partner.style);
+        const overlapStyles = myStyles.filter((style) => partnerStyles.includes(style));
+        const stylesScore = myStyles.length === 0 || partnerStyles.length === 0
+          ? 3
+          : overlapStyles.length > 0
+            ? 5
+            : 2;
+        score += stylesScore;
+        breakdown.push({
+          label: 'Study style',
+          points: stylesScore,
+          max: 5,
+          detail: describeOverlap(overlapStyles, 'Different study styles'),
+        });
 
-        // 7. Academic / course overlap (Max 5 points)
+        let courseScore = 0;
         if (partner.diploma_id && myProfile && partner.diploma_id === myProfile.diploma_id) {
-          score += 5;
+          courseScore = 5;
         }
+        score += courseScore;
+        breakdown.push({
+          label: 'Course alignment',
+          points: courseScore,
+          max: 5,
+          detail: courseScore > 0 ? 'Same diploma' : 'Different or unset diploma',
+        });
 
         partner.match_percentage = Math.min(Math.max(score, 20), 100);
+        partner.match_breakdown = breakdown;
       });
 
       // Sort results by match_percentage DESC
@@ -353,6 +630,12 @@ module.exports.autoMatch = async (req, res, next) => {
       results.forEach((partner) => {
         const sharedCount = parseInt(partner.shared_modules_count) || 0;
         partner.match_percentage = Math.min(sharedCount * 25, 100);
+        partner.match_breakdown = [{
+          label: 'Shared modules',
+          points: partner.match_percentage,
+          max: 100,
+          detail: `${sharedCount} shared module${sharedCount === 1 ? '' : 's'}`,
+        }];
       });
     }
 

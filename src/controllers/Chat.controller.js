@@ -3,6 +3,7 @@ const {
   getConversationsByUserId,
   getConversationById,
   checkFriendship,
+  ensureFriendConversation,
   getFriends,
   isConversationMember,
   sendMessage,
@@ -69,7 +70,7 @@ module.exports.createConversation = async (req, res, next) => {
       if (!areFriends) {
         return res.status(403).json({ message: 'You are not friends with this user' });
       }
-      const conv = await createConversation(null, 'friend', [userId, Number(friendId)], userId);
+      const conv = await ensureFriendConversation(userId, Number(friendId), userId);
       return res.status(201).json(conv);
     }
 

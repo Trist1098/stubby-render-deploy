@@ -22,6 +22,9 @@ router.delete('/reject/:receiver_id/:request_id', jwtMiddleware.verifyToken, fri
 // Get all incoming friend requests for the authenticated user
 router.get('/incoming/:user_id', jwtMiddleware.verifyToken, friendController.getIncomingFriendRequests);
 
+// Get the pending incoming count for navbar and profile notification indicators
+router.get('/incoming-count', jwtMiddleware.verifyToken, friendController.getIncomingFriendRequestCount);
+
 // Get all outgoing friend requests sent by the authenticated user
 router.get('/outgoing/:user_id', jwtMiddleware.verifyToken, friendController.getOutgoingFriendRequests);
 
