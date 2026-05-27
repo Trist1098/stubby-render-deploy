@@ -1,12 +1,9 @@
-// Consultation chat, review, shared workspace, and whiteboard behavior.
-// Open the confirmation modal for starting help with a member.
 function openConsultationModal(memberName, memberUserId) {
   pendingConsultationMemberId = Number(memberUserId) || null;
   page.consultationMemberName.textContent = memberName || 'This user';
   showModal(page.consultationModal, true);
 }
 
-// Work out the person on the other side of a consultation for chat links.
 function consultationOtherUserId(consultation = activeConsultation) {
   if (!consultation) return pendingConsultationMemberId;
 
@@ -15,7 +12,6 @@ function consultationOtherUserId(consultation = activeConsultation) {
   return studentUserId === CURRENT_USER_ID ? teacherUserId : studentUserId;
 }
 
-// Open or create the one-to-one chat tied to this consultation.
 async function openConsultationChat(event) {
   const otherUserId =
     event?.currentTarget?.id === 'openPendingConsultationChatButton'
@@ -34,7 +30,7 @@ async function openConsultationChat(event) {
   try {
     const chat = await getJson(sessionMemberChatUrl(otherUserId), { method: 'POST' });
     if (!chat.conversation_id) throw new Error('Chat could not be opened');
-    window.location.href = `chat.html?conversationId=${encodeURIComponent(chat.conversation_id)}`;
+    window.location.href = `/chat?conversationId=${encodeURIComponent(chat.conversation_id)}`;
   } catch (error) {
     setButtonsDisabled(
       [page.openPendingConsultationChatButton, page.openConsultationChatButton].filter(Boolean),
@@ -44,7 +40,6 @@ async function openConsultationChat(event) {
   }
 }
 
-// Delegate clicks on "Need Help" member statuses into the consultation modal.
 function handleMemberActivation(event) {
   const button = event.target.closest('.consultation-status-button');
   if (!button) return;
@@ -52,20 +47,17 @@ function handleMemberActivation(event) {
   openConsultationModal(button.dataset.consultationName, button.dataset.consultationUserId);
 }
 
-// Show a lightweight workspace status message when whiteboard or save actions need feedback.
 function setConsultationStatus(text, isVisible = true) {
   page.consultationWorkspaceStatus.textContent = text;
   page.consultationWorkspaceStatus.classList.toggle('is-visible', Boolean(isVisible && text));
 }
 
-// Keep saved whiteboard coordinates inside the normalized 0..1 drawing space.
 function clampUnit(value) {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return 0;
   return Math.min(Math.max(numberValue, 0), 1);
 }
 
-// Clean server-provided strokes before putting them back into the Konva canvas.
 function sanitizeWhiteboardStrokes(strokes) {
   if (!Array.isArray(strokes)) return [];
 
@@ -91,22 +83,18 @@ function sanitizeWhiteboardStrokes(strokes) {
     .filter(Boolean);
 }
 
-// Check whether the local workspace has edits that are newer than the last saved revision.
 function hasUnsavedWorkspaceChanges() {
   return workspaceRevision > savedWorkspaceRevision;
 }
 
-// Bump the revision every time the scratchpad or whiteboard changes locally.
 function markWorkspaceDirty() {
   workspaceRevision += 1;
 }
 
-// Mark everything up to a revision as saved.
 function markWorkspaceClean(revision = workspaceRevision) {
   savedWorkspaceRevision = Math.max(savedWorkspaceRevision, revision);
 }
 
-// Reset local whiteboard and scratchpad state before opening a different consultation.
 function resetConsultationWorkspaceState() {
   window.clearTimeout(workspaceSaveTimer);
   workspaceSaveTimer = null;
@@ -122,13 +110,11 @@ function resetConsultationWorkspaceState() {
   resizeWhiteboardStage();
 }
 
-// Resize once immediately and once after layout settles, which helps modal animations.
 function scheduleWhiteboardResize() {
   window.requestAnimationFrame(resizeWhiteboardStage);
   window.setTimeout(resizeWhiteboardStage, 120);
 }
 
-// Read the current whiteboard size, never letting Konva receive a zero dimension.
 function whiteboardSize() {
   const rect = page.consultationWhiteboard?.getBoundingClientRect();
   return {
@@ -137,14 +123,12 @@ function whiteboardSize() {
   };
 }
 
-// Attach pointer/touch handlers to the Konva stage.
 function bindWhiteboardStageEvents() {
   whiteboardStage.on('mousedown touchstart', startWhiteboardStroke);
   whiteboardStage.on('mousemove touchmove', moveWhiteboardStroke);
   whiteboardStage.on('mouseup touchend mouseleave touchcancel', finishWhiteboardStroke);
 }
 
-// Create the Konva stage on first use and gracefully fall back to the scratchpad if it fails.
 function ensureWhiteboardStage() {
   if (!page.consultationWhiteboard) return false;
 
@@ -169,7 +153,6 @@ function ensureWhiteboardStage() {
   return true;
 }
 
-// Convert normalized stroke points into the current canvas pixel coordinates.
 function whiteboardStrokePoints(stroke) {
   const { width, height } = whiteboardSize();
   const points = (stroke?.points || []).flatMap((point) => [
@@ -181,7 +164,6 @@ function whiteboardStrokePoints(stroke) {
   return points;
 }
 
-// Build a Konva line from one saved or in-progress stroke.
 function createWhiteboardLine(stroke) {
   return new window.Konva.Line({
     points: whiteboardStrokePoints(stroke),
@@ -194,7 +176,6 @@ function createWhiteboardLine(stroke) {
   });
 }
 
-// Clear and redraw the whole whiteboard from the current stroke list.
 function redrawWhiteboard() {
   if (!whiteboardLayer || !window.Konva) return;
 
@@ -207,7 +188,6 @@ function redrawWhiteboard() {
   whiteboardLayer.batchDraw();
 }
 
-// Resize the Konva stage to match the modal and then redraw normalized strokes.
 function resizeWhiteboardStage() {
   if (!ensureWhiteboardStage()) return;
 
@@ -218,7 +198,6 @@ function resizeWhiteboardStage() {
   redrawWhiteboard();
 }
 
-// Convert the current pointer position into normalized whiteboard coordinates.
 function getWhiteboardPoint() {
   if (!whiteboardStage) return null;
 
@@ -232,7 +211,6 @@ function getWhiteboardPoint() {
   };
 }
 
-// Skip points that are too close together so saved strokes stay reasonably small.
 function shouldAddWhiteboardPoint(stroke, point) {
   if (!point) return false;
   const previous = stroke.points[stroke.points.length - 1];
@@ -241,7 +219,6 @@ function shouldAddWhiteboardPoint(stroke, point) {
   return distance > 0.003;
 }
 
-// Begin a new whiteboard stroke and render the first point immediately.
 function startWhiteboardStroke(event) {
   if (!activeConsultation || activeConsultation.ended_at || !ensureWhiteboardStage()) return;
 
@@ -260,7 +237,6 @@ function startWhiteboardStroke(event) {
   whiteboardLayer.batchDraw();
 }
 
-// Add points to the active stroke while the user drags.
 function moveWhiteboardStroke(event) {
   if (!whiteboardDrawing || !whiteboardCurrentStroke) return;
 
@@ -272,7 +248,6 @@ function moveWhiteboardStroke(event) {
   whiteboardLayer?.batchDraw();
 }
 
-// Finish the active stroke, mark the workspace dirty, and queue a save.
 function finishWhiteboardStroke(event) {
   if (!whiteboardDrawing || !whiteboardCurrentStroke) return;
 
@@ -292,7 +267,6 @@ function finishWhiteboardStroke(event) {
   whiteboardLayer?.batchDraw();
 }
 
-// Clear the shared whiteboard for an active consultation.
 function clearWhiteboard() {
   if (!activeConsultation || activeConsultation.ended_at) return;
 
@@ -304,7 +278,6 @@ function clearWhiteboard() {
   redrawWhiteboard();
 }
 
-// Apply a workspace snapshot from the server unless it is the same version we already have.
 function applyConsultationWorkspace(workspace) {
   if (workspace?.updated_at && workspace.updated_at === lastWorkspaceUpdatedAt) return;
 
@@ -319,7 +292,6 @@ function applyConsultationWorkspace(workspace) {
   redrawWhiteboard();
 }
 
-// Pull workspace changes from the backend when it is safe not to overwrite local edits.
 async function loadConsultationWorkspace(options = {}) {
   if (!activeConsultation?.id) return;
   if (
@@ -343,7 +315,6 @@ async function loadConsultationWorkspace(options = {}) {
   }
 }
 
-// Save the whiteboard and scratchpad, retrying later if a newer local edit appears mid-save.
 async function saveConsultationWorkspace(options = {}) {
   if (!activeConsultation?.id) return;
   if (!options.force && !hasUnsavedWorkspaceChanges()) return;
@@ -377,7 +348,6 @@ async function saveConsultationWorkspace(options = {}) {
   }
 }
 
-// Debounce workspace saves so drawing does not send a request for every single pointer move.
 function scheduleConsultationWorkspaceSave() {
   window.clearTimeout(workspaceSaveTimer);
   workspaceSaveTimer = window.setTimeout(() => {
@@ -385,7 +355,6 @@ function scheduleConsultationWorkspaceSave() {
   }, 700);
 }
 
-// Start polling the shared workspace while the consultation modal is open.
 function startConsultationWorkspacePolling() {
   window.clearInterval(workspacePollTimer);
   workspacePollTimer = window.setInterval(() => {
@@ -393,13 +362,11 @@ function startConsultationWorkspacePolling() {
   }, 5000);
 }
 
-// Stop polling after the workspace closes so hidden modals do not keep doing work.
 function stopConsultationWorkspacePolling() {
   window.clearInterval(workspacePollTimer);
   workspacePollTimer = null;
 }
 
-// Render the student and question context at the top of the consultation workspace.
 function renderConsultationContext() {
   if (!activeConsultation) return;
 
@@ -416,7 +383,6 @@ function renderConsultationContext() {
   `;
 }
 
-// Update workspace controls based on whether the consultation is still active.
 function renderConsultationWorkspace() {
   if (!activeConsultation) return;
 
@@ -431,7 +397,6 @@ function renderConsultationWorkspace() {
   page.openConsultationChatButton.disabled = !consultationOtherUserId();
 }
 
-// Open the shared consultation workspace and start loading/syncing its contents.
 function openConsultationWorkspace(consultation) {
   activeConsultation = consultation;
   resetConsultationWorkspaceState();
@@ -445,7 +410,6 @@ function openConsultationWorkspace(consultation) {
   updateRejoinButton();
 }
 
-// Save one last time, stop syncing, and hide the workspace modal.
 function closeConsultationWorkspace() {
   saveConsultationWorkspace({ silent: true });
   stopConsultationWorkspacePolling();
@@ -453,7 +417,6 @@ function closeConsultationWorkspace() {
   updateRejoinButton();
 }
 
-// Open the teacher review modal after a consultation ends.
 function openConsultationReviewModal(consultation = activeConsultation) {
   if (!consultation) return;
 
@@ -472,7 +435,6 @@ function openConsultationReviewModal(consultation = activeConsultation) {
   page.consultationReviewForm.elements.teacher_direction.focus();
 }
 
-// Show the direction that a teacher left for the student.
 function openConsultationDirectionModal(consultation = activeConsultation) {
   if (!consultation?.teacher_direction) return;
 
@@ -481,7 +443,6 @@ function openConsultationDirectionModal(consultation = activeConsultation) {
   showModal(page.consultationDirectionModal, true);
 }
 
-// Notify participants after a consultation ends, with a review action for the teacher.
 function showConsultationEndedToast(consultation) {
   const isTeacher = Number(consultation.teacher_user_id) === CURRENT_USER_ID;
 
@@ -503,7 +464,6 @@ function showConsultationEndedToast(consultation) {
   });
 }
 
-// Notify users when a teacher direction is available to read.
 function showStudentDirectionToast(consultation) {
   if (!consultation?.teacher_direction) return;
 
@@ -521,7 +481,6 @@ function showStudentDirectionToast(consultation) {
   });
 }
 
-// Create a consultation between the current user and the selected member.
 async function startConsultation() {
   const memberData = (sessionData.members || []).find(
     (item) => Number(item.user_id) === pendingConsultationMemberId,
@@ -555,7 +514,6 @@ async function startConsultation() {
   }
 }
 
-// Finish the active consultation after saving the latest workspace state.
 async function finishConsultation(event) {
   event?.preventDefault();
   if (!activeConsultation || activeConsultation.ended_at) return;
@@ -584,7 +542,6 @@ async function finishConsultation(event) {
   }
 }
 
-// Save the teacher's direction and reflection checklist after a consultation.
 async function submitConsultationReview(event) {
   event.preventDefault();
   if (!activeConsultation) return;

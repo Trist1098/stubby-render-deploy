@@ -1,9 +1,9 @@
-const realtimeState = {
+const liveWireState = {
   socket: null,
   joined: false,
 };
 
-function refreshSessionFromRealtime(options = {}) {
+function refreshFromLiveWire(options = {}) {
   loadSession({
     silent: true,
     promptForMission: false,
@@ -13,14 +13,14 @@ function refreshSessionFromRealtime(options = {}) {
   loadFocusStatusMix({ showLoading: false });
 }
 
-function applyRealtimeMemberStatus(member) {
+function applyLiveWireStatus(member) {
   if (!member?.user_id) return;
 
   const localMember = (sessionData.members || []).find(
     (item) => Number(item.user_id) === Number(member.user_id),
   );
   if (!localMember) {
-    refreshSessionFromRealtime();
+    refreshFromLiveWire();
     return;
   }
 
@@ -36,19 +36,19 @@ function applyRealtimeMemberStatus(member) {
   if (Number(member.user_id) === CURRENT_USER_ID) renderStatusControls();
 }
 
-function applyRealtimeProgressUpdate(payload = {}) {
-  const userId = Number(payload.userId);
-  const progress = asPercent(payload.progressPercent);
+function applyLiveWireProgress(progressNotice = {}) {
+  const userId = Number(progressNotice.userId);
+  const progress = asPercent(progressNotice.progressPercent);
   const member = (sessionData.members || []).find((item) => Number(item.user_id) === userId);
 
   if (!member) {
-    refreshSessionFromRealtime({ refreshStatusMix: false });
+    refreshFromLiveWire({ refreshStatusMix: false });
     return;
   }
 
   member.progress_percent = progress;
   const currentGoalId = Number(sessionData.micro_goal?.id);
-  const changedGoalId = Number(payload.microGoalId);
+  const changedGoalId = Number(progressNotice.microGoalId);
   const memberGoal = (member.goals || []).find((goal) => Number(goal.id) === changedGoalId);
 
   if (memberGoal) memberGoal.progress_percent = progress;
@@ -61,11 +61,11 @@ function applyRealtimeProgressUpdate(payload = {}) {
   renderMemberCardInPlace(member);
 }
 
-function isRealtimeFromCurrentUser(payload = {}) {
-  return Number(payload.actorUserId) === CURRENT_USER_ID;
+function isOwnLiveWireEvent(notice = {}) {
+  return Number(notice.actorUserId) === CURRENT_USER_ID;
 }
 
-function handleRealtimeDiscussionUpdate() {
+function handleLiveWireDiscussion() {
   if (typeof loadDiscussions === 'function') loadDiscussions({ silent: true });
 }
 
@@ -76,13 +76,13 @@ function isCurrentUserInConsultationPayload(consultation) {
   );
 }
 
-function handleRealtimeConsultationStarted(payload = {}) {
-  refreshSessionFromRealtime();
-  const consultation = payload.consultation;
+function handleLiveWireConsultationStarted(consultationNotice = {}) {
+  refreshFromLiveWire();
+  const consultation = consultationNotice.consultation;
 
   if (
     !consultation ||
-    isRealtimeFromCurrentUser(payload) ||
+    isOwnLiveWireEvent(consultationNotice) ||
     !isCurrentUserInConsultationPayload(consultation)
   ) {
     return;
@@ -99,9 +99,9 @@ function handleRealtimeConsultationStarted(payload = {}) {
   updateRejoinButton();
 }
 
-function handleRealtimeConsultationFinished(payload = {}) {
-  refreshSessionFromRealtime();
-  const consultation = payload.consultation;
+function handleLiveWireConsultationFinished(consultationNotice = {}) {
+  refreshFromLiveWire();
+  const consultation = consultationNotice.consultation;
   if (!consultation) return;
 
   if (activeConsultation?.id === consultation.id) {
@@ -111,64 +111,64 @@ function handleRealtimeConsultationFinished(payload = {}) {
     }
   }
 
-  if (!isRealtimeFromCurrentUser(payload) && isCurrentUserInConsultationPayload(consultation)) {
+  if (!isOwnLiveWireEvent(consultationNotice) && isCurrentUserInConsultationPayload(consultation)) {
     showConsultationEndedToast(consultation);
   }
 }
 
-function handleRealtimeConsultationReviewed(payload = {}) {
-  refreshSessionFromRealtime();
-  const consultation = payload.consultation;
+function handleLiveWireConsultationReviewed(consultationNotice = {}) {
+  refreshFromLiveWire();
+  const consultation = consultationNotice.consultation;
   if (!consultation) return;
 
   if (activeConsultation?.id === consultation.id) activeConsultation = consultation;
-  if (!isRealtimeFromCurrentUser(payload) && isCurrentUserInConsultationPayload(consultation)) {
+  if (!isOwnLiveWireEvent(consultationNotice) && isCurrentUserInConsultationPayload(consultation)) {
     showStudentDirectionToast(consultation);
   }
 }
 
-function handleRealtimeWorkspaceUpdated(payload = {}) {
-  if (isRealtimeFromCurrentUser(payload)) return;
-  if (Number(activeConsultation?.id) !== Number(payload.consultationId)) return;
+function handleLiveWireWorkspace(workspaceNotice = {}) {
+  if (isOwnLiveWireEvent(workspaceNotice)) return;
+  if (Number(activeConsultation?.id) !== Number(workspaceNotice.consultationId)) return;
   if (whiteboardDrawing || workspaceSaveInFlight || hasUnsavedWorkspaceChanges()) return;
   if (page.consultationWorkspaceModal?.classList.contains('d-none')) return;
 
-  applyConsultationWorkspace(payload.workspace);
+  applyConsultationWorkspace(workspaceNotice.workspace);
 }
 
 function startStudySessionRealtime() {
-  if (realtimeState.socket || !window.io || !window.auth?.isLoggedIn()) return;
+  if (liveWireState.socket || !window.io || !window.auth?.isLoggedIn()) return;
 
   const token = window.auth.getToken();
   if (!token) return;
 
-  const socket = window.io({ auth: { token } });
-  realtimeState.socket = socket;
+  const liveWire = window.io({ auth: { token } });
+  liveWireState.socket = liveWire;
 
-  socket.on('connect', () => {
-    realtimeState.joined = false;
-    socket.emit('study-session:join', { sessionId });
+  liveWire.on('connect', () => {
+    liveWireState.joined = false;
+    liveWire.emit('study-session:join', { sessionId });
   });
 
-  socket.on('study-session:joined', () => {
-    realtimeState.joined = true;
+  liveWire.on('study-session:joined', () => {
+    liveWireState.joined = true;
   });
 
-  socket.on('study-session:member-status-updated', ({ member }) => {
-    applyRealtimeMemberStatus(member);
+  liveWire.on('study-session:member-status-updated', ({ member }) => {
+    applyLiveWireStatus(member);
     loadFocusStatusMix({ showLoading: false });
   });
 
-  socket.on('study-session:progress-updated', applyRealtimeProgressUpdate);
-  socket.on('study-session:discussion-updated', handleRealtimeDiscussionUpdate);
-  socket.on('study-session:consultation-started', handleRealtimeConsultationStarted);
-  socket.on('study-session:consultation-finished', handleRealtimeConsultationFinished);
-  socket.on('study-session:consultation-reviewed', handleRealtimeConsultationReviewed);
-  socket.on('study-session:workspace-updated', handleRealtimeWorkspaceUpdated);
-  socket.on('study-session:refresh-needed', () => refreshSessionFromRealtime());
-  socket.on('study-session:time-updated', () => refreshSessionFromRealtime());
+  liveWire.on('study-session:progress-updated', applyLiveWireProgress);
+  liveWire.on('study-session:discussion-updated', handleLiveWireDiscussion);
+  liveWire.on('study-session:consultation-started', handleLiveWireConsultationStarted);
+  liveWire.on('study-session:consultation-finished', handleLiveWireConsultationFinished);
+  liveWire.on('study-session:consultation-reviewed', handleLiveWireConsultationReviewed);
+  liveWire.on('study-session:workspace-updated', handleLiveWireWorkspace);
+  liveWire.on('study-session:refresh-needed', () => refreshFromLiveWire());
+  liveWire.on('study-session:time-updated', () => refreshFromLiveWire());
 
-  socket.on('disconnect', () => {
-    realtimeState.joined = false;
+  liveWire.on('disconnect', () => {
+    liveWireState.joined = false;
   });
 }

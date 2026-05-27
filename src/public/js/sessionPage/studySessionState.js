@@ -1,19 +1,15 @@
-// Shared constants and mutable runtime state for the study-session page.
 const DEFAULT_SESSION_ID = 2;
 const CURRENT_USER_ID = currentUserIdFromAuth();
-const urlParams = new URLSearchParams(window.location.search);
-const selectedId = Number(urlParams.get('id'));
+const selectedId = sessionIdFromLocation();
 const sessionId = Number.isInteger(selectedId) && selectedId > 0 ? selectedId : DEFAULT_SESSION_ID;
 const apiBase = `/api/sessions/${sessionId}`;
 
-// Small tuning constants that keep repeated UI behavior consistent across modules.
 const MEMBER_PREVIEW_LIMIT = 3;
 const CHECKLIST_STORAGE_PREFIX = 'workCheckChecklist:';
 const INTENTION_STORAGE_PREFIX = 'sessionIntention:';
 const SESSION_REFRESH_INTERVAL_MS = 5000;
 const FOCUS_STATUS_MIX_REFRESH_INTERVAL_MS = 1000;
 
-// The analytics chart uses a fixed order so everyone sees the same color story each refresh.
 const STATUS_BREAKDOWN_ORDER = ['focus', 'break', 'need_help', 'in_consultation'];
 const STATUS_BREAKDOWN_META = {
   focus: { label: 'Focusing', color: '#16a34a' },
@@ -22,7 +18,6 @@ const STATUS_BREAKDOWN_META = {
   in_consultation: { label: 'In Consultation', color: '#6366f1' },
 };
 
-// Start with a safe placeholder session so render helpers can run before the first API response.
 let sessionData = {
   id: sessionId,
   title: 'Study Session',
@@ -34,27 +29,23 @@ let sessionData = {
   members: [],
 };
 
-// Timer and polling handles are kept here because several modules need to pause or replace them.
 let timerStartedAt = Date.now();
 let timerInterval = null;
 let statusTimerInterval = null;
 let sessionPollInterval = null;
 let focusStatusMixPollInterval = null;
 
-// Focus analytics state lets optimistic status changes feel instant while polling catches up.
 let focusStatusMixData = null;
 let focusStatusMixRequestVersion = 0;
 let statusUpdateInFlight = false;
 let pendingStatusUpdate = null;
 
-// These guards stop overlapping loads from clobbering fresh UI state.
 let sessionLoadInFlight = false;
 let expiryRefreshInFlight = false;
 let pausedRemainingSeconds = null;
 let activeProgressDrag = null;
 let membersExpanded = false;
 
-// Consultation state tracks who is being helped and what is currently drawn in the shared workspace.
 let pendingConsultationMemberId = null;
 let activeConsultation = null;
 let whiteboardStage = null;
@@ -71,7 +62,22 @@ let savedWorkspaceRevision = 0;
 let lastWorkspaceUpdatedAt = null;
 let progressUpdateInFlight = false;
 
-// Read the logged-in user id defensively because auth storage can be missing or malformed.
+function sessionIdFromLocation() {
+  const pathMatch = window.location.pathname.match(/\/study-session\/(\d+)\/?$/);
+  if (pathMatch) return Number(pathMatch[1]);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  return Number(urlParams.get('id'));
+}
+
+function cleanStudySessionUrl() {
+  const cleanPath = `/study-session/${sessionId}`;
+  if (window.location.pathname === cleanPath && !window.location.search) return;
+  window.history.replaceState({}, '', cleanPath);
+}
+
+cleanStudySessionUrl();
+
 function currentUserIdFromAuth() {
   try {
     const user = window.auth ? window.auth.getUser() : null;
@@ -82,10 +88,9 @@ function currentUserIdFromAuth() {
   }
 }
 
-// Keep unauthorized users away from a live session and send them back to login.
 function requireStudySessionLogin() {
   if (window.auth?.isLoggedIn() && CURRENT_USER_ID) return true;
 
-  window.location.href = 'login.html';
+  window.location.href = '/login';
   return false;
 }

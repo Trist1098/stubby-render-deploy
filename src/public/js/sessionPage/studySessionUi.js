@@ -1,7 +1,5 @@
-// Generic UI helpers shared by the study-session modules.
 const modalFocusStack = [];
 
-// Escape dynamic text before using it inside HTML strings.
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => {
     return {
@@ -18,12 +16,10 @@ function escapeHtml(value) {
   });
 }
 
-// Clamp progress-like values so sliders, meters, and scores always stay between 0 and 100.
 function asPercent(value) {
   return Math.min(Math.max(Number(value) || 0, 0), 100);
 }
 
-// Build a short avatar label from a member name, falling back to "U" for unknown users.
 function initials(name) {
   const letters = String(name || 'U')
     .trim()
@@ -39,7 +35,6 @@ function initials(name) {
   return letters || 'U';
 }
 
-// Pick the Font Awesome icon that best matches an uploaded evidence type.
 function fileIcon(type) {
   if (type === 'image') return 'fa-file-image';
 
@@ -48,20 +43,17 @@ function fileIcon(type) {
   return 'fa-square-root-alt';
 }
 
-// Show a page-level status message without replacing the rest of the session UI.
 function showMessage(text, type = 'info') {
   page.message.textContent = text;
 
   page.message.className = `session-alert session-alert-${type}`;
 }
 
-// Hide the page-level status area after a successful action or a fresh load.
 function clearMessage() {
   page.message.textContent = '';
   page.message.className = 'session-alert d-none';
 }
 
-// Find focusable controls inside a modal so keyboard users stay inside the active dialog.
 function focusableElements(container) {
   return Array.from(
     container.querySelectorAll(
@@ -85,7 +77,6 @@ function focusableElements(container) {
   });
 }
 
-// Open or close a modal while remembering where focus should return afterwards.
 function showModal(modal, shouldShow) {
   if (!modal) return;
   const wasHidden = modal.classList.contains('d-none');
@@ -103,14 +94,12 @@ function showModal(modal, shouldShow) {
   }
 }
 
-// Toggle groups of related buttons during async work.
 function setButtonsDisabled(buttons, disabled) {
   buttons.filter(Boolean).forEach((button) => {
     button.disabled = disabled;
   });
 }
 
-// Create a small temporary toast, optionally as a clickable action.
 function showToast({ title, message, type = 'info', actionLabel = '', action = null }) {
   if (!page.toastContainer) return null;
 
@@ -147,12 +136,10 @@ function showToast({ title, message, type = 'info', actionLabel = '', action = n
   return toast;
 }
 
-// Render a reusable empty-state paragraph for lists and panels.
 function emptyText(text, className = 'member-evidence-empty') {
   return `<p class="${className}">${escapeHtml(text)}</p>`;
 }
 
-// Return every modal that can currently be dismissed from shared keyboard/backdrop logic.
 function visibleModalClosers() {
   return [
     { modal: page.exitModal, close: () => showModal(page.exitModal, false) },
@@ -178,7 +165,6 @@ function visibleModalClosers() {
   ];
 }
 
-// Close whichever modal is visible when the user presses Escape.
 function closeVisibleModalOnEscape(event) {
   if (event.key !== 'Escape') return;
 
@@ -191,7 +177,6 @@ function closeVisibleModalOnEscape(event) {
   visibleModal.close();
 }
 
-// Keep Tab navigation inside the open modal instead of letting focus escape behind it.
 function keepFocusInsideVisibleModal(event) {
   if (event.key !== 'Tab') return;
 

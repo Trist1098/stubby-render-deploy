@@ -5,19 +5,19 @@ const model = require('../models/StudySession.model');
 const secretKey = process.env.JWT_SECRET_KEY || 'stubby_default_secret';
 const tokenAlgorithm = process.env.JWT_ALGORITHM || 'HS256';
 
-let io = null;
+let studySessionWire = null;
 
-const parseId = (value) => {
+const toUsableId = (value) => {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 };
 
-const sessionRoom = (sessionId) => `session:${sessionId}`;
+const studyRoomName = (sessionId) => `session:${sessionId}`;
 
 function initStudySessionRealtime(server) {
-  io = new Server(server);
+  studySessionWire = new Server(server);
 
-  io.use((socket, next) => {
+  studySessionWire.use((socket, next) => {
     const rawToken = socket.handshake.auth?.token || '';
     const token = rawToken.startsWith('Bearer ') ? rawToken.slice(7) : rawToken;
 
@@ -25,7 +25,7 @@ function initStudySessionRealtime(server) {
 
     try {
       const decoded = jwt.verify(token, secretKey, { algorithms: [tokenAlgorithm] });
-      socket.data.userId = parseId(decoded.userId);
+      socket.data.userId = toUsableId(decoded.userId);
       if (!socket.data.userId) return next(new Error('Invalid token'));
       return next();
     } catch {
@@ -33,17 +33,17 @@ function initStudySessionRealtime(server) {
     }
   });
 
-  io.on('connection', (socket) => {
+  studySessionWire.on('connection', (socket) => {
     socket.on('study-session:join', async ({ sessionId } = {}) => {
-      const parsedSessionId = parseId(sessionId);
-      if (!parsedSessionId) {
+      const joinedSessionId = toUsableId(sessionId);
+      if (!joinedSessionId) {
         socket.emit('study-session:error', { message: 'Valid session id is required' });
         return;
       }
 
       try {
         const hasAccess = await model.ensureSessionAccessForUser(
-          parsedSessionId,
+          joinedSessionId,
           socket.data.userId,
         );
         if (!hasAccess) {
@@ -51,9 +51,9 @@ function initStudySessionRealtime(server) {
           return;
         }
 
-        socket.join(sessionRoom(parsedSessionId));
+        socket.join(studyRoomName(joinedSessionId));
         socket.emit('study-session:joined', {
-          sessionId: parsedSessionId,
+          sessionId: joinedSessionId,
           userId: socket.data.userId,
         });
       } catch {
@@ -62,14 +62,14 @@ function initStudySessionRealtime(server) {
     });
   });
 
-  return io;
+  return studySessionWire;
 }
 
-function emitSessionEvent(sessionId, eventName, payload = {}) {
-  if (!io || !sessionId || !eventName) return;
-  io.to(sessionRoom(sessionId)).emit(eventName, {
+function emitSessionEvent(sessionId, eventName, eventBody = {}) {
+  if (!studySessionWire || !sessionId || !eventName) return;
+  studySessionWire.to(studyRoomName(sessionId)).emit(eventName, {
     sessionId,
-    ...payload,
+    ...eventBody,
   });
 }
 

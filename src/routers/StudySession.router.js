@@ -3,6 +3,7 @@ const router = express.Router();
 const studySessionController = require('../controllers/StudySession.controller');
 const jwtMiddleware = require('../middlewares/jwt.middleware');
 const upload = require('../middlewares/upload');
+const { uploadChatFile } = require('../middlewares/chatUpload');
 
 router.use(jwtMiddleware.verifyToken);
 
@@ -10,7 +11,7 @@ router.get('/', studySessionController.listSessions);
 router.get('/:sessionId', studySessionController.getSession);
 router.get('/:sessionId/focus-status-mix', studySessionController.getFocusStatusMix);
 router.get('/:sessionId/discussions', studySessionController.listDiscussions);
-router.post('/:sessionId/discussions', studySessionController.createDiscussionPost);
+router.post('/:sessionId/discussions', uploadChatFile, studySessionController.createDiscussionPost);
 router.post('/:sessionId/consultations', studySessionController.startConsultation);
 router.patch('/:sessionId/consultations/:consultationId/finish',studySessionController.finishConsultation);
 router.patch('/:sessionId/consultations/:consultationId/review',studySessionController.saveConsultationReview);

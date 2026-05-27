@@ -1,5 +1,3 @@
-// Status-change actions for the current member.
-// Update the UI immediately while the status PATCH request is still in flight.
 function applyOptimisticCurrentStatus(status) {
   const normalizedStatus = normalizeStatusForApi(status);
   const currentMember = getCurrentMember();
@@ -20,7 +18,6 @@ function applyOptimisticCurrentStatus(status) {
   renderStatusControls();
 }
 
-// Send the latest queued status to the backend, collapsing rapid clicks into the final choice.
 async function flushStatusUpdateQueue() {
   if (statusUpdateInFlight) return;
 
@@ -60,7 +57,6 @@ async function flushStatusUpdateQueue() {
   loadFocusStatusMix({ showLoading: false });
 }
 
-// Handle a status button click from the current member.
 function updateCurrentStatus(event) {
   const button = event.currentTarget;
   const rawStatus = button.dataset.status;

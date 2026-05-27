@@ -1,7 +1,6 @@
 const LIVE_TICK_MS = 1000;
 const LIVE_SYNC_MS = 5000;
 
-// Keep the session list page state in one small object so filters, timers, and fetches stay coordinated.
 const sessionsState = {
   sessions: [],
   filter: 'all',
@@ -12,7 +11,6 @@ const sessionsState = {
 
 const sessionsPage = {};
 
-// Grab every DOM node this page script needs once the page has loaded.
 function bindSessionsPage() {
   sessionsPage.alert = document.getElementById('sessionsAlert');
   sessionsPage.empty = document.getElementById('emptySessions');
@@ -24,19 +22,16 @@ function bindSessionsPage() {
   sessionsPage.openLiveButton = document.getElementById('openLiveSessionButton');
 }
 
-// Surface loading and API problems in the same alert area used by the sessions page.
 function showSessionsAlert(message, type = 'danger') {
   sessionsPage.alert.className = `alert alert-${type}`;
   sessionsPage.alert.textContent = message;
 }
 
-// Reset the alert back to its hidden, empty state before a fresh request.
 function clearSessionsAlert() {
   sessionsPage.alert.className = 'alert d-none';
   sessionsPage.alert.textContent = '';
 }
 
-// Escape dynamic text before it is placed into template strings.
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => {
     return {
@@ -49,7 +44,6 @@ function escapeHtml(value) {
   });
 }
 
-// Convert backend status keys into the short labels shown on each session card.
 function statusLabel(status) {
   const labels = {
     active: 'Live',
@@ -60,25 +54,21 @@ function statusLabel(status) {
   return labels[status] || 'Session';
 }
 
-// Normalize anything that should be treated as a duration into a safe whole-second value.
 function numericSeconds(value) {
   const seconds = Number(value);
   return Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
 }
 
-// Active sessions keep moving between syncs, so measure how long it has been since this card was fetched.
 function secondsSinceFetch(session, now = Date.now()) {
   if (session.status !== 'active') return 0;
   return Math.max(0, Math.floor((now - session.fetched_at_ms) / 1000));
 }
 
-// Calculate the live countdown without waiting for the next server refresh.
 function liveRemainingSeconds(session, now = Date.now()) {
   if (session.status !== 'active') return numericSeconds(session.remaining_seconds);
   return Math.max(0, numericSeconds(session.remaining_seconds) - secondsSinceFetch(session, now));
 }
 
-// Calculate elapsed time locally so the list feels live instead of jumping every few seconds.
 function liveElapsedSeconds(session, now = Date.now()) {
   const elapsed = numericSeconds(session.elapsed_seconds) + secondsSinceFetch(session, now);
   const planned = numericSeconds(session.planned_duration_seconds);
@@ -86,14 +76,12 @@ function liveElapsedSeconds(session, now = Date.now()) {
   return Math.min(elapsed, planned);
 }
 
-// Turn live elapsed time into a bounded percentage for the progress meter.
 function liveProgress(session, now = Date.now()) {
   const planned = numericSeconds(session.planned_duration_seconds);
   if (planned <= 0) return 0;
   return Math.min(Math.max((liveElapsedSeconds(session, now) / planned) * 100, 0), 100);
 }
 
-// Show planned duration in the friendlier card format, like "1h 30m".
 function formatDuration(seconds) {
   const totalSeconds = numericSeconds(seconds);
   if (totalSeconds <= 0) return '-';
@@ -105,7 +93,6 @@ function formatDuration(seconds) {
   return `${minutes}m`;
 }
 
-// Show ticking time in timer format, switching to hours only when needed.
 function formatTimer(seconds) {
   const totalSeconds = numericSeconds(seconds);
   const hours = Math.floor(totalSeconds / 3600);
@@ -119,7 +106,6 @@ function formatTimer(seconds) {
   return `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
-// Dates can arrive from scheduled or started sessions, so fail softly if the value is missing.
 function formatDate(value) {
   if (!value) return '-';
   const date = new Date(value);
@@ -127,7 +113,6 @@ function formatDate(value) {
   return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// Format a session start time while keeping invalid backend values out of the UI.
 function formatTime(value) {
   if (!value) return '-';
   const date = new Date(value);
@@ -135,12 +120,10 @@ function formatTime(value) {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-// Prefer the scheduled start for planned sessions, then fall back to the actual start.
 function sessionCardDate(session) {
   return session.scheduled_start_at || session.started_at || '';
 }
 
-// Shape raw API rows into the predictable object format the renderers expect.
 function normalizeSession(session, now = Date.now()) {
   const plannedSeconds = numericSeconds(session.planned_duration_seconds);
   const remainingSeconds = numericSeconds(session.remaining_seconds);
@@ -164,7 +147,6 @@ function normalizeSession(session, now = Date.now()) {
   };
 }
 
-// Blend fresh API data with local ticking values so the cards do not jump backward during polling.
 function mergeSessions(nextSessions) {
   const now = Date.now();
   const previousById = new Map(
@@ -182,7 +164,6 @@ function mergeSessions(nextSessions) {
 
     if (!isSameLiveSession) return nextSession;
 
-    // Keep the most advanced live values from either the server or this browser.
     return {
       ...nextSession,
       elapsed_seconds: Math.max(nextSession.elapsed_seconds, liveElapsedSeconds(previousSession, now)),
@@ -195,7 +176,6 @@ function mergeSessions(nextSessions) {
   });
 }
 
-// Decide which primary action fits the session state.
 function sessionAction(session) {
   if (session.status === 'upcoming') {
     return `
@@ -208,7 +188,7 @@ function sessionAction(session) {
 
   if (session.status === 'active' || session.status === 'expired') {
     return `
-      <a class="btn btn-primary" href="study-session.html?id=${session.id}">
+      <a class="btn btn-primary" href="/study-session?id=${session.id}">
         <i class="fas fa-arrow-right me-2" aria-hidden="true"></i>
         Open session
       </a>
@@ -216,18 +196,16 @@ function sessionAction(session) {
   }
 
   return `
-    <a class="btn btn-outline-primary" href="study-session.html?id=${session.id}">
+    <a class="btn btn-outline-primary" href="/study-session?id=${session.id}">
       View summary
     </a>
   `;
 }
 
-// Keep the group chat endpoint in one place so the click handler stays readable.
 function sessionGroupChatUrl(sessionId) {
   return `/api/sessions/${sessionId}/chat`;
 }
 
-// Render the live-session time fields that the one-second timer updates in place.
 function renderActiveTimeMeta(session) {
   const key = escapeHtml(session.session_key);
 
@@ -243,7 +221,6 @@ function renderActiveTimeMeta(session) {
   `;
 }
 
-// Render the quieter time fields for sessions that are upcoming, expired, or completed.
 function renderInactiveTimeMeta(session) {
   if (session.status === 'upcoming') {
     return `
@@ -270,7 +247,6 @@ function renderInactiveTimeMeta(session) {
   `;
 }
 
-// Build the thin progress meter only for active sessions.
 function renderLiveMeter(session) {
   if (session.status !== 'active') return '';
   const key = escapeHtml(session.session_key);
@@ -293,7 +269,6 @@ function renderLiveMeter(session) {
   `;
 }
 
-// Turn one normalized session into the full dashboard card.
 function renderSessionCard(session) {
   const status = String(session.status || 'unknown').toLowerCase();
   const goal = session.micro_goal || 'No mission set yet';
@@ -341,13 +316,11 @@ function renderSessionCard(session) {
   `;
 }
 
-// Apply the active filter while keeping the all view as a direct pass-through.
 function filteredSessions() {
   if (sessionsState.filter === 'all') return sessionsState.sessions;
   return sessionsState.sessions.filter((session) => session.status === sessionsState.filter);
 }
 
-// Keep the live-session shortcut panel in sync with the current active session.
 function renderLivePanel() {
   const liveSession = sessionsState.sessions.find((session) => session.status === 'active');
   sessionsPage.livePanel.classList.toggle('d-none', !liveSession);
@@ -365,10 +338,9 @@ function renderLivePanel() {
     <span>${escapeHtml(formatDuration(liveSession.planned_duration_seconds))} planned</span>
     <span>${Number(liveSession.member_count) || 0} members</span>
   `;
-  sessionsPage.openLiveButton.href = `study-session.html?id=${liveSession.id}`;
+  sessionsPage.openLiveButton.href = `/study-session?id=${liveSession.id}`;
 }
 
-// Refresh the list, empty state, live panel, and any immediately visible timers.
 function renderSessions() {
   renderLivePanel();
 
@@ -378,7 +350,6 @@ function renderSessions() {
   updateLiveTimers();
 }
 
-// Switch the filter buttons and then redraw the cards for the selected status.
 function setFilter(nextFilter) {
   sessionsState.filter = nextFilter;
   sessionsPage.filters.forEach((button) => {
@@ -389,14 +360,12 @@ function setFilter(nextFilter) {
   renderSessions();
 }
 
-// Update matching timer text nodes without rebuilding the entire card list.
 function updateTimedText(selector, value) {
   document.querySelectorAll(selector).forEach((element) => {
     element.textContent = value;
   });
 }
 
-// Tick every active session forward locally between the slower API syncs.
 function updateLiveTimers() {
   const now = Date.now();
 
@@ -412,7 +381,6 @@ function updateLiveTimers() {
     updateTimedText(`[data-live-elapsed="${key}"]`, formatTimer(elapsed));
     updateTimedText(`[data-live-remaining="${key}"]`, formatTimer(remaining));
 
-    // The visual meter needs both the accessible value and the fill width updated together.
     document.querySelectorAll(`[data-session-progress="${key}"]`).forEach((meter) => {
       meter.setAttribute('aria-valuenow', String(elapsed));
       const fill = meter.querySelector('.session-live-fill');
@@ -421,7 +389,6 @@ function updateLiveTimers() {
   });
 }
 
-// Load sessions from the API, with an in-flight guard so polling cannot overlap requests.
 async function fetchSessions(options = {}) {
   if (sessionsState.fetchInFlight) return;
   sessionsState.fetchInFlight = true;
@@ -440,7 +407,6 @@ async function fetchSessions(options = {}) {
   }
 }
 
-// Start or reuse the group chat for the session card the user clicked.
 async function openSessionChat(event) {
   const button = event.target.closest('.session-chat-button');
   if (!button) return;
@@ -466,7 +432,6 @@ async function openSessionChat(event) {
   }
 }
 
-// Run a fast local timer and a slower server sync for active sessions.
 function startLiveTracking() {
   clearInterval(sessionsState.tickTimer);
   clearInterval(sessionsState.syncTimer);
@@ -475,7 +440,6 @@ function startLiveTracking() {
   sessionsState.syncTimer = setInterval(() => fetchSessions({ silent: true }), LIVE_SYNC_MS);
 }
 
-// Wire filters, delegated chat clicks, and page visibility refreshes.
 function bindSessionEvents() {
   sessionsPage.filters.forEach((button) => {
     button.addEventListener('click', () => setFilter(button.dataset.filter));
@@ -487,7 +451,6 @@ function bindSessionEvents() {
   });
 }
 
-// Boot the sessions page only after confirming the viewer is logged in.
 document.addEventListener('DOMContentLoaded', () => {
   if (!window.auth?.isLoggedIn()) {
     window.location.href = 'login.html';

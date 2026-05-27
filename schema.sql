@@ -421,14 +421,18 @@ CREATE TABLE micro_goal_ai_checks (
     FOREIGN KEY (user_id)          REFERENCES "User"(user_id) ON DELETE CASCADE
 );
 CREATE TABLE StudySessionDiscussionPost (
-    post_id     SERIAL PRIMARY KEY,
-    session_id  INT NOT NULL,
-    user_id     INT NOT NULL,
-    post_type   VARCHAR(30) DEFAULT 'question',
-    title       VARCHAR(140) NOT NULL,
-    content     TEXT NOT NULL,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    post_id         SERIAL PRIMARY KEY,
+    session_id      INT NOT NULL,
+    user_id         INT NOT NULL,
+    post_type       VARCHAR(30) DEFAULT 'question',
+    title           VARCHAR(140) NOT NULL,
+    content         TEXT NOT NULL,
+    attachment_url  TEXT,
+    attachment_name VARCHAR(255),
+    attachment_type VARCHAR(120),
+    attachment_size INT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES StudySession(session_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)    REFERENCES "User"(user_id) ON DELETE CASCADE
 );

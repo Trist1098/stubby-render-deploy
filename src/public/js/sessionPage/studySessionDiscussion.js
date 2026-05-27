@@ -1,9 +1,6 @@
-// Simple session discussion board.
-// Keep discussion posts local so opening the panel can render immediately before a refresh.
 let discussionPosts = [];
 let discussionRequestInFlight = false;
 
-// Map backend post types to the labels shown in the side panel.
 const DISCUSSION_TYPE_LABELS = {
   question: 'Question',
   explanation: 'Explanation',
@@ -11,22 +8,18 @@ const DISCUSSION_TYPE_LABELS = {
   note: 'Note',
 };
 
-// Build the discussion endpoint for the current session.
 function discussionUrl() {
   return `${apiBase}/discussions`;
 }
 
-// Fall back to "Question" if an older backend returns an unknown type.
 function discussionTypeLabel(type) {
   return DISCUSSION_TYPE_LABELS[type] || 'Question';
 }
 
-// Check whether the discussion drawer is currently visible.
 function isDiscussionOpen() {
   return Boolean(page.discussionPanel?.classList.contains('is-open'));
 }
 
-// Show post timestamps in a compact human-readable format.
 function discussionTime(value) {
   if (!value) return 'Just now';
   return new Date(value).toLocaleString([], {
@@ -37,7 +30,13 @@ function discussionTime(value) {
   });
 }
 
-// Set the small inline status message inside the discussion panel.
+function discussionFileSize(size) {
+  const bytes = Number(size) || 0;
+  if (bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function setDiscussionStatus(text = '', type = 'info') {
   if (!page.discussionStatus) return;
 
@@ -46,7 +45,44 @@ function setDiscussionStatus(text = '', type = 'info') {
   page.discussionStatus.classList.toggle('is-visible', Boolean(text));
 }
 
-// Render one discussion post card, showing "You" for the current member.
+function discussionAttachmentIcon(type = '') {
+  const kind = String(type || '');
+  if (kind.startsWith('image/')) return 'fa-image';
+  if (kind.includes('pdf')) return 'fa-file-pdf';
+  if (kind.includes('word')) return 'fa-file-word';
+  if (kind.includes('sheet') || kind.includes('excel')) return 'fa-file-excel';
+  if (kind.includes('presentation') || kind.includes('powerpoint')) return 'fa-file-powerpoint';
+  return 'fa-paperclip';
+}
+
+function renderDiscussionAttachment(post) {
+  if (!post.attachment_url) return '';
+
+  const fileName = post.attachment_name || 'Attachment';
+  const fileSize = discussionFileSize(post.attachment_size);
+  const isImage = String(post.attachment_type || '').startsWith('image/');
+
+  return `
+    <a
+      class="discussion-attachment"
+      href="${escapeHtml(post.attachment_url)}"
+      target="_blank"
+      rel="noopener noreferrer"
+      download="${escapeHtml(fileName)}"
+    >
+      ${
+        isImage
+          ? `<img src="${escapeHtml(post.attachment_url)}" alt="${escapeHtml(fileName)}" />`
+          : `<i class="fas ${escapeHtml(discussionAttachmentIcon(post.attachment_type))}" aria-hidden="true"></i>`
+      }
+      <span>
+        <strong>${escapeHtml(fileName)}</strong>
+        ${fileSize ? `<small>${escapeHtml(fileSize)}</small>` : ''}
+      </span>
+    </a>
+  `;
+}
+
 function renderDiscussionPost(post) {
   const displayName = Number(post.user_id) === CURRENT_USER_ID ? 'You' : post.author_name;
 
@@ -63,12 +99,12 @@ function renderDiscussionPost(post) {
           </p>
         </div>
       </header>
-      <p class="discussion-post-content">${escapeHtml(post.content || '')}</p>
+      ${post.content ? `<p class="discussion-post-content">${escapeHtml(post.content)}</p>` : ''}
+      ${renderDiscussionAttachment(post)}
     </article>
   `;
 }
 
-// Render all posts, or a calm empty state when nobody has started the board yet.
 function renderDiscussionPosts() {
   if (!page.discussionList) return;
 
@@ -77,7 +113,6 @@ function renderDiscussionPosts() {
     : '<p class="discussion-empty">No discussion posts yet.</p>';
 }
 
-// Fetch discussion posts with an in-flight guard so repeated opens do not stack requests.
 async function loadDiscussions(options = {}) {
   if (discussionRequestInFlight) return;
 
@@ -96,7 +131,6 @@ async function loadDiscussions(options = {}) {
   }
 }
 
-// Open the side panel, render cached posts first, then refresh from the server.
 async function openDiscussionPanel() {
   page.discussionPanel.classList.add('is-open');
   page.discussionPanel.setAttribute('aria-hidden', 'false');
@@ -105,14 +139,12 @@ async function openDiscussionPanel() {
   window.setTimeout(() => page.discussionTitleInput?.focus(), 0);
 }
 
-// Close the discussion drawer and return focus to the button that opened it.
 function closeDiscussionPanel() {
   page.discussionPanel.classList.remove('is-open');
   page.discussionPanel.setAttribute('aria-hidden', 'true');
   page.discussionButton?.focus();
 }
 
-// Validate and submit a new discussion post, then reload the board.
 async function submitDiscussionPost(event) {
   event.preventDefault();
 
@@ -120,16 +152,31 @@ async function submitDiscussionPost(event) {
   const title = page.discussionTitleInput.value.trim();
   const content = page.discussionContentInput.value.trim();
   const postType = page.discussionTypeInput.value;
-  if (!title || !content) return;
+  const file = page.discussionFileInput?.files?.[0] || null;
+
+  if (!title) {
+    setDiscussionStatus('Add a title before posting.', 'danger');
+    page.discussionTitleInput.focus();
+    return;
+  }
+
+  if (!content && !file) {
+    setDiscussionStatus('Add a message or attach a file before posting.', 'danger');
+    page.discussionContentInput.focus();
+    return;
+  }
+
+  const postData = new FormData();
+  postData.append('title', title);
+  postData.append('content', content);
+  postData.append('post_type', postType);
+  if (file) postData.append('file', file);
 
   setButtonsDisabled([submitButton], true);
   setDiscussionStatus('');
 
   try {
-    await getJson(discussionUrl(), {
-      method: 'POST',
-      body: JSON.stringify({ title, content, post_type: postType }),
-    });
+    await postForm(discussionUrl(), postData);
     page.discussionForm.reset();
     await loadDiscussions({ silent: true });
   } catch (error) {
@@ -139,7 +186,6 @@ async function submitDiscussionPost(event) {
   }
 }
 
-// Let Escape close just the discussion drawer when it is open.
 function closeDiscussionPanelOnEscape(event) {
   if (event.key === 'Escape' && isDiscussionOpen()) {
     event.preventDefault();
@@ -147,12 +193,10 @@ function closeDiscussionPanelOnEscape(event) {
   }
 }
 
-// Load initial posts once; the panel refreshes again when the user opens it.
 function startDiscussionPolling() {
   loadDiscussions({ silent: true });
 }
 
-// Wire the discussion drawer controls and form submission.
 function bindDiscussionEvents() {
   page.discussionButton.addEventListener('click', openDiscussionPanel);
   page.closeDiscussionButton.addEventListener('click', closeDiscussionPanel);

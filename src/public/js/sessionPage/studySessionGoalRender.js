@@ -1,5 +1,3 @@
-// Rendering for the active micro-goal and queued micro-goals.
-// Put the current micro-goal into the main focus card.
 function renderCurrentGoal() {
   const currentGoal = sessionData.micro_goal;
   page.goalTitle.textContent = currentGoal?.title || 'No micro-goal yet';
@@ -8,7 +6,6 @@ function renderCurrentGoal() {
   renderGoalQueue();
 }
 
-// Render the next queued goal preview plus the full queue modal list.
 function renderGoalQueue() {
   const queuedGoals = sessionData.queued_micro_goals || [];
   const nextGoal = queuedGoals[0];
@@ -24,7 +21,6 @@ function renderGoalQueue() {
     : emptyText('No queued micro-goals yet.', 'empty-members');
 }
 
-// Render one queued micro-goal with its position and task text.
 function renderQueuedGoal(queuedGoal) {
   return `
     <article class="queued-goal-item">

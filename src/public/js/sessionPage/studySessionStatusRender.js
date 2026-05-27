@@ -1,5 +1,3 @@
-// Rendering for member status controls, status timers, and progress UI.
-// Highlight the current status button and disable choices while timers are paused.
 function renderStatusControls() {
   const currentMember = getCurrentMember();
   const currentStatus = normalizeStatusForApi(
@@ -14,7 +12,6 @@ function renderStatusControls() {
   });
 }
 
-// Paint the current user's progress bar and explain why it may be locked.
 function renderStatusProgress() {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
@@ -31,14 +28,12 @@ function renderStatusProgress() {
     : 'Drag or click the bar to update progress. 100% requires workings, a .txt file, or a Word .docx file.';
 }
 
-// Refresh every member's visible status timer.
 function renderStatusTimers() {
   document.querySelectorAll('.member-status-time').forEach((timer) => {
     timer.textContent = `${statusTime(currentStatusSeconds(timer))} in status`;
   });
 }
 
-// Calculate one member timer from its base seconds and render timestamp.
 function currentStatusSeconds(timer) {
   const baseSeconds = Number(timer.dataset.statusSeconds) || 0;
   if (timersPausedForViewer() || timer.dataset.timerPaused === 'true') return baseSeconds;
@@ -48,7 +43,6 @@ function currentStatusSeconds(timer) {
   return baseSeconds + elapsedSeconds;
 }
 
-// Copy rendered timers back into sessionData before a refresh or optimistic update.
 function syncRenderedStatusTimers() {
   document.querySelectorAll('.session-member-card').forEach((card) => {
     const timer = card.querySelector('.member-status-time');
@@ -59,7 +53,6 @@ function syncRenderedStatusTimers() {
   });
 }
 
-// Paint the slider and the current member card with the same progress value.
 function paintProgress(progress) {
   page.statusProgressText.textContent = `${progress}%`;
   page.statusProgressFill.style.width = `${progress}%`;

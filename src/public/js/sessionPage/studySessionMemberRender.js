@@ -1,5 +1,3 @@
-// Rendering for session members and member micro-goal details.
-// Render the member preview list, respecting the collapsed/expanded state.
 function renderMembers() {
   const members = sessionData.members || [];
   const visibleMembers = membersExpanded ? members : members.slice(0, MEMBER_PREVIEW_LIMIT);
@@ -14,7 +12,6 @@ function renderMembers() {
   updateRejoinButton();
 }
 
-// Replace one member card after a local status change without rebuilding the whole list.
 function renderMemberCardInPlace(memberData) {
   const card = page.membersList.querySelector(
     `.session-member-card[data-member-user-id="${memberData.user_id}"]`,
@@ -28,7 +25,6 @@ function renderMemberCardInPlace(memberData) {
   renderStatusTimers();
 }
 
-// Render one member card with status and progress; Focus Credit stays in the analytics area.
 function renderMemberCard(memberData) {
   const progress = asPercent(memberData.progress_percent);
   const statusClass = memberData.status_class || 'focusing';
@@ -77,20 +73,17 @@ function renderMemberCard(memberData) {
   `;
 }
 
-// Find the member record that belongs to the logged-in user.
 function getCurrentMember() {
   return (sessionData.members || []).find(
     (memberData) => Number(memberData.user_id) === CURRENT_USER_ID,
   );
 }
 
-// Find the current user's copy of the active micro-goal.
 function getCurrentMemberGoal() {
   const currentGoalId = Number(sessionData.micro_goal?.id);
   return (getCurrentMember()?.goals || []).find((item) => Number(item.id) === currentGoalId);
 }
 
-// Render active and completed goal sections for the selected member.
 function renderMemberGoals(memberData) {
   const goals = memberData.goals || [];
   const activeGoals = goals.filter(
@@ -108,7 +101,6 @@ function renderMemberGoals(memberData) {
   `;
 }
 
-// Render one named group in the member goals modal.
 function renderGoalSection(title, goals, memberData, emptyMessage, allowUpload = false) {
   const content = goals.length
     ? goals.map((item) => renderGoalCard(item, memberData, allowUpload)).join('')
@@ -122,7 +114,6 @@ function renderGoalSection(title, goals, memberData, emptyMessage, allowUpload =
   `;
 }
 
-// Render one goal card with progress, evidence, and an upload form when allowed.
 function renderGoalCard(goalData, memberData, allowUpload) {
   const progress = asPercent(goalData.progress_percent);
   const canSubmit =

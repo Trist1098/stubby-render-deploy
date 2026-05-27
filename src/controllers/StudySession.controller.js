@@ -72,6 +72,16 @@ const getDiscussionType = (value) => {
   return allowedDiscussionTypes.has(normalized) ? normalized : 'question';
 };
 
+const discussionAttachmentFromUpload = (file) => {
+  if (!file) return {};
+  return {
+    attachment_url: `/uploads/${file.filename}`,
+    attachment_name: getTrimmedString(file.originalname).slice(0, 255),
+    attachment_type: getTrimmedString(file.mimetype).slice(0, 120),
+    attachment_size: file.size,
+  };
+};
+
 const clampUnit = (value) => {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return null;
@@ -86,13 +96,13 @@ const getWhiteboardStrokes = (value) => {
     .map((stroke) => {
       const points = Array.isArray(stroke?.points)
         ? stroke.points
-            .slice(0, 500)
-            .map((point) => {
-              const x = clampUnit(point?.x);
-              const y = clampUnit(point?.y);
-              return x === null || y === null ? null : { x, y };
-            })
-            .filter(Boolean)
+          .slice(0, 500)
+          .map((point) => {
+            const x = clampUnit(point?.x);
+            const y = clampUnit(point?.y);
+            return x === null || y === null ? null : { x, y };
+          })
+          .filter(Boolean)
         : [];
 
       if (!points.length) return null;
@@ -586,10 +596,11 @@ module.exports.createDiscussionPost = async function createDiscussionPost(req, r
   const title = getTrimmedString(req.body.title).slice(0, 140);
   const content = getTrimmedString(req.body.content).slice(0, 1600);
   const postType = getDiscussionType(req.body.post_type);
+  const attachment = discussionAttachmentFromUpload(req.file);
 
   if (!ids) return null;
   if (!title) return badReq(res, 'Discussion title is required');
-  if (!content) return badReq(res, 'Discussion content is required');
+  if (!content && !req.file) return badReq(res, 'Add discussion text or attach a file before posting');
 
   try {
     const hasAccess = await ensureSessionRequestAccess(ids.sessionId, ids.userId, res);
@@ -601,6 +612,7 @@ module.exports.createDiscussionPost = async function createDiscussionPost(req, r
       post_type: postType,
       title,
       content,
+      ...attachment,
     });
 
     emitSessionEvent(ids.sessionId, 'study-session:discussion-updated', {

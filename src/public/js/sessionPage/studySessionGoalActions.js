@@ -1,5 +1,3 @@
-// Micro-goal, progress, and completion actions.
-// Open the detailed micro-goals modal for one member.
 function openMemberGoalsModal(userId) {
   const memberData = (sessionData.members || []).find(
     (item) => Number(item.user_id) === Number(userId),
@@ -16,7 +14,6 @@ function openMemberGoalsModal(userId) {
   showModal(page.memberGoalsModal, true);
 }
 
-// Delegate member-card "Micro-goals & uploads" button clicks.
 function handleMemberGoalsButton(event) {
   const button = event.target.closest('.member-goals-button');
   if (!button) return;
@@ -24,7 +21,6 @@ function handleMemberGoalsButton(event) {
   openMemberGoalsModal(button.dataset.memberUserId);
 }
 
-// Add a new micro-goal to the session queue.
 async function addMicroGoal(event) {
   event.preventDefault();
 
@@ -51,13 +47,11 @@ async function addMicroGoal(event) {
   }
 }
 
-// Clear and hide the micro-goal form after a successful add.
 function resetGoalForm() {
   page.goalForm.reset();
   page.goalForm.classList.add('d-none');
 }
 
-// Convert a pointer location on the progress bar into a percentage.
 function progressFromPointer(event) {
   const rect = page.statusProgressBar.getBoundingClientRect();
   const offset = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
@@ -66,7 +60,6 @@ function progressFromPointer(event) {
   return Math.round((offset / rect.width) * 100);
 }
 
-// Convert keyboard slider controls into the next progress percentage.
 function progressFromKey(event) {
   const currentProgress = asPercent(getCurrentMember()?.progress_percent);
   const step = event.shiftKey ? 10 : 5;
@@ -81,7 +74,6 @@ function progressFromKey(event) {
   return null;
 }
 
-// Handle keyboard changes for the progress slider.
 function handleProgressKeydown(event) {
   const progress = progressFromKey(event);
   if (progress === null) return;
@@ -91,7 +83,6 @@ function handleProgressKeydown(event) {
   updateCurrentProgress(asPercent(progress));
 }
 
-// Lock progress when the goal is complete, the bar is at 100, or timers are paused.
 function isProgressLocked() {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
@@ -102,7 +93,6 @@ function isProgressLocked() {
   );
 }
 
-// Start a drag update and paint the local preview immediately.
 function startProgressDrag(event) {
   if (isProgressLocked()) return;
 
@@ -116,7 +106,6 @@ function startProgressDrag(event) {
   paintProgress(activeProgressDrag.progress);
 }
 
-// Keep the progress preview moving while the pointer is captured.
 function moveProgressDrag(event) {
   if (!activeProgressDrag || activeProgressDrag.pointerId !== event.pointerId) return;
 
@@ -124,7 +113,6 @@ function moveProgressDrag(event) {
   paintProgress(activeProgressDrag.progress);
 }
 
-// Commit the dragged progress value to the backend when the drag ends.
 function finishProgressDrag(event) {
   if (!activeProgressDrag || activeProgressDrag.pointerId !== event.pointerId) return;
 
@@ -138,7 +126,6 @@ function finishProgressDrag(event) {
   updateCurrentProgress(progress);
 }
 
-// Restore the last rendered progress if the browser cancels the pointer interaction.
 function cancelProgressDrag(event) {
   if (!activeProgressDrag || activeProgressDrag.pointerId !== event.pointerId) return;
 
@@ -150,7 +137,6 @@ function cancelProgressDrag(event) {
   renderStatusProgress();
 }
 
-// Render the latest AI feedback inside the completion modal.
 function setCompletionAiFeedback(feedback) {
   if (!page.completionAiFeedback) return;
 
@@ -178,7 +164,6 @@ function setCompletionAiFeedback(feedback) {
   `;
 }
 
-// Load the newest AI check so the student can review it before completing a goal.
 async function loadCompletionAiFeedback(goalId) {
   if (!page.completionAiFeedback) return;
 
@@ -194,7 +179,6 @@ async function loadCompletionAiFeedback(goalId) {
   }
 }
 
-// Open the completion modal when the student tries to move progress to 100%.
 function openCompletionModal() {
   const currentGoal = sessionData.micro_goal;
   if (!currentGoal?.id) {
@@ -209,7 +193,6 @@ function openCompletionModal() {
   loadCompletionAiFeedback(currentGoal.id);
 }
 
-// Save the current member's progress, requiring evidence before locking 100%.
 async function updateCurrentProgress(progress) {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
@@ -256,7 +239,6 @@ async function updateCurrentProgress(progress) {
   }
 }
 
-// Update local member and goal progress before or after the API response.
 function applyCurrentProgress(progress) {
   const currentMember = getCurrentMember();
   const currentGoal = getCurrentMemberGoal();
@@ -267,7 +249,6 @@ function applyCurrentProgress(progress) {
   renderStatusProgress();
 }
 
-// Submit evidence from the completion modal and lock the current micro-goal.
 async function submitCompletionEvidence(event) {
   event.preventDefault();
 

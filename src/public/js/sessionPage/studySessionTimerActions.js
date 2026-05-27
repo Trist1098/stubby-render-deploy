@@ -1,12 +1,9 @@
-// Timer and polling actions for the study-session page.
-// Start or restart the main countdown tick.
 function startTimer() {
   clearInterval(timerInterval);
   renderTimer();
   timerInterval = setInterval(renderTimer, 1000);
 }
 
-// Start or restart the member status and analytics timer tick.
 function startStatusTimer() {
   clearInterval(statusTimerInterval);
   renderStatusTimers();
@@ -17,7 +14,6 @@ function startStatusTimer() {
   }, 1000);
 }
 
-// Poll the full session payload in the background.
 function startSessionPolling() {
   clearInterval(sessionPollInterval);
   sessionPollInterval = setInterval(() => {
@@ -25,7 +21,6 @@ function startSessionPolling() {
   }, SESSION_REFRESH_INTERVAL_MS);
 }
 
-// Poll the focus/status mix more often so the analytics panel feels live.
 function startFocusStatusPolling() {
   clearInterval(focusStatusMixPollInterval);
   focusStatusMixPollInterval = setInterval(() => {
@@ -33,7 +28,6 @@ function startFocusStatusPolling() {
   }, FOCUS_STATUS_MIX_REFRESH_INTERVAL_MS);
 }
 
-// Render the countdown ring and ask the backend to confirm expiry when time runs out.
 function renderTimer() {
   const remainingSeconds =
     pausedRemainingSeconds !== null
