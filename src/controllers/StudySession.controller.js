@@ -1,6 +1,9 @@
 const model = require('../models/StudySession.model');
 const { checkWorkWithAi } = require('../services/workCheckAi.service');
+const { moderateDiscussionText } = require('../services/contentModeration.service');
+const { emitSessionEvent } = require('../realtime/studySessionRealtime');
 const { badReq, created, notFound, ok } = require('../utils/responseHelpers');
+const fs = require('fs/promises');
 const mammoth = require('mammoth');
 
 const parseId = (value) => {
@@ -71,6 +74,45 @@ const getDiscussionType = (value) => {
   return allowedDiscussionTypes.has(normalized) ? normalized : 'question';
 };
 
+const discussionAttachmentFromUpload = (file) => {
+  if (!file) return {};
+  return {
+    attachment_url: `/uploads/${file.filename}`,
+    attachment_name: getTrimmedString(file.originalname).slice(0, 255),
+    attachment_type: getTrimmedString(file.mimetype).slice(0, 120),
+    attachment_size: file.size,
+  };
+};
+
+const isDiscussionTxtAttachment = (file) =>
+  file?.path &&
+  /\.txt$/i.test(file.originalname) &&
+  (!file.mimetype ||
+    file.mimetype === 'text/plain' ||
+    file.mimetype === 'application/octet-stream');
+
+const isDiscussionDocxAttachment = (file) =>
+  file?.path &&
+  /\.docx$/i.test(file.originalname) &&
+  (!file.mimetype ||
+    file.mimetype === docxMimeType ||
+    file.mimetype === 'application/octet-stream');
+
+const getDiscussionAttachmentText = async (file) => {
+  if (!file) return '';
+  if (isDiscussionTxtAttachment(file)) return fs.readFile(file.path, 'utf8');
+  if (isDiscussionDocxAttachment(file)) {
+    const result = await mammoth.extractRawText({ path: file.path });
+    return result.value || '';
+  }
+  return '';
+};
+
+const getDiscussionModerationText = async ({ title, content, file }) => {
+  const attachmentText = await getDiscussionAttachmentText(file);
+  return [title, content, attachmentText].map(getTrimmedString).filter(Boolean).join('\n');
+};
+
 const clampUnit = (value) => {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return null;
@@ -123,7 +165,8 @@ module.exports.getSession = async function getSession(req, res, next) {
 
   try {
     const access = await model.ensureSessionAccessForUser(sessionId, userId);
-    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+    if (!access)
+      return res.status(403).json({ error: 'You are not invited to this study session' });
 
     await model.expireSessionIfTimeElapsed(sessionId);
     await model.ensureActiveSessionTimers(sessionId);
@@ -209,6 +252,10 @@ module.exports.addMicroGoal = async function addMicroGoal(req, res, next) {
     });
 
     if (!goal) return notFound(res, 'Study session not found');
+    emitSessionEvent(sessionId, 'study-session:refresh-needed', {
+      actorUserId: createdByUserId,
+      reason: 'micro-goal-added',
+    });
     return created(res, goal);
   } catch (error) {
     return next(error);
@@ -254,6 +301,11 @@ module.exports.addMicroGoalEvidence = async function addMicroGoalEvidence(req, r
     });
     if (!savedEvidence?.length) return notFound(res, 'Micro-goal not found');
 
+    emitSessionEvent(sessionId, 'study-session:refresh-needed', {
+      actorUserId: userId,
+      microGoalId,
+      reason: 'evidence-submitted',
+    });
     return created(res, savedEvidence);
   } catch (error) {
     return next(error);
@@ -370,6 +422,10 @@ module.exports.startConsultation = async function startConsultation(req, res, ne
     });
 
     if (!consultation) return notFound(res, 'Study session member or teacher not found');
+    emitSessionEvent(sessionId, 'study-session:consultation-started', {
+      actorUserId: teacherUserId,
+      consultation,
+    });
     return created(res, consultation);
   } catch (error) {
     return next(error);
@@ -402,6 +458,10 @@ module.exports.finishConsultation = async function finishConsultation(req, res, 
     });
 
     if (!consultation) return notFound(res, 'Open consultation not found');
+    emitSessionEvent(sessionId, 'study-session:consultation-finished', {
+      actorUserId: submittedByUserId,
+      consultation,
+    });
     return ok(res, consultation);
   } catch (error) {
     return next(error);
@@ -430,6 +490,10 @@ module.exports.saveConsultationReview = async function saveConsultationReview(re
     });
 
     if (!consultation) return notFound(res, 'Consultation not found');
+    emitSessionEvent(sessionId, 'study-session:consultation-reviewed', {
+      actorUserId: submittedByUserId,
+      consultation,
+    });
     return ok(res, consultation);
   } catch (error) {
     return next(error);
@@ -482,6 +546,11 @@ module.exports.saveConsultationWorkspace = async function saveConsultationWorksp
     });
 
     if (!workspace) return notFound(res, 'Consultation member not found');
+    emitSessionEvent(sessionId, 'study-session:workspace-updated', {
+      actorUserId: userId,
+      consultationId,
+      workspace,
+    });
     return ok(res, workspace);
   } catch (error) {
     return next(error);
@@ -521,7 +590,8 @@ module.exports.openSessionGroupChat = async function openSessionGroupChat(req, r
 
   try {
     const access = await model.ensureSessionAccessForUser(sessionId, userId);
-    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+    if (!access)
+      return res.status(403).json({ error: 'You are not invited to this study session' });
 
     const chat = await model.ensureSessionGroupChat({
       study_session_id: sessionId,
@@ -559,14 +629,20 @@ module.exports.createDiscussionPost = async function createDiscussionPost(req, r
   const title = getTrimmedString(req.body.title).slice(0, 140);
   const content = getTrimmedString(req.body.content).slice(0, 1600);
   const postType = getDiscussionType(req.body.post_type);
+  const attachment = discussionAttachmentFromUpload(req.file);
 
   if (!ids) return null;
   if (!title) return badReq(res, 'Discussion title is required');
-  if (!content) return badReq(res, 'Discussion content is required');
+  if (!content && !req.file)
+    return badReq(res, 'Add discussion text or attach a file before posting');
 
   try {
     const hasAccess = await ensureSessionRequestAccess(ids.sessionId, ids.userId, res);
     if (!hasAccess) return null;
+
+    await moderateDiscussionText(
+      await getDiscussionModerationText({ title, content, file: req.file }),
+    );
 
     const post = await model.insertDiscussionPost({
       study_session_id: ids.sessionId,
@@ -574,8 +650,13 @@ module.exports.createDiscussionPost = async function createDiscussionPost(req, r
       post_type: postType,
       title,
       content,
+      ...attachment,
     });
 
+    emitSessionEvent(ids.sessionId, 'study-session:discussion-updated', {
+      actorUserId: ids.userId,
+      post,
+    });
     return created(res, post);
   } catch (error) {
     return next(error);
@@ -604,6 +685,12 @@ module.exports.updateMicroGoalProgress = async function updateMicroGoalProgress(
     });
 
     if (!updatedProgress) return notFound(res, 'Micro-goal progress is locked or unavailable');
+    emitSessionEvent(sessionId, 'study-session:progress-updated', {
+      actorUserId: userId,
+      microGoalId,
+      progressPercent: updatedProgress.progress_percent,
+      userId,
+    });
     return ok(res, updatedProgress);
   } catch (error) {
     return next(error);
@@ -627,6 +714,10 @@ module.exports.updateMemberStatus = async function updateMemberStatus(req, res, 
     });
 
     if (!member) return notFound(res, 'Session member not found or status is invalid');
+    emitSessionEvent(sessionId, 'study-session:member-status-updated', {
+      actorUserId: userId,
+      member,
+    });
     return ok(res, member);
   } catch (error) {
     return next(error);
@@ -644,7 +735,8 @@ module.exports.updateMemberMission = async function updateMemberMission(req, res
 
   try {
     const access = await model.ensureSessionAccessForUser(sessionId, userId);
-    if (!access) return res.status(403).json({ error: 'You are not invited to this study session' });
+    if (!access)
+      return res.status(403).json({ error: 'You are not invited to this study session' });
 
     const member = await model.updateMemberMission({
       study_session_id: sessionId,
@@ -661,12 +753,17 @@ module.exports.updateMemberMission = async function updateMemberMission(req, res
 
 module.exports.exitSession = async function exitSession(req, res, next) {
   const sessionId = parseId(req.params.sessionId);
+  const userId = getLoggedInUserId(res);
   if (!sessionId) return badReq(res, 'Valid session id is required');
 
   try {
     const session = await model.exitSession(sessionId);
     if (!session) return notFound(res, 'Study session not found');
 
+    emitSessionEvent(sessionId, 'study-session:refresh-needed', {
+      actorUserId: userId,
+      reason: 'session-exited',
+    });
     return ok(res, session);
   } catch (error) {
     return next(error);
@@ -691,6 +788,10 @@ module.exports.extendExpiredSession = async function extendExpiredSession(req, r
     });
 
     if (!result) return notFound(res, 'Expired session or active member not found');
+    emitSessionEvent(ids.sessionId, 'study-session:time-updated', {
+      actorUserId: ids.userId,
+      reason: 'session-extended',
+    });
     return ok(res, result);
   } catch (error) {
     return next(error);
@@ -708,6 +809,11 @@ module.exports.stayInExtendedSession = async function stayInExtendedSession(req,
     });
 
     if (!member) return notFound(res, 'Active session or member not found');
+    emitSessionEvent(ids.sessionId, 'study-session:time-updated', {
+      actorUserId: ids.userId,
+      member,
+      reason: 'member-stayed',
+    });
     return ok(res, member);
   } catch (error) {
     return next(error);
@@ -725,6 +831,11 @@ module.exports.leaveSessionMember = async function leaveSessionMember(req, res, 
     });
 
     if (!member) return notFound(res, 'Active session member not found');
+    emitSessionEvent(ids.sessionId, 'study-session:refresh-needed', {
+      actorUserId: ids.userId,
+      member,
+      reason: 'member-left',
+    });
     return ok(res, member);
   } catch (error) {
     return next(error);

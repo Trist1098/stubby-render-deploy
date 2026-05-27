@@ -1,4 +1,3 @@
-// Study-session entrypoint and event binding.
 function bindClick(id, handler) {
   byId(id).addEventListener('click', handler);
 }
@@ -21,9 +20,14 @@ function bindBackdropClosers(bindings) {
   bindings.forEach(([modal, handler]) => bindBackdropClose(modal, handler));
 }
 
-function toggleGoalForm() {
-  page.goalForm.classList.toggle('d-none');
-  if (!page.goalForm.classList.contains('d-none')) page.goalInput.focus();
+function openGoalModal() {
+  showModal(page.goalModal, true);
+  window.setTimeout(() => page.goalInput?.focus(), 0);
+}
+
+function closeGoalModal() {
+  resetGoalForm();
+  showModal(page.goalModal, false);
 }
 
 function toggleMembersExpanded() {
@@ -38,12 +42,13 @@ function markScratchpadChanged() {
 
 function resizeWorkspaceIfOpen() {
   if (!page.consultationWorkspaceModal.classList.contains('d-none')) {
-    resizeWhiteboardCanvas();
+    resizeWhiteboardStage();
   }
 }
 
 function bindStudySessionEvents() {
   bindDiscussionEvents();
+
   bindEvents([
     [page.goalForm, 'submit', addMicroGoal],
     [page.intentionForm, 'submit', saveSessionIntention],
@@ -64,10 +69,6 @@ function bindStudySessionEvents() {
     [page.endExpiredSessionButton, 'click', exitSession],
     [page.stayExtendedSessionButton, 'click', stayInExtendedSession],
     [page.exitExtendedSessionButton, 'click', leaveExtendedSession],
-    [page.consultationWhiteboard, 'pointerdown', startWhiteboardStroke],
-    [page.consultationWhiteboard, 'pointermove', moveWhiteboardStroke],
-    [page.consultationWhiteboard, 'pointerup', finishWhiteboardStroke],
-    [page.consultationWhiteboard, 'pointercancel', finishWhiteboardStroke],
     [page.consultationScratchpad, 'input', markScratchpadChanged],
     [page.clearWhiteboardButton, 'click', clearWhiteboard],
     [window, 'resize', resizeWorkspaceIfOpen],
@@ -78,7 +79,9 @@ function bindStudySessionEvents() {
   ]);
 
   bindClicks([
-    ['showGoalFormButton', toggleGoalForm],
+    ['showGoalFormButton', openGoalModal],
+    ['closeGoalModalButton', closeGoalModal],
+    ['cancelGoalModalButton', closeGoalModal],
     ['exitSessionButton', () => showModal(page.exitModal, true)],
     ['cancelExitButton', () => showModal(page.exitModal, false)],
     ['confirmExitButton', exitSession],
@@ -96,8 +99,10 @@ function bindStudySessionEvents() {
     ['closeQueueButton', () => showModal(page.queueModal, false)],
     ['closeMemberGoalsButton', () => showModal(page.memberGoalsModal, false)],
   ]);
+
   bindBackdropClosers([
     [page.exitModal, () => showModal(page.exitModal, false)],
+    [page.goalModal, closeGoalModal],
     [page.timeExpiryModal, renderTimeExpiryModal],
     [page.queueModal, () => showModal(page.queueModal, false)],
     [page.consultationModal, () => showModal(page.consultationModal, false)],
@@ -123,5 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
   bindPage();
   bindStudySessionEvents();
 
+  startStudySessionRealtime();
   loadSession();
 });

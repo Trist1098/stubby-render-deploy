@@ -1,4 +1,3 @@
-// Rendering for the focus/status mix analytics.
 function focusStatusMeta(status) {
   return (
     STATUS_BREAKDOWN_META[normalizeStatusForApi(status)] || {
@@ -14,6 +13,40 @@ function formatStatusPercentage(value) {
   return safeValue < 10 && !Number.isInteger(safeValue)
     ? `${safeValue.toFixed(1)}%`
     : `${Math.round(safeValue)}%`;
+}
+
+function focusCreditTone(score) {
+  if (score >= 85) return 'excellent';
+  if (score >= 70) return 'reliable';
+  if (score >= 55) return 'building';
+  return 'starter';
+}
+
+function renderFocusCredit(memberData) {
+  const credit = memberData.focus_credit || {};
+  const score = asPercent(credit.score ?? 45);
+  const label = credit.label || 'Getting started';
+  const stats = [
+    `${Number(credit.focus_minutes) || 0}m focus`,
+    `${Number(credit.completed_micro_goals) || 0} goals`,
+    `${Number(credit.evidence_uploads) || 0} evidence`,
+  ].join(' | ');
+
+  return `
+    <div class="focus-credit-strip focus-credit-${focusCreditTone(score)}" aria-label="Focus Credit Score ${score}, ${escapeHtml(label)}">
+      <div class="focus-credit-score">
+        <span>Focus Credit</span>
+        <strong>${score}</strong>
+      </div>
+      <div class="focus-credit-detail">
+        <b>${escapeHtml(label)}</b>
+        <span>${escapeHtml(stats)}</span>
+      </div>
+      <div class="focus-credit-meter" aria-hidden="true">
+        <span style="width: ${score}%"></span>
+      </div>
+    </div>
+  `;
 }
 
 function updateStatusMixMemberStatus(userId, status) {
@@ -75,6 +108,7 @@ function fallbackStatusMixMember(member, analyticsMember = {}) {
     ...analyticsMember,
     user_id: member.user_id,
     name: member.name,
+    focus_credit: analyticsMember.focus_credit || member.focus_credit,
     current_status_key: status,
     current_status: focusStatusMeta(status).label,
     display_total_seconds: seconds,
@@ -94,7 +128,11 @@ function focusStatusMembers(data) {
   return (sessionData.members || []).map((member) => {
     const analyticsMember = analyticsByUser[Number(member.user_id)] || {};
     return Number(analyticsMember.total_seconds) > 0
-      ? { ...analyticsMember, name: analyticsMember.name || member.name }
+      ? {
+          ...analyticsMember,
+          name: analyticsMember.name || member.name,
+          focus_credit: analyticsMember.focus_credit || member.focus_credit,
+        }
       : fallbackStatusMixMember(member, analyticsMember);
   });
 }
@@ -163,6 +201,7 @@ function renderFocusStatusMixChart(data) {
               tracked
             </span>
           </div>
+          ${renderFocusCredit(member)}
           <div
             class="status-mix-stacked-bar"
             aria-label="${escapeHtml(member.name || 'Member')} focus status percentages"

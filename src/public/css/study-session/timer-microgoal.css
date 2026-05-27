@@ -6,8 +6,8 @@
   width: 72px;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: conic-gradient(#203047 var(--timer-progress, 100%), #dfe5ec 0);
-  color: #203047;
+  background: conic-gradient(#6366f1 var(--timer-progress, 100%), #dfe5ec 0);
+  color: #111827;
   font-size: 0.95rem;
   font-weight: 800;
 }
@@ -31,10 +31,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 14px;
+  border: 1px solid rgba(199, 210, 254, 0.9);
+  border-radius: 16px;
   padding: 12px 14px;
-  background: #eff6ff;
+  background: linear-gradient(135deg, #eef2ff, #f8fafc);
   color: #203047;
 }
 
@@ -64,17 +64,19 @@
   justify-content: center;
   width: 34px;
   aspect-ratio: 1;
-  border: 0;
+  border: 1px solid #e0e7ff;
   border-radius: 10px;
   background: #ffffff;
-  color: #203047;
+  color: #6366f1;
 }
 
 .session-label {
   display: block;
-  color: #8a94a6;
+  color: #6366f1;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .micro-goal-heading-row {
@@ -88,7 +90,7 @@
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .micro-goal-heading-row h2 {
@@ -101,10 +103,10 @@
 .queued-goal-preview {
   margin-top: 10px;
   padding: 10px 12px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed #a5b4fc;
   border-radius: 12px;
   background: #f8fafc;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .queued-goal-preview span {
@@ -129,8 +131,8 @@
 
 .micro-goal-form {
   display: grid;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 14px;
+  margin-top: 18px;
 }
 
 .micro-goal-form label {
@@ -146,8 +148,8 @@
   min-width: 0;
   border: 1px solid #d8dee8;
   border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 0.84rem;
+  padding: 12px 14px;
+  font-size: 0.94rem;
 }
 
 .micro-goal-form textarea {
@@ -158,7 +160,7 @@
   justify-self: end;
   border: 0;
   border-radius: 10px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: #203047;
   color: #ffffff;
   font-weight: 700;

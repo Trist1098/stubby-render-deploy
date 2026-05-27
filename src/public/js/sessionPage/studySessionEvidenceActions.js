@@ -1,4 +1,3 @@
-// Evidence upload and AI work-check actions.
 const SUPPORTED_EVIDENCE_TYPES = [
   'text/plain',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

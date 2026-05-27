@@ -1,4 +1,3 @@
-// Rendering for session members and member micro-goal details.
 function renderMembers() {
   const members = sessionData.members || [];
   const visibleMembers = membersExpanded ? members : members.slice(0, MEMBER_PREVIEW_LIMIT);
@@ -24,41 +23,6 @@ function renderMemberCardInPlace(memberData) {
 
   card.outerHTML = renderMemberCard(memberData);
   renderStatusTimers();
-}
-
-function focusCreditTone(score) {
-  if (score >= 85) return 'excellent';
-  if (score >= 70) return 'reliable';
-  if (score >= 55) return 'building';
-  return 'starter';
-}
-
-function renderFocusCredit(memberData) {
-  const credit = memberData.focus_credit || {};
-  const score = asPercent(credit.score ?? 45);
-  const label = credit.label || 'Getting started';
-  const stats = [
-    `${Number(credit.focus_minutes) || 0}m focus`,
-    `${Number(credit.completed_micro_goals) || 0} goals`,
-    `${Number(credit.evidence_uploads) || 0} evidence`,
-    `${Number(credit.help_participation) || 0} help`,
-  ].join(' · ');
-
-  return `
-    <div class="focus-credit-strip focus-credit-${focusCreditTone(score)}" aria-label="Focus Credit Score ${score}, ${escapeHtml(label)}">
-      <div class="focus-credit-score">
-        <span>Focus Credit</span>
-        <strong>${score}</strong>
-      </div>
-      <div class="focus-credit-detail">
-        <b>${escapeHtml(label)}</b>
-        <span>${escapeHtml(stats)}</span>
-      </div>
-      <div class="focus-credit-meter" aria-hidden="true">
-        <span style="width: ${score}%"></span>
-      </div>
-    </div>
-  `;
 }
 
 function renderMemberCard(memberData) {
@@ -95,7 +59,6 @@ function renderMemberCard(memberData) {
           <div class="member-progress-bar" aria-label="Goal progress ${progress}%">
             <span class="member-progress-fill" style="width: ${progress}%"></span>
           </div>
-          ${renderFocusCredit(memberData)}
         </div>
       </div>
       <button

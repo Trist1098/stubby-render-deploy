@@ -1,4 +1,3 @@
-// Micro-goal, progress, and completion actions.
 function openMemberGoalsModal(userId) {
   const memberData = (sessionData.members || []).find(
     (item) => Number(item.user_id) === Number(userId),
@@ -42,6 +41,7 @@ async function addMicroGoal(event) {
       }),
     });
     resetGoalForm();
+    showModal(page.goalModal, false);
     await loadSession();
   } catch (error) {
     showMessage(error.message, 'danger');
@@ -50,7 +50,6 @@ async function addMicroGoal(event) {
 
 function resetGoalForm() {
   page.goalForm.reset();
-  page.goalForm.classList.add('d-none');
 }
 
 function progressFromPointer(event) {

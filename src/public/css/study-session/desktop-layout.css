@@ -6,36 +6,9 @@
     linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
 }
 
-.study-nav-links {
-  align-items: center;
-}
-
-.study-nav-links .study-nav-link {
-  display: flex;
-  min-width: 82px;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  border-radius: 14px;
-  color: #748094 !important;
-  font-size: 0.82rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.study-nav-links .study-nav-link i {
-  font-size: 1.18rem;
-}
-
-.study-nav-links .study-nav-link:hover,
-.study-nav-links .study-nav-link.active {
-  background: #eef4ff;
-  color: #203047 !important;
-}
-
 .session-web-shell {
   width: min(100%, 1180px);
-  margin: 32px auto 64px;
+  margin: 28px auto 64px;
   padding: 0 24px;
 }
 
@@ -57,12 +30,24 @@
 }
 
 .session-topbar {
-  padding: 28px;
+  position: relative;
+  overflow: hidden;
+  padding: 30px;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)),
+    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.12), transparent 34%);
+  box-shadow: 0 20px 52px rgba(15, 23, 42, 0.09);
   backdrop-filter: blur(12px);
+}
+
+.session-topbar::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: #203047;
+  content: '';
 }
 
 .session-kicker {
@@ -97,11 +82,13 @@
 .session-focus-card,
 .members-box {
   border-color: rgba(226, 232, 240, 0.95);
-  border-radius: 18px;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 20px 52px rgba(15, 23, 42, 0.08);
 }
 
 .session-focus-card {
+  position: relative;
+  overflow: hidden;
   align-self: start;
   grid-column: 1;
   grid-row: 2;
@@ -109,6 +96,18 @@
   gap: 28px;
   min-height: 300px;
   padding: 32px;
+}
+
+.session-focus-card::before {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), transparent 45%);
+  content: '';
+  pointer-events: none;
+}
+
+.session-focus-card > * {
+  position: relative;
 }
 
 .status-controls-box {
@@ -128,8 +127,11 @@
 
 .timer-ring {
   width: 132px;
-  background: conic-gradient(#203047 var(--timer-progress, 100%), #e4eaf2 0);
+  background: conic-gradient(#6366f1 var(--timer-progress, 100%), #e4eaf2 0);
   font-size: 1.35rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 16px 34px rgba(99, 102, 241, 0.18);
 }
 
 .timer-ring::before {
@@ -145,8 +147,8 @@
 .micro-goal-heading-row h2 {
   max-width: 100%;
   color: #111827;
-  font-size: clamp(1.8rem, 3vw, 2.65rem);
-  line-height: 1.05;
+  font-size: clamp(1.55rem, 2.7vw, 2.35rem);
+  line-height: 1.08;
 }
 
 .micro-goal-area p {
@@ -172,7 +174,7 @@
 
 .queued-goal-preview {
   max-width: 560px;
-  margin-top: 16px;
+  margin-top: 18px;
   padding: 14px 16px;
 }
 

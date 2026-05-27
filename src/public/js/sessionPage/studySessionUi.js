@@ -1,4 +1,3 @@
-// Generic UI helpers shared by the study-session modules.
 const modalFocusStack = [];
 
 function escapeHtml(value) {
@@ -144,6 +143,7 @@ function emptyText(text, className = 'member-evidence-empty') {
 function visibleModalClosers() {
   return [
     { modal: page.exitModal, close: () => showModal(page.exitModal, false) },
+    { modal: page.goalModal, close: closeGoalModal },
     { modal: page.queueModal, close: () => showModal(page.queueModal, false) },
     { modal: page.consultationModal, close: () => showModal(page.consultationModal, false) },
     { modal: page.consultationWorkspaceModal, close: closeConsultationWorkspace },

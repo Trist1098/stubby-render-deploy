@@ -1919,6 +1919,10 @@ const mapDiscussionPost = (post) => ({
   post_type: post.post_type || 'question',
   title: post.title,
   content: post.content,
+  attachment_url: post.attachment_url,
+  attachment_name: post.attachment_name,
+  attachment_type: post.attachment_type,
+  attachment_size: Number(post.attachment_size) || 0,
   created_at: post.created_at,
   updated_at: post.updated_at,
 });
@@ -1935,6 +1939,10 @@ module.exports.selectDiscussionPosts = async function selectDiscussionPosts(data
         post.post_type,
         post.title,
         post.content,
+        post.attachment_url,
+        post.attachment_name,
+        post.attachment_type,
+        post.attachment_size,
         post.created_at,
         post.updated_at
       FROM StudySessionDiscussionPost post
@@ -1953,14 +1961,46 @@ module.exports.selectDiscussionPosts = async function selectDiscussionPosts(data
 module.exports.insertDiscussionPost = async function insertDiscussionPost(data) {
   const { rows } = await pool.query(
     `
-      INSERT INTO StudySessionDiscussionPost (session_id, user_id, post_type, title, content)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING post_id, session_id, user_id, post_type, title, content, created_at, updated_at
+      INSERT INTO StudySessionDiscussionPost (
+        session_id,
+        user_id,
+        post_type,
+        title,
+        content,
+        attachment_url,
+        attachment_name,
+        attachment_type,
+        attachment_size
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING
+        post_id,
+        session_id,
+        user_id,
+        post_type,
+        title,
+        content,
+        attachment_url,
+        attachment_name,
+        attachment_type,
+        attachment_size,
+        created_at,
+        updated_at
     `,
-    [data.study_session_id, data.user_id, data.post_type || 'question', data.title, data.content],
+    [
+      data.study_session_id,
+      data.user_id,
+      data.post_type || 'question',
+      data.title,
+      data.content,
+      data.attachment_url || null,
+      data.attachment_name || null,
+      data.attachment_type || null,
+      data.attachment_size || null,
+    ],
   );
 
-  return rows[0] || null;
+  return rows[0] ? mapDiscussionPost(rows[0]) : null;
 };
 
 module.exports.ensureSessionMemberChat = async function ensureSessionMemberChat(data) {

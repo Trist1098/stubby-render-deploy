@@ -1,4 +1,3 @@
-// API helpers and endpoint builders for the study-session page.
 function authRequestHeaders(headers = {}) {
   const token = window.auth ? window.auth.getToken() : null;
   return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
@@ -35,7 +34,7 @@ async function postForm(url, formData) {
   saveRotatedToken(response);
   logoutIfUnauthorized(response);
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || 'Upload failed');
+  if (!response.ok) throw new Error(payload.error || payload.message || 'Upload failed');
   return payload.data || payload;
 }
 
@@ -70,4 +69,3 @@ function consultationWorkspaceUrl(consultationId) {
 function sessionMemberChatUrl(memberUserId) {
   return `${apiBase}/members/${memberUserId}/chat`;
 }
-

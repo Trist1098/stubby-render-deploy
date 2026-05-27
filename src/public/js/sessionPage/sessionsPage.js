@@ -188,7 +188,7 @@ function sessionAction(session) {
 
   if (session.status === 'active' || session.status === 'expired') {
     return `
-      <a class="btn btn-primary" href="study-session.html?id=${session.id}">
+      <a class="btn btn-primary" href="/study-session?id=${session.id}">
         <i class="fas fa-arrow-right me-2" aria-hidden="true"></i>
         Open session
       </a>
@@ -196,7 +196,7 @@ function sessionAction(session) {
   }
 
   return `
-    <a class="btn btn-outline-primary" href="study-session.html?id=${session.id}">
+    <a class="btn btn-outline-primary" href="/study-session?id=${session.id}">
       View summary
     </a>
   `;
@@ -338,7 +338,7 @@ function renderLivePanel() {
     <span>${escapeHtml(formatDuration(liveSession.planned_duration_seconds))} planned</span>
     <span>${Number(liveSession.member_count) || 0} members</span>
   `;
-  sessionsPage.openLiveButton.href = `study-session.html?id=${liveSession.id}`;
+  sessionsPage.openLiveButton.href = `/study-session?id=${liveSession.id}`;
 }
 
 function renderSessions() {

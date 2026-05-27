@@ -1,4 +1,3 @@
-// Rendering for member status controls, status timers, and progress UI.
 function renderStatusControls() {
   const currentMember = getCurrentMember();
   const currentStatus = normalizeStatusForApi(

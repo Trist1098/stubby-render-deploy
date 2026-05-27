@@ -1,4 +1,3 @@
-// Timer and polling actions for the study-session page.
 function startTimer() {
   clearInterval(timerInterval);
   renderTimer();

@@ -26,12 +26,27 @@ const app = express();
 // Parse incoming JSON request bodies (e.g. from POST/PUT requests)
 app.use(express.json({ limit: '1mb' }));
 
+app.use((req, res, next) => {
+  if (req.method === 'GET' && req.path.endsWith('.html')) {
+    const cleanPath = req.path.slice(0, -'.html'.length);
+    const queryIndex = req.originalUrl.indexOf('?');
+    const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+    return res.redirect(302, `${cleanPath || '/'}${query}`);
+  }
+
+  return next();
+});
+
 // Serve static files (HTML, CSS, JS, images) from the 'public' folder.
 // e.g. src/public/index.html is accessible at http://localhost:<port>/
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 // Browsers automatically request /favicon.ico — return 204 (no content) to avoid 404 noise.
 app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+app.get('/study-session/:sessionId', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'study-session.html'));
+});
 
 // Define routes
 app.use('/api/users', userRoutes);

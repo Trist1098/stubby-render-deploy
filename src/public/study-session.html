@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -8,13 +8,10 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/shared-ui.css" />
-    <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="css/study-session.css?v=session-ui-polish" />
-    <link rel="stylesheet" href="css/theme.css" />
-    <script src="js/core/auth.js"></script>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/study-session.css?v=navbar-shared-2" />
     <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link
@@ -22,15 +19,14 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
   </head>
-  <body class="study-session-body">
+  <body class="d-flex flex-column min-vh-100 study-session-body">
     <header>
       <div class="container">
         <nav id="navbar" class="navbar navbar-expand-lg py-3">
           <div class="container-fluid p-0">
-            <a href="home.html" class="d-flex align-items-center gap-2 text-decoration-none">
+            <a href="/home" class="d-flex align-items-center gap-2 text-decoration-none">
               <h3 class="fw-bold fs-3 text-primary mb-0">Stubby</h3>
             </a>
-
             <button
               class="navbar-toggler border-0"
               type="button"
@@ -39,42 +35,33 @@
             >
               <i class="fas fa-bars"></i>
             </button>
-
             <div class="collapse navbar-collapse" id="navContent">
               <ul class="navbar-nav mx-auto gap-2" id="nav-links">
-                <li class="nav-item">
-                  <a href="home.html" class="nav-link study-nav-link">
-                    <i class="fas fa-home"></i>
-                    <span>Home</span>
-                  </a>
-                </li>
+                <li class="nav-item"><a href="/home" class="nav-link">Dashboard</a></li>
                 <li class="nav-item dropdown">
                   <a
-                    href="matchmaking.html"
-                    class="nav-link dropdown-toggle"
+                    href="/matchmaking"
+                    class="nav-link dropdown-toggle d-flex align-items-center gap-1"
                     data-bs-toggle="dropdown"
                   >
                     Matchmaking
+                    <i class="fas fa-chevron-down nav-dropdown-icon ms-1"></i>
                   </a>
                   <ul class="dropdown-menu shadow border-0 mt-2 rounded-4 p-2">
                     <li>
-                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=browse">
-                        Browse Matches
-                      </a>
+                      <a class="dropdown-item py-2 rounded-3" href="/matchmaking?tab=browse"
+                        >Browse Matches</a
+                      >
                     </li>
                     <li>
-                      <a class="dropdown-item py-2 rounded-3" href="matchmaking.html?tab=requests">
-                        My Requests
-                      </a>
+                      <a class="dropdown-item py-2 rounded-3" href="/matchmaking?tab=requests"
+                        >My Requests</a
+                      >
                     </li>
                   </ul>
                 </li>
-                <li class="nav-item">
-                  <a href="sessions.html" class="nav-link active">Sessions</a>
-                </li>
-                <li class="nav-item">
-                  <a href="chat.html" class="nav-link">Chat</a>
-                </li>
+                <li class="nav-item"><a href="/sessions" class="nav-link active">Sessions</a></li>
+                <li class="nav-item"><a href="/chat" class="nav-link">Chat</a></li>
               </ul>
               <ul class="navbar-nav">
                 <li class="nav-item" id="auth-link"></li>
@@ -129,8 +116,8 @@
             <div class="micro-goal-heading-row">
               <h2 id="currentGoalTitle">Finish Tutorial Q1-Q3</h2>
             </div>
-            <div id="nextQueuedGoal" class="queued-goal-preview d-none"></div>
             <p id="currentGoalDescription">Current task for this study session.</p>
+            <div id="nextQueuedGoal" class="queued-goal-preview d-none"></div>
             <div class="micro-goal-actions">
               <button
                 id="discussionButton"
@@ -158,31 +145,6 @@
                 <i class="fas fa-plus"></i>
               </button>
             </div>
-
-            <form id="microGoalForm" class="micro-goal-form d-none">
-              <label>
-                <span>Micro-goal label</span>
-                <input
-                  id="microGoalTitleInput"
-                  name="title"
-                  type="text"
-                  maxlength="255"
-                  placeholder="Tutorial 4 Q3"
-                  required
-                />
-              </label>
-              <label>
-                <span>Question or task</span>
-                <textarea
-                  id="microGoalQuestionInput"
-                  name="description"
-                  rows="3"
-                  placeholder="Paste the question, prompt, or task the answer should be checked against"
-                  required
-                ></textarea>
-              </label>
-              <button type="submit">Add</button>
-            </form>
           </div>
         </section>
 
@@ -297,6 +259,60 @@
     </div>
 
     <div
+      id="microGoalModal"
+      class="session-modal d-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="microGoalModalTitle"
+    >
+      <section class="session-modal-card micro-goal-modal-card">
+        <div class="session-modal-header">
+          <div>
+            <span class="time-expiry-kicker">Micro-goal</span>
+            <h2 id="microGoalModalTitle">Add Micro-goal</h2>
+          </div>
+          <button
+            id="closeGoalModalButton"
+            class="modal-icon-button"
+            type="button"
+            aria-label="Close micro-goal form"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form id="microGoalForm" class="micro-goal-form">
+          <label>
+            <span>Micro-goal label</span>
+            <input
+              id="microGoalTitleInput"
+              name="title"
+              type="text"
+              maxlength="255"
+              placeholder="Tutorial 4 Q3"
+              required
+            />
+          </label>
+          <label>
+            <span>Question or task</span>
+            <textarea
+              id="microGoalQuestionInput"
+              name="description"
+              rows="3"
+              placeholder="Paste the question, prompt, or task the answer should be checked against"
+              required
+            ></textarea>
+          </label>
+          <div class="session-modal-actions">
+            <button id="cancelGoalModalButton" class="btn-secondary" type="button">Cancel</button>
+            <button class="btn-primary" type="submit">Add</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div
       id="queueModal"
       class="session-modal d-none"
       role="dialog"
@@ -343,7 +359,7 @@
           </button>
         </div>
 
-        <form id="discussionForm" class="discussion-form">
+        <form id="discussionForm" class="discussion-form" enctype="multipart/form-data">
           <div class="discussion-form-row">
             <label>
               <span>Type</span>
@@ -374,8 +390,16 @@
               rows="3"
               maxlength="1600"
               placeholder="Ask a question, share an explanation, or add a useful note"
-              required
             ></textarea>
+          </label>
+          <label class="discussion-file-field">
+            <span>Attachment</span>
+            <input
+              id="discussionFileInput"
+              name="file"
+              type="file"
+              accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+            />
           </label>
           <button type="submit">
             <i class="fas fa-paper-plane" aria-hidden="true"></i>
@@ -458,7 +482,7 @@
       aria-hidden="true"
       aria-labelledby="consultationModalTitle"
     >
-      <section class="session-modal-card">
+      <section class="session-modal-card consultation-confirm-card">
         <h2 id="consultationModalTitle">Start Consultation?</h2>
         <p>
           <span id="consultationMemberName">This user</span> has requested help. Would you like to
@@ -528,13 +552,13 @@
                     <span>Clear</span>
                   </button>
                 </div>
-                <canvas
+                <div
                   id="consultationWhiteboard"
                   class="consultation-whiteboard"
-                  role="img"
+                  role="application"
                   tabindex="0"
                   aria-label="Shared whiteboard. Use the scratchpad below for keyboard text input."
-                ></canvas>
+                ></div>
               </section>
               <section id="scratchpadPanel" class="workspace-panel" aria-label="Shared scratchpad">
                 <textarea
@@ -717,25 +741,29 @@
     <div id="sessionToastContainer" class="session-toast-container" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/core/navbar.js"></script>
-    <script src="js/sessionPage/studySessionState.js?v=progress-fix"></script>
-    <script src="js/sessionPage/studySessionDom.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionUi.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionTimerUtils.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionApi.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionDiscussion.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionGoalRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionEvidenceRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionFocusMixRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionStatusRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionMemberRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionRender.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionTimerActions.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionLifecycleActions.js?v=progress-fix"></script>
-    <script src="js/sessionPage/studySessionEvidenceActions.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionGoalActions.js?v=progress-fix"></script>
-    <script src="js/sessionPage/studySessionStatusActions.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionConsultation.js?v=study-session-modules"></script>
-    <script src="js/sessionPage/studySessionPage.js?v=study-session-modules"></script>
+    <script src="/js/core/auth.js"></script>
+    <script src="/js/core/navbar.js"></script>
+    <script src="/js/sessionPage/studySessionState.js?v=consultation-konva"></script>
+    <script src="/js/sessionPage/studySessionDom.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionUi.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionTimerUtils.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionApi.js?v=study-session-modules"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/sessionPage/studySessionDiscussion.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionGoalRender.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionEvidenceRender.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionFocusMixRender.js?v=focus-credit-analytics"></script>
+    <script src="/js/sessionPage/studySessionStatusRender.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionMemberRender.js?v=focus-credit-analytics"></script>
+    <script src="/js/sessionPage/studySessionRender.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionTimerActions.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionLifecycleActions.js?v=progress-fix"></script>
+    <script src="/js/sessionPage/studySessionEvidenceActions.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionGoalActions.js?v=progress-fix"></script>
+    <script src="/js/sessionPage/studySessionStatusActions.js?v=study-session-modules"></script>
+    <script src="/js/sessionPage/studySessionRealtime.js?v=study-session-realtime"></script>
+    <script src="https://cdn.jsdelivr.net/npm/konva@10/konva.min.js"></script>
+    <script src="/js/sessionPage/studySessionConsultation.js?v=consultation-konva"></script>
+    <script src="/js/sessionPage/studySessionPage.js?v=consultation-konva"></script>
   </body>
 </html>

@@ -1,4 +1,3 @@
-// Consultation chat, review, shared workspace, and whiteboard behavior.
 function openConsultationModal(memberName, memberUserId) {
   pendingConsultationMemberId = Number(memberUserId) || null;
   page.consultationMemberName.textContent = memberName || 'This user';
@@ -31,7 +30,7 @@ async function openConsultationChat(event) {
   try {
     const chat = await getJson(sessionMemberChatUrl(otherUserId), { method: 'POST' });
     if (!chat.conversation_id) throw new Error('Chat could not be opened');
-    window.location.href = `chat.html?conversationId=${encodeURIComponent(chat.conversation_id)}`;
+    window.location.href = `/chat?conversationId=${encodeURIComponent(chat.conversation_id)}`;
   } catch (error) {
     setButtonsDisabled(
       [page.openPendingConsultationChatButton, page.openConsultationChatButton].filter(Boolean),
@@ -106,13 +105,14 @@ function resetConsultationWorkspaceState() {
   whiteboardDrawing = false;
   whiteboardStrokes = [];
   whiteboardCurrentStroke = null;
+  whiteboardCurrentLine = null;
   if (page.consultationScratchpad) page.consultationScratchpad.value = '';
-  resizeWhiteboardCanvas();
+  resizeWhiteboardStage();
 }
 
 function scheduleWhiteboardResize() {
-  window.requestAnimationFrame(resizeWhiteboardCanvas);
-  window.setTimeout(resizeWhiteboardCanvas, 120);
+  window.requestAnimationFrame(resizeWhiteboardStage);
+  window.setTimeout(resizeWhiteboardStage, 120);
 }
 
 function whiteboardSize() {
@@ -123,73 +123,96 @@ function whiteboardSize() {
   };
 }
 
-function resizeWhiteboardCanvas() {
-  const canvas = page.consultationWhiteboard;
-  if (!canvas) return;
+function bindWhiteboardStageEvents() {
+  whiteboardStage.on('mousedown touchstart', startWhiteboardStroke);
+  whiteboardStage.on('mousemove touchmove', moveWhiteboardStroke);
+  whiteboardStage.on('mouseup touchend mouseleave touchcancel', finishWhiteboardStroke);
+}
 
-  const { width, height } = whiteboardSize();
-  const pixelRatio = window.devicePixelRatio || 1;
-  const nextWidth = Math.max(1, Math.round(width * pixelRatio));
-  const nextHeight = Math.max(1, Math.round(height * pixelRatio));
+function ensureWhiteboardStage() {
+  if (!page.consultationWhiteboard) return false;
 
-  if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
-    canvas.width = nextWidth;
-    canvas.height = nextHeight;
+  if (!window.Konva) {
+    setConsultationStatus('Whiteboard failed to load. Scratchpad is still available.');
+    if (page.clearWhiteboardButton) page.clearWhiteboardButton.disabled = true;
+    return false;
   }
 
-  whiteboardContext = canvas.getContext('2d');
-  whiteboardContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-  redrawWhiteboard();
-}
-
-function paintWhiteboardBackground() {
-  if (!whiteboardContext) return;
-  const { width, height } = whiteboardSize();
-  whiteboardContext.clearRect(0, 0, width, height);
-  whiteboardContext.fillStyle = '#ffffff';
-  whiteboardContext.fillRect(0, 0, width, height);
-}
-
-function drawWhiteboardStroke(stroke) {
-  if (!whiteboardContext || !stroke?.points?.length) return;
+  if (page.clearWhiteboardButton) page.clearWhiteboardButton.disabled = false;
+  if (whiteboardStage) return true;
 
   const { width, height } = whiteboardSize();
-  whiteboardContext.beginPath();
-  whiteboardContext.lineCap = 'round';
-  whiteboardContext.lineJoin = 'round';
-  whiteboardContext.strokeStyle = stroke.color || '#111827';
-  whiteboardContext.lineWidth = Number(stroke.width) || 3;
-
-  stroke.points.forEach((point, index) => {
-    const x = clampUnit(point.x) * width;
-    const y = clampUnit(point.y) * height;
-    if (index === 0) {
-      whiteboardContext.moveTo(x, y);
-      if (stroke.points.length === 1) whiteboardContext.lineTo(x + 0.1, y + 0.1);
-      return;
-    }
-    whiteboardContext.lineTo(x, y);
+  whiteboardStage = new window.Konva.Stage({
+    container: page.consultationWhiteboard,
+    width,
+    height,
   });
+  whiteboardLayer = new window.Konva.Layer();
+  whiteboardStage.add(whiteboardLayer);
+  bindWhiteboardStageEvents();
+  return true;
+}
 
-  whiteboardContext.stroke();
+function whiteboardStrokePoints(stroke) {
+  const { width, height } = whiteboardSize();
+  const points = (stroke?.points || []).flatMap((point) => [
+    clampUnit(point.x) * width,
+    clampUnit(point.y) * height,
+  ]);
+
+  if (points.length === 2) points.push(points[0] + 0.1, points[1] + 0.1);
+  return points;
+}
+
+function createWhiteboardLine(stroke) {
+  return new window.Konva.Line({
+    points: whiteboardStrokePoints(stroke),
+    stroke: stroke.color || '#111827',
+    strokeWidth: Number(stroke.width) || 3,
+    lineCap: 'round',
+    lineJoin: 'round',
+    tension: 0.35,
+    listening: false,
+  });
 }
 
 function redrawWhiteboard() {
-  if (!whiteboardContext) return;
-  paintWhiteboardBackground();
-  whiteboardStrokes.forEach(drawWhiteboardStroke);
-  drawWhiteboardStroke(whiteboardCurrentStroke);
+  if (!whiteboardLayer || !window.Konva) return;
+
+  whiteboardLayer.destroyChildren();
+  whiteboardStrokes.forEach((stroke) => whiteboardLayer.add(createWhiteboardLine(stroke)));
+  if (whiteboardCurrentStroke) {
+    whiteboardCurrentLine = createWhiteboardLine(whiteboardCurrentStroke);
+    whiteboardLayer.add(whiteboardCurrentLine);
+  }
+  whiteboardLayer.batchDraw();
 }
 
-function getWhiteboardPoint(event) {
-  const rect = page.consultationWhiteboard.getBoundingClientRect();
+function resizeWhiteboardStage() {
+  if (!ensureWhiteboardStage()) return;
+
+  const { width, height } = whiteboardSize();
+  if (whiteboardStage.width() !== width || whiteboardStage.height() !== height) {
+    whiteboardStage.size({ width, height });
+  }
+  redrawWhiteboard();
+}
+
+function getWhiteboardPoint() {
+  if (!whiteboardStage) return null;
+
+  const position = whiteboardStage.getPointerPosition();
+  if (!position) return null;
+
+  const { width, height } = whiteboardSize();
   return {
-    x: clampUnit((event.clientX - rect.left) / (rect.width || 1)),
-    y: clampUnit((event.clientY - rect.top) / (rect.height || 1)),
+    x: clampUnit(position.x / (width || 1)),
+    y: clampUnit(position.y / (height || 1)),
   };
 }
 
 function shouldAddWhiteboardPoint(stroke, point) {
+  if (!point) return false;
   const previous = stroke.points[stroke.points.length - 1];
   if (!previous) return true;
   const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
@@ -197,53 +220,51 @@ function shouldAddWhiteboardPoint(stroke, point) {
 }
 
 function startWhiteboardStroke(event) {
-  if (!activeConsultation || activeConsultation.ended_at) return;
+  if (!activeConsultation || activeConsultation.ended_at || !ensureWhiteboardStage()) return;
 
-  event.preventDefault();
-  resizeWhiteboardCanvas();
+  event?.evt?.preventDefault();
+  resizeWhiteboardStage();
+  const point = getWhiteboardPoint();
+  if (!point) return;
   whiteboardDrawing = true;
   whiteboardCurrentStroke = {
     color: '#111827',
     width: 3,
-    points: [getWhiteboardPoint(event)],
+    points: [point],
   };
-  page.consultationWhiteboard.setPointerCapture?.(event.pointerId);
-  redrawWhiteboard();
+  whiteboardCurrentLine = createWhiteboardLine(whiteboardCurrentStroke);
+  whiteboardLayer.add(whiteboardCurrentLine);
+  whiteboardLayer.batchDraw();
 }
 
 function moveWhiteboardStroke(event) {
   if (!whiteboardDrawing || !whiteboardCurrentStroke) return;
 
-  event.preventDefault();
-  const point = getWhiteboardPoint(event);
+  event?.evt?.preventDefault();
+  const point = getWhiteboardPoint();
   if (!shouldAddWhiteboardPoint(whiteboardCurrentStroke, point)) return;
   whiteboardCurrentStroke.points.push(point);
-  redrawWhiteboard();
+  whiteboardCurrentLine?.points(whiteboardStrokePoints(whiteboardCurrentStroke));
+  whiteboardLayer?.batchDraw();
 }
 
 function finishWhiteboardStroke(event) {
   if (!whiteboardDrawing || !whiteboardCurrentStroke) return;
 
-  event?.preventDefault();
-  if (event?.clientX !== undefined) {
-    const point = getWhiteboardPoint(event);
-    if (shouldAddWhiteboardPoint(whiteboardCurrentStroke, point)) {
-      whiteboardCurrentStroke.points.push(point);
-    }
+  event?.evt?.preventDefault();
+  const point = getWhiteboardPoint();
+  if (shouldAddWhiteboardPoint(whiteboardCurrentStroke, point)) {
+    whiteboardCurrentStroke.points.push(point);
+    whiteboardCurrentLine?.points(whiteboardStrokePoints(whiteboardCurrentStroke));
   }
 
   whiteboardDrawing = false;
-  if (
-    event?.pointerId !== undefined &&
-    page.consultationWhiteboard.hasPointerCapture?.(event.pointerId)
-  ) {
-    page.consultationWhiteboard.releasePointerCapture(event.pointerId);
-  }
   whiteboardStrokes.push(whiteboardCurrentStroke);
   whiteboardCurrentStroke = null;
+  whiteboardCurrentLine = null;
   markWorkspaceDirty();
   scheduleConsultationWorkspaceSave();
-  redrawWhiteboard();
+  whiteboardLayer?.batchDraw();
 }
 
 function clearWhiteboard() {
@@ -251,6 +272,7 @@ function clearWhiteboard() {
 
   whiteboardStrokes = [];
   whiteboardCurrentStroke = null;
+  whiteboardCurrentLine = null;
   markWorkspaceDirty();
   scheduleConsultationWorkspaceSave();
   redrawWhiteboard();

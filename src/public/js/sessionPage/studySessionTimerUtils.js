@@ -1,4 +1,3 @@
-// Timer, status, and session-state calculation helpers.
 function normalizeStatusForApi(status) {
   const normalized = String(status || 'focus')
     .toLowerCase()

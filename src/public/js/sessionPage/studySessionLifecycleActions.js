@@ -1,4 +1,3 @@
-// Session loading, lifecycle, expiry, and mission actions.
 async function refreshExpiredSessionState() {
   if (expiryRefreshInFlight) return;
 
@@ -165,7 +164,7 @@ async function exitSession() {
     console.info('Could not mark session as exited:', error.message);
   }
 
-  window.location.href = 'index.html';
+  window.location.href = '/home';
 }
 
 async function extendExpiredSession(event) {
@@ -226,5 +225,5 @@ async function leaveExtendedSession() {
     console.info('Could not mark member as left:', error.message);
   }
 
-  window.location.href = 'index.html';
+  window.location.href = '/home';
 }

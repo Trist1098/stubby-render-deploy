@@ -1,4 +1,3 @@
-// Rendering for the active micro-goal and queued micro-goals.
 function renderCurrentGoal() {
   const currentGoal = sessionData.micro_goal;
   page.goalTitle.textContent = currentGoal?.title || 'No micro-goal yet';

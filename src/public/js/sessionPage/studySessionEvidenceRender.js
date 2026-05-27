@@ -1,4 +1,3 @@
-// Rendering for evidence lists and upload forms.
 function renderEvidenceList(evidenceList) {
   return evidenceList.length
     ? evidenceList.map(renderEvidenceItem).join('')

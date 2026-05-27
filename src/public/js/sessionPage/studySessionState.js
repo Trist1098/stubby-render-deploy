@@ -1,15 +1,15 @@
-// Shared constants and mutable runtime state for the study-session page.
 const DEFAULT_SESSION_ID = 2;
 const CURRENT_USER_ID = currentUserIdFromAuth();
-const urlParams = new URLSearchParams(window.location.search);
-const selectedId = Number(urlParams.get('id'));
+const selectedId = sessionIdFromLocation();
 const sessionId = Number.isInteger(selectedId) && selectedId > 0 ? selectedId : DEFAULT_SESSION_ID;
 const apiBase = `/api/sessions/${sessionId}`;
+
 const MEMBER_PREVIEW_LIMIT = 3;
 const CHECKLIST_STORAGE_PREFIX = 'workCheckChecklist:';
 const INTENTION_STORAGE_PREFIX = 'sessionIntention:';
 const SESSION_REFRESH_INTERVAL_MS = 5000;
 const FOCUS_STATUS_MIX_REFRESH_INTERVAL_MS = 1000;
+
 const STATUS_BREAKDOWN_ORDER = ['focus', 'break', 'need_help', 'in_consultation'];
 const STATUS_BREAKDOWN_META = {
   focus: { label: 'Focusing', color: '#16a34a' },
@@ -28,26 +28,32 @@ let sessionData = {
   queued_micro_goals: [],
   members: [],
 };
+
 let timerStartedAt = Date.now();
 let timerInterval = null;
 let statusTimerInterval = null;
 let sessionPollInterval = null;
 let focusStatusMixPollInterval = null;
+
 let focusStatusMixData = null;
 let focusStatusMixRequestVersion = 0;
 let statusUpdateInFlight = false;
 let pendingStatusUpdate = null;
+
 let sessionLoadInFlight = false;
 let expiryRefreshInFlight = false;
 let pausedRemainingSeconds = null;
 let activeProgressDrag = null;
 let membersExpanded = false;
+
 let pendingConsultationMemberId = null;
 let activeConsultation = null;
-let whiteboardContext = null;
+let whiteboardStage = null;
+let whiteboardLayer = null;
 let whiteboardDrawing = false;
 let whiteboardStrokes = [];
 let whiteboardCurrentStroke = null;
+let whiteboardCurrentLine = null;
 let workspaceSaveTimer = null;
 let workspacePollTimer = null;
 let workspaceSaveInFlight = false;
@@ -55,6 +61,22 @@ let workspaceRevision = 0;
 let savedWorkspaceRevision = 0;
 let lastWorkspaceUpdatedAt = null;
 let progressUpdateInFlight = false;
+
+function sessionIdFromLocation() {
+  const pathMatch = window.location.pathname.match(/\/study-session\/(\d+)\/?$/);
+  if (pathMatch) return Number(pathMatch[1]);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  return Number(urlParams.get('id'));
+}
+
+function cleanStudySessionUrl() {
+  const cleanPath = `/study-session/${sessionId}`;
+  if (window.location.pathname === cleanPath && !window.location.search) return;
+  window.history.replaceState({}, '', cleanPath);
+}
+
+cleanStudySessionUrl();
 
 function currentUserIdFromAuth() {
   try {
@@ -69,6 +91,6 @@ function currentUserIdFromAuth() {
 function requireStudySessionLogin() {
   if (window.auth?.isLoggedIn() && CURRENT_USER_ID) return true;
 
-  window.location.href = 'login.html';
+  window.location.href = '/login';
   return false;
 }

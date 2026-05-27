@@ -1,4 +1,3 @@
-// DOM references for the study-session page.
 const page = {};
 
 function bindPage() {
@@ -42,9 +41,11 @@ function bindPage() {
   page.consultationWhiteboard = byId('consultationWhiteboard');
   page.consultationScratchpad = byId('consultationScratchpad');
   page.clearWhiteboardButton = byId('clearWhiteboardButton');
+
   page.closeDiscussionButton = byId('closeDiscussionButton');
   page.discussionButton = byId('discussionButton');
   page.discussionContentInput = byId('discussionContentInput');
+  page.discussionFileInput = byId('discussionFileInput');
   page.discussionForm = byId('discussionForm');
   page.discussionList = byId('discussionList');
   page.discussionPanel = byId('discussionPanel');
@@ -55,6 +56,8 @@ function bindPage() {
   page.goalForm = byId('microGoalForm');
 
   page.goalInput = byId('microGoalTitleInput');
+
+  page.goalModal = byId('microGoalModal');
 
   page.goalQuestionInput = byId('microGoalQuestionInput');
 
@@ -113,7 +116,5 @@ function bindPage() {
 }
 
 function byId(id) {
-
   return document.getElementById(id);
-
 }

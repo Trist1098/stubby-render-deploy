@@ -1,4 +1,3 @@
-// Top-level study-session render orchestration.
 function renderPage() {
   page.title.textContent = sessionData.title || 'Software Engineering Practice';
   updatePausedRemainingSeconds();

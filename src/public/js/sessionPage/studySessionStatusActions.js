@@ -1,4 +1,3 @@
-// Status-change actions for the current member.
 function applyOptimisticCurrentStatus(status) {
   const normalizedStatus = normalizeStatusForApi(status);
   const currentMember = getCurrentMember();
